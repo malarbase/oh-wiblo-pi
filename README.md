@@ -3,23 +3,35 @@
 </p>
 
 <p align="center">
-  <strong>AI coding agent for the terminal</strong>
+  <strong>oh-wiblo-pi — a personal AI coding agent for the terminal</strong>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent"><img src="https://img.shields.io/npm/v/@oh-my-pi/pi-coding-agent?style=flat&colorA=222222&colorB=CB3837" alt="npm version"></a>
-  <a href="https://github.com/can1357/oh-my-pi/blob/main/packages/coding-agent/CHANGELOG.md"><img src="https://img.shields.io/badge/changelog-keep-E05735?style=flat&colorA=222222" alt="Changelog"></a>
-  <a href="https://github.com/can1357/oh-my-pi/actions"><img src="https://img.shields.io/github/actions/workflow/status/can1357/oh-my-pi/ci.yml?style=flat&colorA=222222&colorB=3FB950" alt="CI"></a>
-  <a href="https://github.com/can1357/oh-my-pi/blob/main/LICENSE"><img src="https://img.shields.io/github/license/can1357/oh-my-pi?style=flat&colorA=222222&colorB=58A6FF" alt="License"></a>
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&colorA=222222&logo=typescript&logoColor=white" alt="TypeScript"></a>
   <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-DEA584?style=flat&colorA=222222&logo=rust&logoColor=white" alt="Rust"></a>
   <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-f472b6?style=flat&colorA=222222" alt="Bun"></a>
-  <a href="https://discord.gg/4NMW9cdXZa"><img src="https://img.shields.io/badge/Discord-5865F2?style=flat&colorA=222222&logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
 <p align="center">
-  Fork of <a href="https://github.com/badlogic/pi-mono">badlogic/pi-mono</a> by <a href="https://github.com/mariozechner">@mariozechner</a>
+  Personal fork of <a href="https://github.com/can1357/oh-my-pi">oh-my-pi</a> by <a href="https://github.com/can1357">@can1357</a>,
+  which is itself a fork of <a href="https://github.com/badlogic/pi-mono">badlogic/pi-mono</a> by <a href="https://github.com/mariozechner">@mariozechner</a>
 </p>
+
+---
+
+## oh-wiblo-pi
+
+**oh-wiblo-pi** is a personal, opinionated fork of [oh-my-pi](https://github.com/can1357/oh-my-pi) — a powerful AI coding agent for the terminal. All credit for the underlying agent, tooling, and architecture goes to [can1357](https://github.com/can1357) and the original [pi-mono](https://github.com/badlogic/pi-mono) project.
+
+This fork layers on personal customizations and workflow improvements suited to my day-to-day development, including:
+
+- **Personal skill library**: curated set of agent skills (brag doc tracking, Linear project updates, Google Workspace, OpenSpec workflows) available out of the box
+- **Opinionated defaults**: pre-configured model roles, compaction settings, and display preferences tuned for daily coding sessions
+- **Extended config discovery**: additional config paths and skill directories specific to my toolchain (`~/.agents/`, `~/.claude/`, `~/.codex/`)
+
+Everything upstream from oh-my-pi is preserved. This is purely additive — a personal overlay on top of an excellent foundation.
+
+---
 
 ## Table of Contents
 
@@ -1339,9 +1351,9 @@ Works with session files and JSON event logs from `--mode json`.
 
 ## Philosophy
 
-omp is a fork of [pi-mono](https://github.com/badlogic/pi-mono) by [Mario Zechner](https://github.com/mariozechner), extended with a batteries-included coding workflow.
+oh-wiblo-pi is a personal fork of [oh-my-pi](https://github.com/can1357/oh-my-pi) by [Can Bölük](https://github.com/can1357), which is itself a fork of [pi-mono](https://github.com/badlogic/pi-mono) by [Mario Zechner](https://github.com/mariozechner). oh-my-pi extended pi-mono with a batteries-included coding workflow; oh-wiblo-pi layers personal configuration, curated skills, and workflow integrations on top.
 
-Key ideas:
+Key ideas (inherited from oh-my-pi):
 
 - Keep interactive terminal-first UX for real coding work
 - Include practical built-ins (tools, sessions, branching, subagents, extensibility)
