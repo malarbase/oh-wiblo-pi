@@ -109,6 +109,14 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<BuiltinSlashCommandSpec> = [
 		},
 	},
 	{
+		name: "ask",
+		description: "Toggle ask mode (read-only Q&A, no edits)",
+		handle: async (_command, runtime) => {
+			await runtime.ctx.handleAskModeCommand();
+			runtime.ctx.editor.setText("");
+		},
+	},
+	{
 		name: "model",
 		aliases: ["models"],
 		description: "Select model (opens selector UI)",
@@ -527,6 +535,14 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<BuiltinSlashCommandSpec> = [
 	},
 	{
 		name: "debug",
+		description: "Toggle debug mode (evidence-first debugging with extended thinking)",
+		handle: async (_command, runtime) => {
+			await runtime.ctx.handleDebugModeCommand();
+			runtime.ctx.editor.setText("");
+		},
+	},
+	{
+		name: "debug-tools",
 		description: "Open debug tools selector",
 		handle: (_command, runtime) => {
 			runtime.ctx.showDebugSelector();

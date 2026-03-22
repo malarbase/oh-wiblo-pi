@@ -30,6 +30,7 @@ import "./codex";
 import "./cursor";
 import "./gemini";
 import "./opencode";
+import "./pi";
 import "./github";
 import "./mcp-json";
 import "./ssh";

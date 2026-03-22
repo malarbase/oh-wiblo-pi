@@ -25,6 +25,11 @@ export const SOURCE_PATHS = {
 		},
 		projectDir: CONFIG_DIR_NAME,
 	},
+	pi: {
+		userBase: ".pi",
+		userAgent: ".pi/agent",
+		projectDir: ".pi",
+	},
 	claude: {
 		userBase: ".claude",
 		userAgent: ".claude",
