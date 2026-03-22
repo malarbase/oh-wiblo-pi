@@ -837,6 +837,82 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 	}
 
+	async handleAskModeCommand(): Promise<void> {
+		const state = this.session.getAskModeState();
+		if (state?.enabled) {
+			this.session.disableAskMode();
+			this.statusLine.setAskModeStatus(undefined);
+			this.updateEditorTopBorder();
+			this.ui.requestRender();
+			this.sessionManager.appendModeChange("none");
+			this.showStatus("Ask mode disabled.");
+			return;
+		}
+
+		if (this.planModeEnabled) {
+			await this.#exitPlanMode({ silent: true });
+		}
+
+		this.session.enableAskMode();
+		await this.session.sendAskModeContext();
+		this.statusLine.setAskModeStatus({ enabled: true });
+		this.updateEditorTopBorder();
+		this.ui.requestRender();
+		this.sessionManager.appendModeChange("ask");
+		this.showStatus("Ask mode enabled. Read-only — no edits allowed.");
+	}
+
+	async handleDebugModeCommand(): Promise<void> {
+		const state = this.session.getDebugModeState();
+		if (state?.enabled) {
+			await this.#exitDebugMode();
+			return;
+		}
+
+		if (this.planModeEnabled) {
+			await this.#exitPlanMode({ silent: true });
+		}
+
+		await this.session.enableDebugMode();
+
+		const debugState = this.session.getDebugModeState();
+		if (debugState) {
+			try {
+				const { startLogServer } = await import("./debug-mode/log-server");
+				const server = await startLogServer(debugState.sessionId, debugState.logPath);
+				debugState.server = server.server;
+				debugState.ingestUrl = server.ingestUrl;
+			} catch {
+				debugState.ingestUrl = "";
+			}
+		}
+
+		await this.session.sendDebugModeContext();
+		this.statusLine.setDebugModeStatus({ enabled: true });
+		this.updateEditorTopBorder();
+		this.ui.requestRender();
+		this.sessionManager.appendModeChange("debug");
+		this.showStatus("Debug mode enabled. Extended thinking + evidence-first debugging.");
+	}
+
+	async #exitDebugMode(): Promise<void> {
+		const state = this.session.getDebugModeState();
+		if (state?.server) {
+			try {
+				const server = state.server as { stop: () => void };
+				server.stop();
+			} catch {
+				// best-effort cleanup
+			}
+		}
+		await this.session.disableDebugMode();
+		this.statusLine.setDebugModeStatus(undefined);
+		this.updateEditorTopBorder();
+		this.ui.requestRender();
+		this.sessionManager.appendModeChange("none");
+		this.showStatus("Debug mode disabled.");
+	}
+
 	stop(): void {
 		if (this.loadingAnimation) {
 			this.loadingAnimation.stop();
