@@ -31,6 +31,8 @@ function createPathContext(): SegmentContext {
 		},
 		planMode: null,
 		loopMode: null,
+		askMode: null,
+		debugMode: null,
 		usageStats: {
 			input: 0,
 			output: 0,

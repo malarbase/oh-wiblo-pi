@@ -113,10 +113,15 @@ import {
 	selectDiscoverableMCPToolNamesByServer,
 } from "../mcp/discoverable-tool-metadata";
 import { resolveMemoryBackend } from "../memory-backend";
+import type { AskModeState } from "../modes/ask-mode/state";
+import { wrapToolWithAskModeGuard } from "../modes/ask-mode/tool-guard";
+import type { DebugModeState } from "../modes/debug-mode/state";
 import { getCurrentThemeName, theme } from "../modes/theme/theme";
 import type { PlanModeState } from "../plan-mode/state";
+import askModeContextPrompt from "../prompts/system/ask-mode-context.md" with { type: "text" };
 import autoContinuePrompt from "../prompts/system/auto-continue.md" with { type: "text" };
 import autoHandoffThresholdFocusPrompt from "../prompts/system/auto-handoff-threshold-focus.md" with { type: "text" };
+import debugModeContextPrompt from "../prompts/system/debug-mode-context.md" with { type: "text" };
 import eagerTodoPrompt from "../prompts/system/eager-todo.md" with { type: "text" };
 import handoffDocumentPrompt from "../prompts/system/handoff-document.md" with { type: "text" };
 import ircIncomingTemplate from "../prompts/system/irc-incoming.md" with { type: "text" };
@@ -453,6 +458,8 @@ export class AgentSession {
 	#pendingNextTurnMessages: CustomMessage[] = [];
 	#scheduledHiddenNextTurnGeneration: number | undefined = undefined;
 	#planModeState: PlanModeState | undefined;
+	#askModeState: AskModeState | undefined;
+	#debugModeState: DebugModeState | undefined;
 	#planReferenceSent = false;
 	#planReferencePath = "local://PLAN.md";
 
@@ -609,6 +616,12 @@ export class AgentSession {
 		this.#modelRegistry = config.modelRegistry;
 		this.#validateRetryFallbackChains();
 		this.#toolRegistry = config.toolRegistry ?? new Map();
+		for (const [name, tool] of this.#toolRegistry) {
+			this.#toolRegistry.set(
+				name,
+				wrapToolWithAskModeGuard(tool, () => this.#askModeState),
+			);
+		}
 		this.#transformContext = config.transformContext ?? (messages => messages);
 		this.#onPayload = config.onPayload;
 		this.#onResponse = config.onResponse;
@@ -2451,9 +2464,10 @@ export class AgentSession {
 
 		for (const customTool of mcpTools) {
 			const wrapped = CustomToolAdapter.wrap(customTool, getCustomToolContext) as AgentTool;
-			const finalTool = (
+			const extensionWrapped = (
 				this.#extensionRunner ? new ExtensionToolWrapper(wrapped, this.#extensionRunner) : wrapped
 			) as AgentTool;
+			const finalTool = wrapToolWithAskModeGuard(extensionWrapped, () => this.#askModeState);
 			this.#toolRegistry.set(finalTool.name, finalTool);
 		}
 
@@ -2628,6 +2642,146 @@ export class AgentSession {
 
 	setPlanReferencePath(path: string): void {
 		this.#planReferencePath = path;
+	}
+
+	getAskModeState(): AskModeState | undefined {
+		return this.#askModeState;
+	}
+
+	setAskModeState(state: AskModeState | undefined): void {
+		this.#askModeState = state;
+	}
+
+	getDebugModeState(): DebugModeState | undefined {
+		return this.#debugModeState;
+	}
+
+	setDebugModeState(state: DebugModeState | undefined): void {
+		this.#debugModeState = state;
+	}
+
+	enableAskMode(): void {
+		if (this.#debugModeState?.enabled) {
+			this.disableDebugMode();
+		}
+		if (this.#planModeState?.enabled) {
+			this.setPlanModeState(undefined);
+		}
+		this.#askModeState = { enabled: true };
+	}
+
+	disableAskMode(): void {
+		this.#askModeState = undefined;
+	}
+
+	async enableDebugMode(): Promise<void> {
+		if (this.#askModeState?.enabled) {
+			this.disableAskMode();
+		}
+		if (this.#planModeState?.enabled) {
+			this.setPlanModeState(undefined);
+		}
+
+		if (!this.#toolRegistry.has("ask")) {
+			logger.warn("Debug mode: 'ask' tool not available — reproduce/confirm loop will use RPC fallback");
+		}
+
+		const previousModel = this.model?.id ?? "";
+		const previousThinkingLevel = String(this.thinkingLevel ?? "");
+
+		const slowModel = this.resolveRoleModel("slow");
+		if (slowModel) {
+			await this.setModel(slowModel);
+		}
+		this.setThinkingLevel(ThinkingLevel.High);
+
+		const sessionId = this.sessionId;
+		const logPath = path.resolve(this.sessionManager.getCwd(), `.pi/debug-${sessionId}.log`);
+
+		this.#debugModeState = {
+			enabled: true,
+			sessionId,
+			logPath,
+			ingestUrl: "",
+			previousModel,
+			previousThinkingLevel,
+			server: null,
+		};
+	}
+
+	async disableDebugMode(): Promise<void> {
+		const state = this.#debugModeState;
+		if (!state?.enabled) return;
+
+		if (state.previousModel) {
+			const models = this.getAvailableModels();
+			const prev = models.find(m => m.id === state.previousModel);
+			if (prev) {
+				await this.setModel(prev);
+			}
+		}
+		if (state.previousThinkingLevel) {
+			this.setThinkingLevel(state.previousThinkingLevel as ThinkingLevel);
+		}
+
+		this.#debugModeState = undefined;
+	}
+
+	#buildAskModeMessage(): CustomMessage | null {
+		if (!this.#askModeState?.enabled) return null;
+		return {
+			role: "custom",
+			customType: "ask-mode-context",
+			content: renderPromptTemplate(askModeContextPrompt),
+			display: false,
+			attribution: "agent",
+			timestamp: Date.now(),
+		};
+	}
+
+	#buildDebugModeMessage(): CustomMessage | null {
+		const state = this.#debugModeState;
+		if (!state?.enabled) return null;
+		return {
+			role: "custom",
+			customType: "debug-mode-context",
+			content: renderPromptTemplate(debugModeContextPrompt, {
+				ingestUrl: state.ingestUrl,
+				logPath: state.logPath,
+				sessionId: state.sessionId,
+			}),
+			display: false,
+			attribution: "agent",
+			timestamp: Date.now(),
+		};
+	}
+
+	async sendAskModeContext(options?: { deliverAs?: "steer" | "followUp" | "nextTurn" }): Promise<void> {
+		const message = this.#buildAskModeMessage();
+		if (!message) return;
+		await this.sendCustomMessage(
+			{
+				customType: message.customType,
+				content: message.content,
+				display: message.display,
+				details: message.details,
+			},
+			options ? { deliverAs: options.deliverAs } : undefined,
+		);
+	}
+
+	async sendDebugModeContext(options?: { deliverAs?: "steer" | "followUp" | "nextTurn" }): Promise<void> {
+		const message = this.#buildDebugModeMessage();
+		if (!message) return;
+		await this.sendCustomMessage(
+			{
+				customType: message.customType,
+				content: message.content,
+				display: message.display,
+				details: message.details,
+			},
+			options ? { deliverAs: options.deliverAs } : undefined,
+		);
 	}
 
 	getCheckpointState(): CheckpointState | undefined {
@@ -4241,6 +4395,8 @@ export class AgentSession {
 			const newEntries = this.sessionManager.getEntries();
 			const sessionContext = this.buildDisplaySessionContext();
 			this.agent.replaceMessages(sessionContext.messages);
+			await this.sendAskModeContext();
+			await this.sendDebugModeContext();
 			this.#syncTodoPhasesFromBranch();
 			this.#closeCodexProviderSessionsForHistoryRewrite();
 
@@ -5426,6 +5582,8 @@ export class AgentSession {
 			const newEntries = this.sessionManager.getEntries();
 			const sessionContext = this.buildDisplaySessionContext();
 			this.agent.replaceMessages(sessionContext.messages);
+			await this.sendAskModeContext();
+			await this.sendDebugModeContext();
 			this.#syncTodoPhasesFromBranch();
 			this.#closeCodexProviderSessionsForHistoryRewrite();
 

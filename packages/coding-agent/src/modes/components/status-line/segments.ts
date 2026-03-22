@@ -97,6 +97,30 @@ const modeSegment: StatusLineSegment = {
 	},
 };
 
+const askModeSegment: StatusLineSegment = {
+	id: "ask_mode",
+	render(ctx) {
+		const status = ctx.askMode;
+		if (!status?.enabled) {
+			return { content: "", visible: false };
+		}
+		const content = withIcon(theme.icon.plan, "Ask");
+		return { content: theme.fg("accent", content), visible: true };
+	},
+};
+
+const debugModeSegment: StatusLineSegment = {
+	id: "debug_mode",
+	render(ctx) {
+		const status = ctx.debugMode;
+		if (!status?.enabled) {
+			return { content: "", visible: false };
+		}
+		const content = withIcon(theme.icon.plan, "Debug");
+		return { content: theme.fg("warning", content), visible: true };
+	},
+};
+
 const pathSegment: StatusLineSegment = {
 	id: "path",
 	render(ctx) {
@@ -382,6 +406,8 @@ export const SEGMENTS: Record<StatusLineSegmentId, StatusLineSegment> = {
 	pi: piSegment,
 	model: modelSegment,
 	mode: modeSegment,
+	ask_mode: askModeSegment,
+	debug_mode: debugModeSegment,
 	path: pathSegment,
 	git: gitSegment,
 	pr: prSegment,
