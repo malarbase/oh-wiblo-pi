@@ -1,10 +1,9 @@
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
 import type { Static, TSchema } from "@oh-my-pi/pi-ai";
-import type { AskModeState } from "./state";
 import { isReadOnlyTool } from "./readonly-tools";
+import type { AskModeState } from "./state";
 
-const ASK_MODE_BLOCKED_MESSAGE =
-	"Cannot use write tools in Ask mode. Switch to Agent mode to make changes.";
+const ASK_MODE_BLOCKED_MESSAGE = "Cannot use write tools in Ask mode. Switch to Agent mode to make changes.";
 
 /**
  * Wraps a tool's execute method with an Ask-mode guard that rejects

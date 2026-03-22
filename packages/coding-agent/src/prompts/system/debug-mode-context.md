@@ -36,7 +36,7 @@ They guess based on code alone. You **cannot** and **must NOT** fix bugs this wa
 - In **non-JavaScript languages** (e.g. Python, Go, Rust), instrument by opening the **log path** in append mode using standard library file I/O, writing a single NDJSON line, then closing the file.
 - Each log must map to at least one hypothesis (include hypothesisId in payload)
 - Payload structure: {sessionId, runId, hypothesisId, location, message, data, timestamp}
-- **REQUIRED:** Wrap EACH debug log in a collapsible code region:
+- ****REQUIRED**:** Wrap EACH debug log in a collapsible code region:
   * JS/TS: // #region agent log … // #endregion
 - **FORBIDDEN:** Logging secrets (tokens, passwords, API keys, PII)
 
@@ -52,7 +52,7 @@ They guess based on code alone. You **cannot** and **must NOT** fix bugs this wa
 
 **STEP 6: Keep logs during fixes**
 - When implementing a fix, DO NOT remove debug logs yet
-- Logs MUST remain active for verification runs
+- Logs **MUST** remain active for verification runs
 - You may tag logs with runId="post-fix" to distinguish verification runs from initial debugging runs
 - Only remove logs after a successful post-fix verification run (log-based proof) or explicit user request to remove
 </debug_mode_logging>
@@ -64,5 +64,5 @@ They guess based on code alone. You **cannot** and **must NOT** fix bugs this wa
 - Fixes often fail; iteration is expected and preferred. Taking longer with more data yields better, more precise fixes
 - Keep instrumentation active during fixes; do not remove or modify logs until verification succeeds or the user explicitly confirms.
 - Verification requires before/after log comparison with cited log lines; do not claim success without log proof.
-- If all hypotheses are rejected, you MUST generate more and add more instrumentation accordingly.
+- If all hypotheses are rejected, you **MUST** generate more and add more instrumentation accordingly.
 - **Remove code changes from rejected hypotheses:** When logs prove a hypothesis wrong, revert the code changes made for that hypothesis.

@@ -96,17 +96,17 @@ import {
 	isMCPToolName,
 	selectDiscoverableMCPToolNamesByServer,
 } from "../mcp/discoverable-tool-metadata";
-import { getCurrentThemeName, theme } from "../modes/theme/theme";
-import { normalizeDiff, normalizeToLF, ParseError, previewPatch, stripBom } from "../patch";
 import type { AskModeState } from "../modes/ask-mode/state";
 import { wrapToolWithAskModeGuard } from "../modes/ask-mode/tool-guard";
 import type { DebugModeState } from "../modes/debug-mode/state";
+import { getCurrentThemeName, theme } from "../modes/theme/theme";
+import { normalizeDiff, normalizeToLF, ParseError, previewPatch, stripBom } from "../patch";
 import type { PlanModeState } from "../plan-mode/state";
+import askModeContextPrompt from "../prompts/system/ask-mode-context.md" with { type: "text" };
 import autoHandoffThresholdFocusPrompt from "../prompts/system/auto-handoff-threshold-focus.md" with { type: "text" };
+import debugModeContextPrompt from "../prompts/system/debug-mode-context.md" with { type: "text" };
 import eagerTodoPrompt from "../prompts/system/eager-todo.md" with { type: "text" };
 import handoffDocumentPrompt from "../prompts/system/handoff-document.md" with { type: "text" };
-import askModeContextPrompt from "../prompts/system/ask-mode-context.md" with { type: "text" };
-import debugModeContextPrompt from "../prompts/system/debug-mode-context.md" with { type: "text" };
 import planModeActivePrompt from "../prompts/system/plan-mode-active.md" with { type: "text" };
 import planModeReferencePrompt from "../prompts/system/plan-mode-reference.md" with { type: "text" };
 import planModeToolDecisionReminderPrompt from "../prompts/system/plan-mode-tool-decision-reminder.md" with {
@@ -479,7 +479,10 @@ export class AgentSession {
 		this.#modelRegistry = config.modelRegistry;
 		this.#toolRegistry = config.toolRegistry ?? new Map();
 		for (const [name, tool] of this.#toolRegistry) {
-			this.#toolRegistry.set(name, wrapToolWithAskModeGuard(tool, () => this.#askModeState));
+			this.#toolRegistry.set(
+				name,
+				wrapToolWithAskModeGuard(tool, () => this.#askModeState),
+			);
 		}
 		this.#transformContext = config.transformContext ?? (messages => messages);
 		this.#onPayload = config.onPayload;
@@ -3574,37 +3577,37 @@ export class AgentSession {
 				fromExtension,
 				preserveData,
 			);
-		const newEntries = this.sessionManager.getEntries();
-		const sessionContext = this.sessionManager.buildSessionContext();
-		this.agent.replaceMessages(sessionContext.messages);
-		await this.sendAskModeContext();
-		await this.sendDebugModeContext();
-		this.#syncTodoPhasesFromBranch();
-		this.#closeCodexProviderSessionsForHistoryRewrite();
+			const newEntries = this.sessionManager.getEntries();
+			const sessionContext = this.sessionManager.buildSessionContext();
+			this.agent.replaceMessages(sessionContext.messages);
+			await this.sendAskModeContext();
+			await this.sendDebugModeContext();
+			this.#syncTodoPhasesFromBranch();
+			this.#closeCodexProviderSessionsForHistoryRewrite();
 
-		// Get the saved compaction entry for the hook
-		const savedCompactionEntry = newEntries.find(e => e.type === "compaction" && e.summary === summary) as
-			| CompactionEntry
-			| undefined;
+			// Get the saved compaction entry for the hook
+			const savedCompactionEntry = newEntries.find(e => e.type === "compaction" && e.summary === summary) as
+				| CompactionEntry
+				| undefined;
 
-		if (this.#extensionRunner && savedCompactionEntry) {
-			await this.#extensionRunner.emit({
-				type: "session_compact",
-				compactionEntry: savedCompactionEntry,
-				fromExtension,
-			});
-		}
+			if (this.#extensionRunner && savedCompactionEntry) {
+				await this.#extensionRunner.emit({
+					type: "session_compact",
+					compactionEntry: savedCompactionEntry,
+					fromExtension,
+				});
+			}
 
-		const compactionResult: CompactionResult = {
-			summary,
-			shortSummary,
-			firstKeptEntryId,
-			tokensBefore,
-			details,
-			preserveData,
-		};
-		options?.onComplete?.(compactionResult);
-		return compactionResult;
+			const compactionResult: CompactionResult = {
+				summary,
+				shortSummary,
+				firstKeptEntryId,
+				tokensBefore,
+				details,
+				preserveData,
+			};
+			options?.onComplete?.(compactionResult);
+			return compactionResult;
 		} catch (error) {
 			const err = error instanceof Error ? error : new Error(String(error));
 			options?.onError?.(err);
@@ -4515,34 +4518,34 @@ export class AgentSession {
 			);
 			const newEntries = this.sessionManager.getEntries();
 			const sessionContext = this.sessionManager.buildSessionContext();
-		this.agent.replaceMessages(sessionContext.messages);
-		await this.sendAskModeContext();
-		await this.sendDebugModeContext();
-		this.#syncTodoPhasesFromBranch();
-		this.#closeCodexProviderSessionsForHistoryRewrite();
+			this.agent.replaceMessages(sessionContext.messages);
+			await this.sendAskModeContext();
+			await this.sendDebugModeContext();
+			this.#syncTodoPhasesFromBranch();
+			this.#closeCodexProviderSessionsForHistoryRewrite();
 
-		// Get the saved compaction entry for the hook
-		const savedCompactionEntry = newEntries.find(e => e.type === "compaction" && e.summary === summary) as
-			| CompactionEntry
-			| undefined;
+			// Get the saved compaction entry for the hook
+			const savedCompactionEntry = newEntries.find(e => e.type === "compaction" && e.summary === summary) as
+				| CompactionEntry
+				| undefined;
 
-		if (this.#extensionRunner && savedCompactionEntry) {
-			await this.#extensionRunner.emit({
-				type: "session_compact",
-				compactionEntry: savedCompactionEntry,
-				fromExtension,
-			});
-		}
+			if (this.#extensionRunner && savedCompactionEntry) {
+				await this.#extensionRunner.emit({
+					type: "session_compact",
+					compactionEntry: savedCompactionEntry,
+					fromExtension,
+				});
+			}
 
-		const result: CompactionResult = {
-			summary,
-			shortSummary,
-			firstKeptEntryId,
-			tokensBefore,
-			details,
-			preserveData,
-		};
-		await this.#emitSessionEvent({ type: "auto_compaction_end", action, result, aborted: false, willRetry });
+			const result: CompactionResult = {
+				summary,
+				shortSummary,
+				firstKeptEntryId,
+				tokensBefore,
+				details,
+				preserveData,
+			};
+			await this.#emitSessionEvent({ type: "auto_compaction_end", action, result, aborted: false, willRetry });
 
 			if (!willRetry && compactionSettings.autoContinue !== false) {
 				const continuePrompt = async () => {
