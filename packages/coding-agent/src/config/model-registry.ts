@@ -6,6 +6,7 @@ import {
 	createModelManager,
 	DEFAULT_LOCAL_TOKEN,
 	enrichModelThinking,
+	fetchOpenAICompatibleModels,
 	getBundledModels,
 	getBundledProviders,
 	googleAntigravityModelManagerOptions,
@@ -30,6 +31,7 @@ import { type Static, Type } from "@sinclair/typebox";
 import { type ConfigError, ConfigFile } from "../config";
 import type { ThemeColor } from "../modes/theme/theme";
 import type { AuthStorage, OAuthCredential } from "../session/auth-storage";
+import { resolveConfigValue } from "./resolve-config-value";
 
 export const kNoAuth = "N/A";
 
@@ -184,7 +186,12 @@ const ModelOverrideSchema = Type.Object({
 type ModelOverride = Static<typeof ModelOverrideSchema>;
 
 const ProviderDiscoverySchema = Type.Object({
-	type: Type.Union([Type.Literal("ollama"), Type.Literal("llama.cpp"), Type.Literal("lm-studio")]),
+	type: Type.Union([
+		Type.Literal("ollama"),
+		Type.Literal("llama.cpp"),
+		Type.Literal("lm-studio"),
+		Type.Literal("openai-compatible"),
+	]),
 });
 
 const ProviderAuthSchema = Type.Union([Type.Literal("apiKey"), Type.Literal("none")]);
@@ -278,6 +285,9 @@ function validateProviderConfiguration(
 
 	if (mode === "models-config" && config.discovery && !config.api) {
 		throw new Error(`Provider ${providerName}: "api" is required when discovery is enabled at provider level.`);
+	}
+	if (mode === "models-config" && config.discovery?.type === "openai-compatible" && !config.baseUrl) {
+		throw new Error(`Provider ${providerName}: "baseUrl" is required for openai-compatible discovery.`);
 	}
 
 	for (const modelDef of models) {
@@ -378,13 +388,50 @@ type LlamaCppDiscoveredServerMetadata = {
 };
 
 /**
- * Resolve an API key config value to an actual key.
+ * Resolve an API key config value to an actual key synchronously.
  * Checks environment variable first, then treats as literal.
+ * NOTE: Does NOT support "!command" syntax — use resolveApiKeyConfigAsync for that.
  */
 function resolveApiKeyConfig(keyConfig: string): string | undefined {
+	if (keyConfig.startsWith("!")) {
+		// "!command" values must be resolved asynchronously; return undefined here so
+		// callers that can await use resolveApiKeyConfigAsync instead.
+		return undefined;
+	}
 	const envValue = Bun.env[keyConfig];
 	if (envValue) return envValue;
 	return keyConfig;
+}
+
+/**
+ * Resolve an API key config value to an actual key, supporting "!command" syntax.
+ */
+async function resolveApiKeyConfigAsync(keyConfig: string): Promise<string | undefined> {
+	return resolveConfigValue(keyConfig);
+}
+
+/**
+ * Resolve a "!command" API key config value synchronously.
+ * Falls back to Bun.spawnSync so the sync fallback resolver in AuthStorage
+ * can return a value for hasAuth() before async refresh() runs.
+ */
+function resolveApiKeyConfigSync(keyConfig: string): string | undefined {
+	if (!keyConfig.startsWith("!")) {
+		return resolveApiKeyConfig(keyConfig);
+	}
+	const command = keyConfig.slice(1);
+	try {
+		const result = Bun.spawnSync(["sh", "-c", command], {
+			stdout: "pipe",
+			stderr: "ignore",
+			timeout: 5_000,
+		});
+		if (result.exitCode !== 0) return undefined;
+		const output = result.stdout.toString().trim();
+		return output.length > 0 ? output : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 function toPositiveNumberOrUndefined(value: unknown): number | undefined {
@@ -559,9 +606,13 @@ function mergeCustomModelHeaders(
 ): Record<string, string> | undefined {
 	let headers = providerHeaders || modelHeaders ? { ...providerHeaders, ...modelHeaders } : undefined;
 	if (authHeader && apiKeyConfig) {
-		const resolvedKey = resolveApiKeyConfig(apiKeyConfig);
-		if (resolvedKey) {
-			headers = { ...headers, Authorization: `Bearer ${resolvedKey}` };
+		// "!command" keys must be resolved asynchronously; skip baking the Authorization
+		// header at construction time — it will be resolved via getApiKey() at request time.
+		if (!apiKeyConfig.startsWith("!")) {
+			const resolvedKey = resolveApiKeyConfig(apiKeyConfig);
+			if (resolvedKey) {
+				headers = { ...headers, Authorization: `Bearer ${resolvedKey}` };
+			}
 		}
 	}
 	return headers;
@@ -620,6 +671,12 @@ export class ModelRegistry {
 	#lastDiscoveryWarnings: Map<string, string> = new Map();
 
 	/**
+	 * Stores pre-resolved values for "!command" API keys from models.json.
+	 * Populated during refresh() so the sync fallback resolver can return them.
+	 */
+	#resolvedCommandApiKeys: Map<string, string> = new Map();
+
+	/**
 	 * @param authStorage - Auth storage for API key resolution
 	 */
 	constructor(
@@ -628,13 +685,20 @@ export class ModelRegistry {
 	) {
 		this.#modelsConfigFile = ModelsConfigFile.relocate(modelsPath);
 		this.#cacheDbPath = modelsPath ? path.join(path.dirname(modelsPath), "models.db") : undefined;
-		// Set up fallback resolver for custom provider API keys
+		// Set up fallback resolver for custom provider API keys.
+		// For "!command" values, resolves synchronously via spawnSync and caches the result
+		// so hasAuth() works immediately (before the async refresh() runs).
 		this.authStorage.setFallbackResolver(provider => {
 			const keyConfig = this.#customProviderApiKeys.get(provider);
-			if (keyConfig) {
-				return resolveApiKeyConfig(keyConfig);
+			if (!keyConfig) return undefined;
+			if (keyConfig.startsWith("!")) {
+				const cached = this.#resolvedCommandApiKeys.get(provider);
+				if (cached !== undefined) return cached;
+				const resolved = resolveApiKeyConfigSync(keyConfig);
+				if (resolved) this.#resolvedCommandApiKeys.set(provider, resolved);
+				return resolved;
 			}
-			return undefined;
+			return resolveApiKeyConfig(keyConfig);
 		});
 		// Load models synchronously in constructor
 		this.#loadModels();
@@ -645,7 +709,27 @@ export class ModelRegistry {
 	 */
 	async refresh(strategy: ModelRefreshStrategy = "online-if-uncached"): Promise<void> {
 		this.#reloadStaticModels();
+		await this.#resolveCommandApiKeys();
 		await this.#refreshRuntimeDiscoveries(strategy);
+	}
+
+	/**
+	 * Pre-resolve any "!command" API keys from models.json so the sync fallback
+	 * resolver can return them. Results are cached by resolveConfigValue().
+	 */
+	async #resolveCommandApiKeys(): Promise<void> {
+		const commandEntries = [...this.#customProviderApiKeys.entries()].filter(([, v]) => v.startsWith("!"));
+		if (commandEntries.length === 0) return;
+		await Promise.all(
+			commandEntries.map(async ([provider, keyConfig]) => {
+				const resolved = await resolveApiKeyConfigAsync(keyConfig);
+				if (resolved) {
+					this.#resolvedCommandApiKeys.set(provider, resolved);
+				} else {
+					this.#resolvedCommandApiKeys.delete(provider);
+				}
+			}),
+		);
 	}
 
 	refreshInBackground(strategy: ModelRefreshStrategy = "online-if-uncached"): void {
@@ -674,6 +758,7 @@ export class ModelRegistry {
 	#reloadStaticModels(): void {
 		this.#modelsConfigFile.invalidate();
 		this.#customProviderApiKeys.clear();
+		this.#resolvedCommandApiKeys.clear();
 		this.#keylessProviders.clear();
 		this.#discoverableProviders = [];
 		this.#modelOverrides.clear();
@@ -1031,6 +1116,8 @@ export class ModelRegistry {
 				return this.#discoverLlamaCppModels(providerConfig);
 			case "lm-studio":
 				return this.#discoverLmStudioModels(providerConfig);
+			case "openai-compatible":
+				return this.#discoverOpenAICompatibleModels(providerConfig);
 		}
 	}
 
@@ -1368,6 +1455,27 @@ export class ModelRegistry {
 					},
 				}),
 			);
+		}
+		return this.#applyProviderModelOverrides(providerConfig.provider, discovered);
+	}
+
+	async #discoverOpenAICompatibleModels(providerConfig: DiscoveryProviderConfig): Promise<Model<Api>[]> {
+		const baseUrl = providerConfig.baseUrl;
+		if (!baseUrl) {
+			throw new Error(`Provider ${providerConfig.provider}: "baseUrl" is required for openai-compatible discovery.`);
+		}
+
+		const apiKey = await this.authStorage.getApiKey(providerConfig.provider);
+		const discovered = await fetchOpenAICompatibleModels<Api>({
+			api: providerConfig.api,
+			provider: providerConfig.provider,
+			baseUrl,
+			apiKey: apiKey && apiKey !== DEFAULT_LOCAL_TOKEN && apiKey !== kNoAuth ? apiKey : undefined,
+			headers: providerConfig.headers,
+			signal: AbortSignal.timeout(5000),
+		});
+		if (discovered === null) {
+			throw new Error(`Failed to fetch models from ${baseUrl}/models`);
 		}
 		return this.#applyProviderModelOverrides(providerConfig.provider, discovered);
 	}
