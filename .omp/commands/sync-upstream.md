@@ -10,9 +10,13 @@ Rebase `fork/main` against `upstream/main` (omp → owp).
    bun .omp/skills/sync-upstream/sync.ts
    ```
 3. If conflicts are reported, resolve them using the decision tree from the skill, then run `git rebase --continue` and re-run the script to check for more.
-4. Once the script reports success, verify `~/.omp/agent/models.yml` is still valid — start omp and check for any `Schema error: /providers/.../...` in the output. If the schema changed in `src/config/model-registry.ts`, update `models.yml` to match (e.g. a `discovery.type` value may no longer be accepted).
-5. Update `docs/maintaining-owp-fork.md` § Last Sync Point with the values it prints.
-6. Push with `--push` flag or manually:
+4. If upstream changed `packages/natives/` or `crates/`, rebuild the native addon before testing:
+   ```bash
+   mise exec -- bun --cwd=packages/natives run build:native
+   ```
+5. Verify `~/.omp/agent/models.yml` is still valid — start omp and check for any `Schema error: /providers/.../...` in the output. If the schema changed in `src/config/model-registry.ts`, update `models.yml` to match (e.g. a `discovery.type` value may no longer be accepted).
+6. Update `docs/maintaining-owp-fork.md` § Last Sync Point with the values it prints.
+7. Push with `--push` flag or manually:
    ```bash
    bun .omp/skills/sync-upstream/sync.ts --push
    ```

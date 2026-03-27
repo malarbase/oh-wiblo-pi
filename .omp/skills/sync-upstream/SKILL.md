@@ -78,10 +78,15 @@ question: adapt our feature to upstream's change, or drop the upstream change?
 ## After Resolution
 
 Once all conflicts are resolved:
-1. `bun check:ts` must pass — do not push if it fails
-2. Start omp and confirm no `Schema error` in the startup output. If `~/.omp/agent/models.yml` fails schema validation (e.g. an invalid `discovery.type`), fix it before continuing — schema changes in `src/config/model-registry.ts` are not flagged by `bun check:ts`.
-3. Update `docs/maintaining-owp-fork.md` § Last Sync Point with the new upstream base commit and date
-4. `git push origin main --force-with-lease`
+1. If upstream changed `packages/natives/` or `crates/`, rebuild the native addon — otherwise omp will fail to start with a missing symbol error:
+   ```bash
+   mise exec -- bun --cwd=packages/natives run build:native
+   ```
+   Native build dependencies (e.g. `zig`) are declared in `mise.toml`. Run `mise install` first if a tool is missing.
+2. `bun check:ts` must pass — do not push if it fails.
+3. Start omp and confirm no `Schema error` in the startup output. If `~/.omp/agent/models.yml` fails schema validation (e.g. an invalid `discovery.type`), fix it before continuing — schema changes in `src/config/model-registry.ts` are not flagged by `bun check:ts`.
+4. Update `docs/maintaining-owp-fork.md` § Last Sync Point with the new upstream base commit and date.
+5. `git push origin main --force-with-lease`
 
 ## Rollback
 
