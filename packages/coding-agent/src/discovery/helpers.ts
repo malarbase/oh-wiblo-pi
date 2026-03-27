@@ -320,7 +320,7 @@ export async function scanSkillsFromDir(
 		}
 		return { items, warnings };
 	}
-	const loadSkill = async (skillPath: string) => {
+	const loadSkill = async (skillPath: string, parentDirName?: string) => {
 		try {
 			const content = await readFile(skillPath);
 			if (!content) return;
@@ -334,6 +334,20 @@ export async function scanSkillsFromDir(
 			const skillDirName = path.basename(path.dirname(skillPath));
 			const rawName = frontmatter.name;
 			const name = typeof rawName === "string" ? rawName.trim() || skillDirName : skillDirName;
+
+			// Extract metadata from frontmatter
+			const metadata = frontmatter.metadata as Record<string, unknown> | undefined;
+			const author = typeof metadata?.author === "string" ? metadata.author : undefined;
+			const repo = typeof metadata?.repo === "string" ? metadata.repo : undefined;
+			const tags = parseArrayOrCSV(metadata?.tags);
+
+			// Determine directory-based group (fallback when metadata absent)
+			let group: string | undefined;
+			if (!repo && !author && parentDirName) {
+				// Two-level nesting: skills/<group>/<skill>/SKILL.md
+				group = parentDirName;
+			}
+
 			items.push({
 				name,
 				path: skillPath,
@@ -341,6 +355,10 @@ export async function scanSkillsFromDir(
 				frontmatter: frontmatter as SkillFrontmatter,
 				level,
 				_source: createSourceMeta(providerId, skillPath, level),
+				author,
+				repo,
+				tags,
+				group,
 			});
 		} catch {
 			warnings.push(`Failed to read skill file: ${skillPath}`);
@@ -351,9 +369,28 @@ export async function scanSkillsFromDir(
 	for (const entry of entries) {
 		if (entry.name.startsWith(".")) continue;
 		if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+
+		// Check for SKILL.md at same level (flat structure)
 		const skillPath = path.join(dir, entry.name, "SKILL.md");
 		if (fs.existsSync(skillPath)) {
 			work.push(loadSkill(skillPath));
+			continue;
+		}
+
+		// Check for nested skills in subdirectories (two-level structure)
+		const parentPath = path.join(dir, entry.name);
+		try {
+			const nestedEntries = await fs.promises.readdir(parentPath, { withFileTypes: true });
+			for (const nestedEntry of nestedEntries) {
+				if (nestedEntry.name.startsWith(".")) continue;
+				if (!nestedEntry.isDirectory() && !nestedEntry.isSymbolicLink()) continue;
+				const nestedSkillPath = path.join(parentPath, nestedEntry.name, "SKILL.md");
+				if (fs.existsSync(nestedSkillPath)) {
+					work.push(loadSkill(nestedSkillPath, entry.name));
+				}
+			}
+		} catch {
+			// Nested directory read failed, skip
 		}
 	}
 	await Promise.all(work);
