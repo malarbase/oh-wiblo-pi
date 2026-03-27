@@ -39,6 +39,7 @@ import {
 	formatCanonicalVariantSelector,
 	type ModelEquivalenceConfig,
 } from "./model-equivalence";
+import { resolveConfigValue } from "./resolve-config-value";
 import { type Settings, settings } from "./settings";
 
 export type { CanonicalModelIndex, CanonicalModelRecord, CanonicalModelVariant, ModelEquivalenceConfig };
@@ -221,6 +222,19 @@ const ModelDefinitionSchema = Type.Object({
 	contextPromotionTarget: Type.Optional(Type.String({ minLength: 1 })),
 });
 
+// Subset of LiteLLM /v1/model/info model_info fields that we consume.
+// All fields are optional — older LiteLLM versions may omit some.
+interface LiteLLMModelInfo {
+	max_input_tokens?: number;
+	max_output_tokens?: number;
+	input_cost_per_token?: number;
+	output_cost_per_token?: number;
+	cache_read_input_token_cost?: number;
+	cache_creation_input_token_cost?: number;
+	supports_reasoning?: boolean;
+	supports_vision?: boolean;
+}
+
 // Schema for per-model overrides (all fields optional, merged with built-in model)
 const ModelOverrideSchema = Type.Object({
 	name: Type.Optional(Type.String({ minLength: 1 })),
@@ -246,7 +260,12 @@ const ModelOverrideSchema = Type.Object({
 type ModelOverride = Static<typeof ModelOverrideSchema>;
 
 const ProviderDiscoverySchema = Type.Object({
-	type: Type.Union([Type.Literal("ollama"), Type.Literal("llama.cpp"), Type.Literal("lm-studio")]),
+	type: Type.Union([
+		Type.Literal("ollama"),
+		Type.Literal("llama.cpp"),
+		Type.Literal("lm-studio"),
+		Type.Literal("openai-compatible"),
+	]),
 });
 
 const ProviderAuthSchema = Type.Union([Type.Literal("apiKey"), Type.Literal("none")]);
@@ -461,6 +480,34 @@ function resolveApiKeyConfig(keyConfig: string): string | undefined {
 	const envValue = Bun.env[keyConfig];
 	if (envValue) return envValue;
 	return keyConfig;
+}
+
+/**
+ * Async version of resolveApiKeyConfig that also handles "!command" strings.
+ * Delegates to resolveConfigValue which caches command results.
+ */
+async function resolveApiKeyConfigAsync(keyConfig: string): Promise<string | undefined> {
+	return resolveConfigValue(keyConfig);
+}
+
+/**
+ * Synchronous resolution of "!command" config strings via Bun.spawnSync.
+ * Used only at construction/reload to populate the cache before async refresh() runs.
+ * For non-command strings, falls back to env-var lookup then literal.
+ */
+function resolveApiKeyConfigSync(keyConfig: string): string | undefined {
+	if (!keyConfig.startsWith("!")) {
+		return Bun.env[keyConfig] || keyConfig;
+	}
+	const command = keyConfig.slice(1);
+	try {
+		const result = Bun.spawnSync(["sh", "-c", command], { stdout: "pipe", stderr: "pipe" });
+		if (result.exitCode !== 0) return undefined;
+		const output = result.stdout.toString().trim();
+		return output.length > 0 ? output : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 function toPositiveNumberOrUndefined(value: unknown): number | undefined {
@@ -777,6 +824,24 @@ export class ModelRegistry {
 	#runtimeProviderSourceByName: Map<string, string> = new Map();
 
 	/**
+	 * Stores pre-resolved values for "!command" API keys from models.json.
+	 * Populated during refresh() so the sync fallback resolver can return them.
+	 */
+	#resolvedCommandApiKeys: Map<string, string> = new Map();
+
+	/**
+	 * Stores raw baseUrl config values from models.yml that may be env-var names or "!command" strings.
+	 * Populated during #loadCustomModels() for async resolution in refresh().
+	 */
+	#customProviderBaseUrls: Map<string, string> = new Map();
+
+	/**
+	 * Stores pre-resolved values for "!command" baseUrl entries from models.yml.
+	 * Populated during refresh() so #loadModels() can substitute them on the next reload.
+	 */
+	#resolvedCommandBaseUrls: Map<string, string> = new Map();
+
+	/**
 	 * @param authStorage - Auth storage for API key resolution
 	 */
 	constructor(
@@ -785,15 +850,24 @@ export class ModelRegistry {
 	) {
 		this.#modelsConfigFile = ModelsConfigFile.relocate(modelsPath);
 		this.#cacheDbPath = modelsPath ? path.join(path.dirname(modelsPath), "models.db") : undefined;
-		// Set up fallback resolver for custom provider API keys
+		// Set up fallback resolver for custom provider API keys.
+		// Only reads from the pre-resolved cache — never calls spawnSync here, as this
+		// resolver is invoked on every hasAuth() call (including sync TUI render paths).
 		this.authStorage.setFallbackResolver(provider => {
 			const keyConfig = this.#customProviderApiKeys.get(provider);
-			if (keyConfig) {
-				return resolveApiKeyConfig(keyConfig);
+			if (!keyConfig) return undefined;
+			if (keyConfig.startsWith("!")) {
+				return this.#resolvedCommandApiKeys.get(provider);
 			}
 			return undefined;
 		});
-		// Load models synchronously in constructor
+		// Load models synchronously to populate #customProvider* maps, then eagerly
+		// resolve !command values via spawnSync so cached models get the correct URLs
+		// and the auth fallback resolver works before async refresh() runs.
+		this.#loadModels();
+		this.#eagerResolveCommandApiKeys();
+		this.#eagerResolveCommandBaseUrls();
+		// Reload so #loadCachedDiscoverableModels() picks up the resolved baseUrls.
 		this.#loadModels();
 	}
 
@@ -801,9 +875,52 @@ export class ModelRegistry {
 	 * Reload models from disk (built-in + custom from models.json).
 	 */
 	async refresh(strategy: ModelRefreshStrategy = "online-if-uncached"): Promise<void> {
+		// First pass: sync load populates #customProvider* maps with raw config values.
 		this.#reloadStaticModels();
 		this.#suppressedSelectors.clear();
+		// Async-resolve any "!command" or env-var values for API keys and base URLs in parallel.
+		await Promise.all([this.#resolveCommandApiKeys(), this.#resolveCommandBaseUrls()]);
+		// Second pass: reload with resolved values substituted in.
+		this.#loadModels();
 		await this.#refreshRuntimeDiscoveries(strategy);
+	}
+
+	/**
+	 * Pre-resolve any "!command" API keys from models.json so the sync fallback
+	 * resolver can return them. Results are cached by resolveConfigValue().
+	 */
+	async #resolveCommandApiKeys(): Promise<void> {
+		const commandEntries = [...this.#customProviderApiKeys.entries()].filter(([, v]) => v.startsWith("!"));
+		if (commandEntries.length === 0) return;
+		await Promise.all(
+			commandEntries.map(async ([provider, keyConfig]) => {
+				const resolved = await resolveApiKeyConfigAsync(keyConfig);
+				if (resolved) {
+					this.#resolvedCommandApiKeys.set(provider, resolved);
+				} else {
+					this.#resolvedCommandApiKeys.delete(provider);
+				}
+			}),
+		);
+	}
+
+	/**
+	 * Pre-resolve any "!command" or env-var baseUrl values from models.yml.
+	 * Mirrors #resolveCommandApiKeys(); results cached so #loadModels() can use them on next reload.
+	 */
+	async #resolveCommandBaseUrls(): Promise<void> {
+		if (this.#customProviderBaseUrls.size === 0) return;
+		await Promise.all(
+			[...this.#customProviderBaseUrls.entries()].map(async ([provider, urlConfig]) => {
+				const resolved = await resolveConfigValue(urlConfig);
+				if (resolved) {
+					this.#resolvedCommandBaseUrls.set(provider, resolved);
+				} else {
+					this.#resolvedCommandBaseUrls.delete(provider);
+				}
+			}),
+		);
+		// Caller (refresh) handles the reload after all async resolutions complete.
 	}
 
 	refreshInBackground(strategy: ModelRefreshStrategy = "online-if-uncached"): void {
@@ -837,6 +954,8 @@ export class ModelRegistry {
 	#reloadStaticModels(): void {
 		this.#modelsConfigFile.invalidate();
 		this.#customProviderApiKeys.clear();
+		this.#resolvedCommandApiKeys.clear();
+		this.#customProviderBaseUrls.clear();
 		this.#keylessProviders.clear();
 		this.#discoverableProviders = [];
 		// Restore runtime API keys before #loadModels — survives because
@@ -850,6 +969,37 @@ export class ModelRegistry {
 		this.#configError = undefined;
 		this.#providerDiscoveryStates.clear();
 		this.#loadModels();
+		this.#eagerResolveCommandApiKeys();
+		this.#eagerResolveCommandBaseUrls();
+		this.#loadModels();
+	}
+
+	/**
+	 * Eagerly resolve all "!command" API keys synchronously (spawnSync) right after
+	 * #loadModels() so the fallback resolver never blocks the event loop.
+	 * Called once at construction and once at the start of each #reloadStaticModels().
+	 */
+	#eagerResolveCommandApiKeys(): void {
+		for (const [provider, keyConfig] of this.#customProviderApiKeys) {
+			if (!keyConfig.startsWith("!")) continue;
+			if (this.#resolvedCommandApiKeys.has(provider)) continue;
+			const resolved = resolveApiKeyConfigSync(keyConfig);
+			if (resolved) this.#resolvedCommandApiKeys.set(provider, resolved);
+		}
+	}
+
+	/**
+	 * Eagerly resolve all "!command" baseUrl values synchronously (spawnSync) right after
+	 * #loadModels() so #loadCachedDiscoverableModels() can rewrite stale cached URLs
+	 * before the async refresh() runs. Called once at construction and after each reload.
+	 */
+	#eagerResolveCommandBaseUrls(): void {
+		for (const [provider, urlConfig] of this.#customProviderBaseUrls) {
+			if (!urlConfig.startsWith("!")) continue;
+			if (this.#resolvedCommandBaseUrls.has(provider)) continue;
+			const resolved = resolveApiKeyConfigSync(urlConfig);
+			if (resolved) this.#resolvedCommandBaseUrls.set(provider, resolved);
+		}
 	}
 
 	/**
@@ -974,11 +1124,15 @@ export class ModelRegistry {
 				});
 				continue;
 			}
+			const resolvedBaseUrl = this.#resolvedCommandBaseUrls.get(providerConfig.provider);
 			const models = this.#applyProviderModelOverrides(
 				providerConfig.provider,
 				this.#normalizeDiscoverableModels(
 					providerConfig,
-					this.#applyProviderCompat(providerConfig.compat, cache.models),
+					this.#applyProviderCompat(
+						providerConfig.compat,
+						this.#rewriteProviderBaseUrl(cache.models, resolvedBaseUrl ?? providerConfig.baseUrl),
+					),
 				),
 			);
 			cachedModels.push(...models);
@@ -1077,10 +1231,32 @@ export class ModelRegistry {
 		const configuredProviders = new Set(Object.keys(value.providers ?? {}));
 
 		for (const [providerName, providerConfig] of providerEntries) {
+			// Resolve baseUrl using the same semantics as apiKey:
+			// - "!command" → executed async; use pre-resolved cache from #resolveCommandBaseUrls()
+			// - plain string → treat as env-var name first, then literal
+			const rawBaseUrl = providerConfig.baseUrl;
+			let resolvedBaseUrl: string | undefined;
+			if (rawBaseUrl !== undefined) {
+				if (rawBaseUrl.startsWith("!")) {
+					// Store for async resolution; use cached value if already resolved.
+					this.#customProviderBaseUrls.set(providerName, rawBaseUrl);
+					resolvedBaseUrl = this.#resolvedCommandBaseUrls.get(providerName);
+				} else {
+					// Env-var name or literal — resolve synchronously (same as resolveApiKeyConfig).
+					resolvedBaseUrl = Bun.env[rawBaseUrl] || rawBaseUrl;
+				}
+			}
+
 			// Always set overrides when baseUrl/headers/apiKey/compat are present
-			if (providerConfig.baseUrl || providerConfig.headers || providerConfig.apiKey || providerConfig.compat) {
+			if (
+				resolvedBaseUrl ||
+				rawBaseUrl ||
+				providerConfig.headers ||
+				providerConfig.apiKey ||
+				providerConfig.compat
+			) {
 				overrides.set(providerName, {
-					baseUrl: providerConfig.baseUrl,
+					baseUrl: resolvedBaseUrl,
 					headers: providerConfig.headers,
 					apiKey: providerConfig.apiKey,
 					compat: providerConfig.compat,
@@ -1096,7 +1272,7 @@ export class ModelRegistry {
 				discoverableProviders.push({
 					provider: providerName,
 					api: providerConfig.api as Api,
-					baseUrl: providerConfig.baseUrl,
+					baseUrl: resolvedBaseUrl,
 					headers: providerConfig.headers,
 					compat: providerConfig.compat,
 					discovery: providerConfig.discovery,
@@ -1154,24 +1330,18 @@ export class ModelRegistry {
 		}
 		const discoveredModels = this.#applyHardcodedModelPolicies(
 			discovered.map(model => {
-				const existing = this.find(model.provider, model.id);
-				if (existing) {
-					return {
-						...model,
-						baseUrl: existing.baseUrl,
-						headers: existing.headers ? { ...existing.headers, ...model.headers } : model.headers,
-					};
-				}
-				const providerOverride = this.#providerOverrides.get(model.provider);
-				return providerOverride
-					? {
-							...model,
-							baseUrl: providerOverride.baseUrl ?? model.baseUrl,
-							headers: providerOverride.headers
-								? { ...model.headers, ...providerOverride.headers }
-								: model.headers,
-						}
-					: model;
+				const existing =
+					this.find(model.provider, model.id) ??
+					this.#models.find(candidate => candidate.provider === model.provider);
+				if (!existing) return model;
+				// Don't copy baseUrl from existing when the provider uses a "!command"
+				// baseUrl — the discovered model already has the freshly-resolved URL.
+				const hasCommandBaseUrl = this.#resolvedCommandBaseUrls.has(model.provider);
+				return {
+					...model,
+					baseUrl: hasCommandBaseUrl ? model.baseUrl : existing.baseUrl,
+					headers: existing.headers ? { ...existing.headers, ...model.headers } : model.headers,
+				};
 			}),
 		);
 		const resolved = this.#mergeResolvedModels(this.#models, discoveredModels);
@@ -1187,6 +1357,14 @@ export class ModelRegistry {
 		providerConfig: DiscoveryProviderConfig,
 		strategy: ModelRefreshStrategy,
 	): Promise<Model<Api>[]> {
+		// If baseUrl was a "!command" value, substitute the now-resolved value.
+		// This applies whether or not providerConfig.baseUrl was already set, since
+		// the cached models.db may contain a stale URL from a previous run with
+		// a different !command result (e.g. switching between dev/prod endpoints).
+		const resolvedBaseUrl = this.#resolvedCommandBaseUrls.get(providerConfig.provider);
+		if (resolvedBaseUrl) {
+			providerConfig = { ...providerConfig, baseUrl: resolvedBaseUrl };
+		}
 		const cached = readModelCache<Api>(providerConfig.provider, 24 * 60 * 60 * 1000, Date.now, this.#cacheDbPath);
 		const requiresAuth = !this.#keylessProviders.has(providerConfig.provider);
 		if (requiresAuth) {
@@ -1201,7 +1379,7 @@ export class ModelRegistry {
 					models: cached?.models.map(model => model.id) ?? [],
 				});
 				this.#lastDiscoveryWarnings.delete(providerConfig.provider);
-				return cached?.models ?? [];
+				return this.#rewriteProviderBaseUrl(cached?.models ?? [], providerConfig.baseUrl);
 			}
 		}
 
@@ -1251,9 +1429,21 @@ export class ModelRegistry {
 			providerId,
 			this.#normalizeDiscoverableModels(
 				providerConfig,
-				this.#applyProviderCompat(providerConfig.compat, result.models),
+				this.#applyProviderCompat(
+					providerConfig.compat,
+					this.#rewriteProviderBaseUrl(result.models, providerConfig.baseUrl),
+				),
 			),
 		);
+	}
+
+	/**
+	 * If the provider has a config-driven baseUrl (from a "!command" resolution),
+	 * rewrite it on all models so stale cached URLs never leak through.
+	 */
+	#rewriteProviderBaseUrl(models: readonly Model<Api>[], baseUrl: string | undefined): Model<Api>[] {
+		if (!baseUrl) return [...models];
+		return models.map(m => (m.baseUrl === baseUrl ? m : { ...m, baseUrl }));
 	}
 
 	#discoverModelsByProviderType(providerConfig: DiscoveryProviderConfig): Promise<Model<Api>[]> {
@@ -1264,6 +1454,8 @@ export class ModelRegistry {
 				return this.#discoverLlamaCppModels(providerConfig);
 			case "lm-studio":
 				return this.#discoverLmStudioModels(providerConfig);
+			case "openai-compatible":
+				return this.#discoverOpenAICompatibleModels(providerConfig);
 		}
 	}
 
@@ -1605,6 +1797,129 @@ export class ModelRegistry {
 		return this.#applyProviderModelOverrides(providerConfig.provider, discovered);
 	}
 
+	async #discoverOpenAICompatibleModels(providerConfig: DiscoveryProviderConfig): Promise<Model<Api>[]> {
+		const baseUrl = providerConfig.baseUrl ?? "";
+		const headers: Record<string, string> = { ...(providerConfig.headers ?? {}) };
+		const apiKey = await this.authStorage.getApiKey(providerConfig.provider);
+		if (apiKey) {
+			headers.Authorization = `Bearer ${apiKey}`;
+		}
+
+		// Prefer /v1/model/info (LiteLLM) — carries max_input_tokens, max_output_tokens,
+		// cost, and capability flags per model. Fall back to /v1/models which only has ids.
+		const modelInfo = await this.#fetchLiteLLMModelInfo(baseUrl, headers);
+		if (modelInfo) {
+			return this.#applyProviderModelOverrides(
+				providerConfig.provider,
+				modelInfo.map(({ id, info }) =>
+					enrichModelThinking({
+						id,
+						name: id,
+						api: providerConfig.api,
+						provider: providerConfig.provider,
+						baseUrl,
+						// LiteLLM reports true when any backend supports reasoning
+						reasoning: info.supports_reasoning === true,
+						input: info.supports_vision === true ? ["text", "image"] : ["text"],
+						cost: {
+							input: (info.input_cost_per_token ?? 0) * 1_000_000,
+							output: (info.output_cost_per_token ?? 0) * 1_000_000,
+							cacheRead: (info.cache_read_input_token_cost ?? 0) * 1_000_000,
+							cacheWrite: (info.cache_creation_input_token_cost ?? 0) * 1_000_000,
+						},
+						contextWindow: info.max_input_tokens ?? 128_000,
+						maxTokens: info.max_output_tokens ?? 8_192,
+						headers,
+						compat: {
+							supportsStore: false,
+							supportsDeveloperRole: false,
+							supportsReasoningEffort: false,
+						},
+					}),
+				),
+			);
+		}
+
+		// Fallback: plain /v1/models — only provides model IDs, everything else is a default.
+		const modelsUrl = `${baseUrl}/models`;
+		const response = await fetch(modelsUrl, {
+			headers,
+			signal: AbortSignal.timeout(10000),
+		});
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status} from ${modelsUrl}`);
+		}
+		const payload = (await response.json()) as { data?: Array<{ id: string }> };
+		const models = payload.data ?? [];
+		const discovered: Model<Api>[] = [];
+		for (const item of models) {
+			const id = item.id;
+			if (!id) continue;
+			discovered.push(
+				enrichModelThinking({
+					id,
+					name: id,
+					api: providerConfig.api,
+					provider: providerConfig.provider,
+					baseUrl,
+					reasoning: false,
+					input: ["text", "image"],
+					cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+					contextWindow: 128_000,
+					maxTokens: 8_192,
+					headers,
+					compat: {
+						supportsStore: false,
+						supportsDeveloperRole: false,
+						supportsReasoningEffort: false,
+					},
+				}),
+			);
+		}
+		return this.#applyProviderModelOverrides(providerConfig.provider, discovered);
+	}
+
+	/**
+	 * Fetches LiteLLM's /v1/model/info endpoint and returns one merged entry per
+	 * model_name, picking the backend with the highest max_input_tokens when multiple
+	 * backends serve the same name (e.g. Vertex + Bedrock load-balanced).
+	 *
+	 * Returns null if the endpoint is absent or returns an unexpected shape, so the
+	 * caller can fall back to the plain /v1/models list.
+	 */
+	async #fetchLiteLLMModelInfo(
+		baseUrl: string,
+		headers: Record<string, string>,
+	): Promise<Array<{ id: string; info: LiteLLMModelInfo }> | null> {
+		try {
+			const response = await fetch(`${baseUrl}/model/info`, {
+				headers,
+				signal: AbortSignal.timeout(10000),
+			});
+			if (!response.ok) return null;
+			const payload = (await response.json()) as { data?: unknown[] };
+			if (!Array.isArray(payload.data) || payload.data.length === 0) return null;
+
+			// Group entries by model_name; keep the entry with the highest max_input_tokens.
+			const best = new Map<string, LiteLLMModelInfo>();
+			for (const entry of payload.data) {
+				if (!isRecord(entry)) continue;
+				const name = typeof entry.model_name === "string" ? entry.model_name : undefined;
+				if (!name) continue;
+				const info = isRecord(entry.model_info) ? (entry.model_info as LiteLLMModelInfo) : {};
+				const existing = best.get(name);
+				if (!existing || (info.max_input_tokens ?? 0) > (existing.max_input_tokens ?? 0)) {
+					best.set(name, info);
+				}
+			}
+
+			if (best.size === 0) return null;
+			return Array.from(best.entries()).map(([id, info]) => ({ id, info }));
+		} catch {
+			return null;
+		}
+	}
+
 	#normalizeLlamaCppBaseUrl(baseUrl?: string): string {
 		const defaultBaseUrl = "http://127.0.0.1:8080";
 		const raw = baseUrl || defaultBaseUrl;
@@ -1726,10 +2041,22 @@ export class ModelRegistry {
 			if (providerConfig.apiKey) {
 				this.#customProviderApiKeys.set(providerName, providerConfig.apiKey);
 			}
+			// Resolve baseUrl the same way as in #loadCustomModels()
+			const rawBaseUrl = providerConfig.baseUrl;
+			let resolvedBaseUrl: string | undefined;
+			if (rawBaseUrl !== undefined) {
+				if (rawBaseUrl.startsWith("!")) {
+					this.#customProviderBaseUrls.set(providerName, rawBaseUrl);
+					resolvedBaseUrl = this.#resolvedCommandBaseUrls.get(providerName);
+				} else {
+					resolvedBaseUrl = Bun.env[rawBaseUrl] || rawBaseUrl;
+				}
+			}
 			for (const modelDef of modelDefs) {
+				if (!resolvedBaseUrl) continue; // baseUrl not yet resolved; will retry after refresh()
 				const model = buildCustomModelOverlay(
 					providerName,
-					providerConfig.baseUrl!,
+					resolvedBaseUrl,
 					providerConfig.api as Api | undefined,
 					providerConfig.headers,
 					providerConfig.apiKey,

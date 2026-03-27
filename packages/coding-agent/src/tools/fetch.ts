@@ -713,18 +713,21 @@ async function renderUrl(
 		throw new ToolAbortError();
 	}
 
-	// Handle internal protocol URLs (e.g., pi-internal://) - return empty
-	if (url.startsWith("pi-internal://")) {
-		return {
-			url,
-			finalUrl: url,
-			contentType: "text/plain",
-			method: "internal",
-			content: "",
-			fetchedAt,
-			truncated: false,
-			notes: ["Internal protocol URL - no external content"],
-		};
+	// Internal protocol URLs (skill://, agent://, rule://, local://, memory://, pi-internal://, etc.)
+	// cannot be fetched — they require an active session and must be resolved via the `read` tool.
+	const internalSchemes = [
+		"skill://",
+		"agent://",
+		"rule://",
+		"local://",
+		"memory://",
+		"jobs://",
+		"mcp://",
+		"pi://",
+		"pi-internal://",
+	];
+	if (internalSchemes.some(scheme => url.startsWith(scheme))) {
+		throw new ToolError(`Cannot fetch internal URL "${url}" — use the \`read\` tool instead.`);
 	}
 
 	// Step 0: Normalize URL (ensure scheme for special handlers)

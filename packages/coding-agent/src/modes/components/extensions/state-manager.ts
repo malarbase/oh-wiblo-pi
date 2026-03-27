@@ -47,6 +47,49 @@ export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): P
 	const extensions: Extension[] = [];
 	const disabledExtensions = new Set<string>(disabledIds ?? []);
 
+	// Helper to expand synthetic group entries for skills.
+	// This allows bulk disabling of skills by repo, author, directory, or tag.
+	//
+	// The grouping UI uses a fallback chain for non-tag axes:
+	//   repo  -> skill.repo ?? skill.author ?? skill.group
+	//   author -> skill.author ?? skill.group
+	//   dir   -> skill.group
+	// The synthetic entry key stores the bucket value, not necessarily the field name.
+	// We must match using the same fallback so a skill grouped under repo-axis as
+	// "acme" (because it has author="acme" but no repo) is correctly disabled by
+	// a "skill-repo:acme" entry.
+	const expandDisabledGroups = (skill: Skill): void => {
+		for (const disabled of disabledExtensions) {
+			// skill-repo:<value> matches skills whose (repo ?? author ?? group) === value
+			if (disabled.startsWith("skill-repo:")) {
+				const value = disabled.slice("skill-repo:".length);
+				if ((skill.repo ?? skill.author ?? skill.group) === value) {
+					disabledExtensions.add(`skill:${skill.name}`);
+				}
+			}
+			// skill-author:<value> matches skills whose (author ?? group) === value
+			if (disabled.startsWith("skill-author:")) {
+				const value = disabled.slice("skill-author:".length);
+				if ((skill.author ?? skill.group) === value) {
+					disabledExtensions.add(`skill:${skill.name}`);
+				}
+			}
+			// skill-dir:<value> matches skills whose group === value
+			if (disabled.startsWith("skill-dir:")) {
+				const value = disabled.slice("skill-dir:".length);
+				if (skill.group === value) {
+					disabledExtensions.add(`skill:${skill.name}`);
+				}
+			}
+			// skill-tag:<value> matches skills that have the tag
+			if (disabled.startsWith("skill-tag:")) {
+				const value = disabled.slice("skill-tag:".length);
+				if (skill.tags?.includes(value)) {
+					disabledExtensions.add(`skill:${skill.name}`);
+				}
+			}
+		}
+	};
 	// Helper to convert capability items to extensions
 	function addItems<T extends { name: string; path: string; _source: SourceMeta }>(
 		items: T[],
@@ -58,6 +101,11 @@ export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): P
 		},
 	): void {
 		for (const item of items) {
+			// Expand group entries for skills
+			if (kind === "skill") {
+				expandDisabledGroups(item as unknown as Skill);
+			}
+
 			const id = makeExtensionId(kind, item.name);
 			const isDisabled = disabledExtensions.has(id);
 			const isShadowed = (item as { _shadowed?: boolean })._shadowed;
@@ -80,7 +128,7 @@ export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): P
 				state = "active";
 			}
 
-			extensions.push({
+			const extension: Extension = {
 				id,
 				kind,
 				name: item.name,
@@ -93,7 +141,18 @@ export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): P
 				disabledReason,
 				shadowedBy: opts?.getShadowedBy?.(item),
 				raw: item,
-			});
+			};
+
+			// Map metadata fields from skill to extension
+			if (kind === "skill" && "author" in item) {
+				const skill = item as unknown as Skill;
+				extension.author = skill.author;
+				extension.repo = skill.repo;
+				extension.tags = skill.tags;
+				extension.group = skill.group;
+			}
+
+			extensions.push(extension);
 		}
 	}
 
@@ -102,7 +161,7 @@ export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): P
 	// Load skills
 	try {
 		const skills = await loadCapability<Skill>("skills", loadOpts);
-		addItems(skills.all, "skill", {
+		addItems(skills.items, "skill", {
 			getDescription: s => s.frontmatter?.description,
 			getTrigger: s => s.frontmatter?.globs?.join(", "),
 		});
@@ -391,24 +450,47 @@ export function applyFilter(extensions: Extension[], query: string): Extension[]
 		return extensions;
 	}
 
-	const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
-	if (tokens.length === 0) {
+	const rawTokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+	if (rawTokens.length === 0) {
 		return extensions;
 	}
 
-	return extensions.filter(ext => {
-		const searchable = [
-			ext.name,
-			ext.displayName,
-			ext.description || "",
-			ext.trigger || "",
-			ext.source.providerName,
-			ext.kind,
-		]
-			.join(" ")
-			.toLowerCase();
+	// Extract tag: prefix tokens; remainder is fuzzy-matched against name/description/etc.
+	const tagFilters: string[] = [];
+	const fuzzyTokens: string[] = [];
+	for (const token of rawTokens) {
+		if (token.startsWith("tag:")) {
+			const value = token.slice(4);
+			if (value) tagFilters.push(value);
+		} else {
+			fuzzyTokens.push(token);
+		}
+	}
 
-		return tokens.every(token => searchable.includes(token));
+	return extensions.filter(ext => {
+		// All tag: filters must match (AND semantics)
+		if (tagFilters.length > 0) {
+			if (!ext.tags || ext.tags.length === 0) return false;
+			const lowerTags = ext.tags.map(t => t.toLowerCase());
+			if (!tagFilters.every(tf => lowerTags.some(t => t.includes(tf)))) return false;
+		}
+
+		// Remaining tokens: fuzzy match against searchable fields
+		if (fuzzyTokens.length > 0) {
+			const searchable = [
+				ext.name,
+				ext.displayName,
+				ext.description || "",
+				ext.trigger || "",
+				ext.source.providerName,
+				ext.kind,
+			]
+				.join(" ")
+				.toLowerCase();
+			if (!fuzzyTokens.every(token => searchable.includes(token))) return false;
+		}
+
+		return true;
 	});
 }
 
@@ -541,6 +623,106 @@ export function toggleProvider(providerId: string): boolean {
 	} else {
 		enableProvider(providerId);
 		return true;
+	}
+}
+
+/**
+ * Toggle a group of skills on/off by grouping axis and value.
+ * Writing/removing synthetic entries from the settings.
+ */
+export function toggleGroup(
+	settingsManager: ExtensionSettingsManager,
+	extensions: Extension[],
+	axis: "repo" | "author" | "dir" | "tag",
+	groupValue: string,
+	enabled: boolean,
+): void {
+	const disabled = new Set(settingsManager.getDisabledExtensions());
+	const groupEntry = `skill-${axis}:${groupValue}`;
+
+	if (enabled) {
+		// Enabling a group: remove the group entry and individual skill entries for this group
+		disabled.delete(groupEntry);
+
+		// Also remove individual `skill:` entries for skills in this group.
+		// Uses the same fallback chain as the grouping UI so skills bucketed via
+		// fallback (e.g. repo-axis group whose key came from author) are cleared.
+		const matchingSkills = extensions.filter(e => {
+			if (e.kind !== "skill") return false;
+			switch (axis) {
+				case "repo":
+					return (e.repo ?? e.author ?? e.group) === groupValue;
+				case "author":
+					return (e.author ?? e.group) === groupValue;
+				case "dir":
+					return e.group === groupValue;
+				case "tag":
+					return e.tags?.includes(groupValue);
+				default:
+					return false;
+			}
+		});
+
+		for (const skill of matchingSkills) {
+			disabled.delete(`skill:${skill.name}`);
+		}
+	} else {
+		// Disabling a group: add the group entry
+		disabled.add(groupEntry);
+	}
+
+	settingsManager.setDisabledExtensions(Array.from(disabled));
+}
+
+/**
+ * Re-evaluate state (active/disabled/shadowed) for all extensions in the current state
+ * using only in-memory data: the provided disabled ID set and the global provider enable flags.
+ * No disk I/O. Used for optimistic UI updates immediately after a toggle.
+ */
+export function reevaluateExtensionStates(extensions: Extension[], disabledIds: string[]): void {
+	const disabledSet = new Set<string>(disabledIds);
+
+	// Expand synthetic group entries so individual skill IDs get added.
+	// Uses the same fallback chain as the grouping UI:
+	//   skill-repo:<v>   matches skills where (repo ?? author ?? group) === v
+	//   skill-author:<v> matches skills where (author ?? group) === v
+	//   skill-dir:<v>    matches skills where group === v
+	//   skill-tag:<v>    matches skills that include v in their tags
+	for (const ext of extensions) {
+		if (ext.kind !== "skill") continue;
+		const skill = ext.raw as Skill;
+		for (const entry of disabledSet) {
+			if (
+				entry.startsWith("skill-repo:") &&
+				(skill.repo ?? skill.author ?? skill.group) === entry.slice("skill-repo:".length)
+			)
+				disabledSet.add(`skill:${ext.name}`);
+			if (entry.startsWith("skill-author:") && (skill.author ?? skill.group) === entry.slice("skill-author:".length))
+				disabledSet.add(`skill:${ext.name}`);
+			if (entry.startsWith("skill-dir:") && skill.group === entry.slice("skill-dir:".length))
+				disabledSet.add(`skill:${ext.name}`);
+			if (entry.startsWith("skill-tag:") && skill.tags?.includes(entry.slice("skill-tag:".length)))
+				disabledSet.add(`skill:${ext.name}`);
+		}
+	}
+
+	for (const ext of extensions) {
+		const isDisabled = disabledSet.has(ext.id);
+		const providerEnabled = isProviderEnabled(ext.source.provider);
+		if (isDisabled) {
+			ext.state = "disabled";
+			ext.disabledReason = "item-disabled";
+		} else if (!providerEnabled) {
+			ext.state = "disabled";
+			ext.disabledReason = "provider-disabled";
+		} else {
+			// Don't upgrade shadowed back to active — shadowed is a structural fact
+			// from the capability layer, not something we can change here.
+			if (ext.state !== "shadowed") {
+				ext.state = "active";
+				ext.disabledReason = undefined;
+			}
+		}
 	}
 }
 

@@ -27,7 +27,15 @@ import { theme } from "../../../modes/theme/theme";
 import { matchesAppInterrupt } from "../../../modes/utils/keybinding-matchers";
 import { ExtensionList } from "./extension-list";
 import { InspectorPanel } from "./inspector-panel";
-import { applyFilter, createInitialState, filterByProvider, refreshState, toggleProvider } from "./state-manager";
+import {
+	applyFilter,
+	createInitialState,
+	filterByProvider,
+	reevaluateExtensionStates,
+	refreshState,
+	toggleGroup,
+	toggleProvider,
+} from "./state-manager";
 import type { DashboardState } from "./types";
 
 export class ExtensionDashboard extends Container {
@@ -36,6 +44,7 @@ export class ExtensionDashboard extends Container {
 	#inspector!: InspectorPanel;
 
 	onClose?: () => void;
+	onRequestRender?: () => void;
 
 	private constructor(
 		private readonly cwd: string,
@@ -74,6 +83,9 @@ export class ExtensionDashboard extends Container {
 				},
 				onToggle: (extensionId, enabled) => {
 					this.#handleExtensionToggle(extensionId, enabled);
+				},
+				onGroupToggle: (axis, value, enabled) => {
+					this.#handleGroupToggle(axis, value, enabled);
 				},
 				onMasterToggle: providerId => {
 					this.#handleProviderToggle(providerId);
@@ -117,7 +129,17 @@ export class ExtensionDashboard extends Container {
 		this.addChild(new TwoColumnBody(this.#mainList, this.#inspector, bodyMaxHeight));
 
 		this.addChild(new Spacer(1));
-		this.addChild(new Text(theme.fg("dim", " ↑/↓: navigate  Space: toggle  Tab: next provider  Esc: close"), 0, 0));
+		const axis = this.#mainList.getGroupingAxis();
+		this.addChild(
+			new Text(
+				theme.fg(
+					"dim",
+					` ↑/↓: navigate  Space: toggle  Ctrl+G: group by (${axis})  Tab: next provider  Esc: close`,
+				),
+				0,
+				0,
+			),
+		);
 
 		// Bottom border
 		this.addChild(new DynamicBorder());
@@ -184,15 +206,38 @@ export class ExtensionDashboard extends Container {
 		void this.#refreshFromState();
 	}
 
-	async #refreshFromState(): Promise<void> {
-		// Remember current tab ID before refresh
-		const currentTabId = this.#state.tabs[this.#state.activeTabIndex]?.id;
+	#handleGroupToggle(axis: "repo" | "author" | "dir" | "tag", value: string, enabled: boolean): void {
+		const sm = this.settings ?? Settings.instance;
+		if (!sm) return;
+		toggleGroup(
+			{
+				getDisabledExtensions: () => (sm.get("disabledExtensions") as string[]) ?? [],
+				setDisabledExtensions: ids => sm.set("disabledExtensions", ids),
+			},
+			this.#state.extensions,
+			axis,
+			value,
+			enabled,
+		);
+		void this.#refreshFromState();
+	}
 
+	async #refreshFromState(): Promise<void> {
 		const sm = this.settings ?? Settings.instance;
 		const disabledIds = sm ? ((sm.get("disabledExtensions") as string[]) ?? []) : [];
+
+		// Optimistic update: re-evaluate state synchronously from in-memory data so the
+		// checkbox flips immediately, before the async disk reload completes.
+		reevaluateExtensionStates(this.#state.extensions, disabledIds);
+		this.#mainList.setExtensions(this.#state.searchFiltered);
+		this.#buildLayout();
+		this.onRequestRender?.();
+
+		// Full reload from disk to reconcile any external changes.
+		const currentTabId = this.#state.tabs[this.#state.activeTabIndex]?.id;
 		this.#state = await refreshState(this.#state, this.cwd, disabledIds);
 
-		// Find the same tab in the new (re-sorted) list
+		// Restore tab position after reload.
 		if (currentTabId) {
 			const newIndex = this.#state.tabs.findIndex(t => t.id === currentTabId);
 			if (newIndex >= 0) {
@@ -208,6 +253,7 @@ export class ExtensionDashboard extends Container {
 		}
 
 		this.#buildLayout();
+		this.onRequestRender?.();
 	}
 
 	#switchTab(direction: 1 | -1): void {
@@ -272,6 +318,13 @@ export class ExtensionDashboard extends Container {
 		}
 		if (matchesKey(data, "shift+tab")) {
 			this.#switchTab(-1);
+			return;
+		}
+
+		// Ctrl+G: cycle grouping axis (intercept before list so it never feeds into search)
+		if (matchesKey(data, "ctrl+g")) {
+			this.#mainList.cycleGroupingAxis();
+			this.#buildLayout();
 			return;
 		}
 
