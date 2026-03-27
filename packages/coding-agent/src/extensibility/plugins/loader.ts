@@ -8,6 +8,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { getPluginsLockfile, getPluginsNodeModules, getPluginsPackageJson, isEnoent } from "@oh-my-pi/pi-utils";
 import { getConfigDirPaths } from "../../config";
+import { ensurePluginsManifest } from "./installer";
 import type { InstalledPlugin, PluginManifest, PluginRuntimeConfig, ProjectPluginOverrides } from "./types";
 
 // =============================================================================
@@ -242,6 +243,9 @@ export async function getAllPluginCommandPaths(cwd: string): Promise<string[]> {
  * Get all extension module paths from all enabled plugins.
  */
 export async function getAllPluginExtensionPaths(cwd: string): Promise<string[]> {
+	// Ensure @oh-my-pi/* and @mariozechner/* symlinks exist in the plugins node_modules.
+	// This is idempotent and fast (readlink checks only); it handles omp upgrades automatically.
+	await ensurePluginsManifest();
 	const plugins = await getEnabledPlugins(cwd);
 	const paths: string[] = [];
 
