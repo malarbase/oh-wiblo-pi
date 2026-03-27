@@ -1,10 +1,10 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { getAgentDir, getProjectDir, isEnoent } from "@oh-my-pi/pi-utils";
+import { getPluginsDir, getProjectDir, isEnoent } from "@oh-my-pi/pi-utils";
 import { extractPackageName } from "./parser";
 import type { InstalledPlugin } from "./types";
 
-const PLUGINS_DIR = path.join(getAgentDir(), "plugins");
+const PLUGINS_DIR = getPluginsDir();
 
 // Valid npm package name pattern (scoped and unscoped)
 const VALID_PACKAGE_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*(@[a-z0-9-._^~>=<]+)?$/i;
@@ -23,11 +23,110 @@ function validatePackageName(name: string): void {
 }
 
 /**
- * Ensure the plugins directory exists
+ * Packages that plugins may import under either the @oh-my-pi/* or @mariozechner/* name.
+ *
+ * Bun resolves dynamic imports relative to the importer's on-disk location. Plugins
+ * live under ~/.omp/plugins/node_modules/, which is a separate filesystem tree from
+ * both the omp workspace and the global bun install. Neither @oh-my-pi/* nor
+ * @mariozechner/* packages are visible from there through normal node_modules walk-up.
+ *
+ * The fix: symlink both name variants into ~/.omp/plugins/node_modules/ so the
+ * walk-up from any plugin source file finds them. import.meta.resolve() is called
+ * from within the running omp process, so it finds the same packages omp itself uses.
+ */
+const OMP_PACKAGE_NAMES = ["pi-coding-agent", "pi-tui", "pi-ai", "pi-agent-core", "pi-utils", "pi-natives"] as const;
+
+/**
+ * Resolve the on-disk directory for each @oh-my-pi/* package using the running
+ * process's module resolution (same packages omp itself is built against).
+ * Returns a map of short name → absolute directory path.
+ */
+async function resolveOmpPackageDirs(): Promise<Map<string, string>> {
+	const dirs = new Map<string, string>();
+	for (const name of OMP_PACKAGE_NAMES) {
+		try {
+			// import.meta.resolve returns the entry-point file; we want the package root.
+			const entryUrl = import.meta.resolve(`@oh-my-pi/${name}`);
+			const entryPath = new URL(entryUrl).pathname;
+			// Walk up until we find a directory containing package.json.
+			let dir = path.dirname(entryPath);
+			while (dir !== path.dirname(dir)) {
+				try {
+					await fs.stat(path.join(dir, "package.json"));
+					break;
+				} catch {
+					dir = path.dirname(dir);
+				}
+			}
+			dirs.set(name, dir);
+		} catch {
+			// Package not available in this build — skip.
+		}
+	}
+	return dirs;
+}
+
+/**
+ * Create or update a symlink at linkPath → target.
+ * Replaces any existing symlink or empty directory; skips if already correct.
+ */
+async function upsertSymlink(target: string, linkPath: string): Promise<void> {
+	try {
+		const existing = await fs.readlink(linkPath);
+		if (existing === target) return; // already correct
+		await fs.unlink(linkPath);
+	} catch (err) {
+		if (!isEnoent(err)) {
+			// Not a symlink — try to remove as directory/file.
+			try {
+				await fs.rm(linkPath, { recursive: true });
+			} catch {
+				/* ignore */
+			}
+		}
+	}
+	await fs.symlink(target, linkPath);
+}
+
+/**
+ * Ensure the plugins directory and its node_modules subdirectory exist.
  */
 async function ensurePluginsDir(): Promise<void> {
 	await fs.mkdir(PLUGINS_DIR, { recursive: true });
 	await fs.mkdir(path.join(PLUGINS_DIR, "node_modules"), { recursive: true });
+}
+
+/**
+ * Ensure ~/.omp/plugins/package.json exists and that @oh-my-pi/* and @mariozechner/*
+ * packages are symlinked into node_modules so plugin extensions can import them.
+ * Called before every install/link so existing setups are upgraded in place.
+ */
+export async function ensurePluginsManifest(): Promise<void> {
+	const pkgJsonPath = path.join(PLUGINS_DIR, "package.json");
+	let manifest: Record<string, unknown> = { name: "omp-plugins", private: true, dependencies: {} };
+	try {
+		manifest = await Bun.file(pkgJsonPath).json();
+	} catch (err) {
+		if (!isEnoent(err)) throw err;
+	}
+
+	if (!manifest.dependencies) {
+		manifest.dependencies = {};
+		await Bun.write(pkgJsonPath, `${JSON.stringify(manifest, null, 2)}\n`);
+	}
+
+	// Symlink @oh-my-pi/* and @mariozechner/* packages so plugins can import either name.
+	const packageDirs = await resolveOmpPackageDirs();
+	const nodeModules = path.join(PLUGINS_DIR, "node_modules");
+	const ompScope = path.join(nodeModules, "@oh-my-pi");
+	const mariozechnerScope = path.join(nodeModules, "@mariozechner");
+	await fs.mkdir(ompScope, { recursive: true });
+	await fs.mkdir(mariozechnerScope, { recursive: true });
+
+	for (const [name, dir] of packageDirs) {
+		await upsertSymlink(dir, path.join(ompScope, name));
+		await upsertSymlink(dir, path.join(mariozechnerScope, name));
+	}
 }
 
 export async function installPlugin(packageName: string): Promise<InstalledPlugin> {
@@ -37,12 +136,8 @@ export async function installPlugin(packageName: string): Promise<InstalledPlugi
 	// Ensure plugins directory exists
 	await ensurePluginsDir();
 
-	// Initialize package.json if it doesn't exist
-	const pkgJsonPath = path.join(PLUGINS_DIR, "package.json");
-	const pkgJson = Bun.file(pkgJsonPath);
-	if (!(await pkgJson.exists())) {
-		await pkgJson.write(JSON.stringify({ name: "omp-plugins", private: true, dependencies: {} }, null, 2));
-	}
+	// Ensure package.json exists and carries upstream package aliases.
+	await ensurePluginsManifest();
 
 	// Run npm install in plugins directory
 	const proc = Bun.spawn(["bun", "install", packageName], {
@@ -166,7 +261,7 @@ export async function linkPlugin(localPath: string): Promise<void> {
 		}
 	}
 
-	await ensurePluginsDir();
+	await ensurePluginsManifest();
 
 	// Create symlink in plugins/node_modules
 	const linkPath = path.join(PLUGINS_DIR, "node_modules", pkg.name);
