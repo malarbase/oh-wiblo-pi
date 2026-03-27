@@ -23,6 +23,8 @@ export interface ExtensionListCallbacks {
 	onSelectionChange?: (extension: Extension | null) => void;
 	/** Called when extension is toggled */
 	onToggle?: (extensionId: string, enabled: boolean) => void;
+	/** Called when group is toggled */
+	onGroupToggle?: (axis: "repo" | "author" | "dir" | "tag", value: string, enabled: boolean) => void;
 	/** Called when master switch is toggled */
 	onMasterToggle?: (providerId: string) => void;
 	/** Provider ID for master switch (null = no master switch) */
@@ -35,7 +37,16 @@ const DEFAULT_MAX_VISIBLE = 15;
 type ListItem =
 	| { type: "master"; providerId: string; providerName: string; enabled: boolean }
 	| { type: "kind-header"; kind: ExtensionKind; label: string; icon: string; count: number }
-	| { type: "extension"; item: Extension };
+	| {
+			type: "group-header";
+			groupAxis: "repo" | "author" | "dir" | "tag";
+			groupValue: string;
+			label: string;
+			count: number;
+			enabled: boolean;
+			mixed: boolean;
+	  }
+	| { type: "extension"; item: Extension; grouped: boolean };
 
 export class ExtensionList implements Component {
 	#listItems: ListItem[] = [];
@@ -45,6 +56,8 @@ export class ExtensionList implements Component {
 	#focused = false;
 	#masterSwitchProvider: string | null = null;
 	#maxVisible: number;
+	/** Active grouping axis for skill group-headers. Cycled by Ctrl+G. */
+	#groupingAxis: "repo" | "author" | "dir" | "tag" = "repo";
 
 	constructor(
 		private extensions: Extension[],
@@ -74,6 +87,20 @@ export class ExtensionList implements Component {
 	setMasterSwitchProvider(providerId: string | null): void {
 		this.#masterSwitchProvider = providerId;
 		this.#rebuildList();
+	}
+
+	getGroupingAxis(): "repo" | "author" | "dir" | "tag" {
+		return this.#groupingAxis;
+	}
+
+	/** Cycle repo → author → dir → tag → repo and rebuild. Returns the new axis. */
+	cycleGroupingAxis(): "repo" | "author" | "dir" | "tag" {
+		const order = ["repo", "author", "dir", "tag"] as const;
+		const next = order[(order.indexOf(this.#groupingAxis) + 1) % order.length];
+		this.#groupingAxis = next;
+		this.#rebuildList();
+		this.#clampSelection();
+		return next;
 	}
 
 	getSearchQuery(): string {
@@ -142,8 +169,20 @@ export class ExtensionList implements Component {
 				lines.push(this.#renderMasterSwitch(listItem, isSelected, width));
 			} else if (listItem.type === "kind-header") {
 				lines.push(this.#renderKindHeader(listItem, isSelected, width));
+			} else if (listItem.type === "group-header") {
+				lines.push(this.#renderGroupHeader(listItem, isSelected, width));
 			} else {
-				lines.push(this.#renderExtensionRow(listItem.item, isSelected, width, masterDisabled));
+				lines.push(
+					this.#renderExtensionRow(
+						listItem.item,
+						isSelected,
+						width,
+						masterDisabled,
+						// Show provider badge on skill rows in ALL view (no master switch)
+						this.#masterSwitchProvider === null && listItem.item.kind === "skill",
+						listItem.grouped,
+					),
+				);
 			}
 		}
 
@@ -190,7 +229,34 @@ export class ExtensionList implements Component {
 		return truncateToWidth(line, width);
 	}
 
-	#renderExtensionRow(ext: Extension, isSelected: boolean, width: number, masterDisabled: boolean): string {
+	#renderGroupHeader(item: ListItem & { type: "group-header" }, isSelected: boolean, width: number): string {
+		const checkbox = item.enabled
+			? item.mixed
+				? theme.fg("accent", "[-]") // Mixed state
+				: theme.fg("success", theme.checkbox.checked)
+			: theme.fg("dim", theme.checkbox.unchecked);
+		const label = `${item.label} (${item.count})`;
+
+		let line = `${checkbox}  ${label}`;
+
+		if (isSelected) {
+			line = theme.bold(theme.fg("accent", line));
+			line = theme.bg("selectedBg", line);
+		} else {
+			line = theme.fg("muted", line);
+		}
+
+		return truncateToWidth(line, width);
+	}
+
+	#renderExtensionRow(
+		ext: Extension,
+		isSelected: boolean,
+		width: number,
+		masterDisabled: boolean,
+		showProviderBadge = false,
+		grouped = false,
+	): string {
 		// When master is disabled, all items appear dimmed
 		const effectivelyDisabled = masterDisabled || ext.state === "disabled";
 
@@ -202,7 +268,8 @@ export class ExtensionList implements Component {
 		const nameWidth = Math.min(24, width - 16);
 
 		// Build the line with indentation (visually "inside" the master switch)
-		let line = `   ${stateIcon} `;
+		// Grouped skills get extra indentation to visually separate them from ungrouped peers.
+		let line = grouped ? `     ${stateIcon} ` : `   ${stateIcon} `;
 
 		if (isSelected && !masterDisabled) {
 			name = theme.bold(theme.fg("accent", name));
@@ -216,8 +283,15 @@ export class ExtensionList implements Component {
 		const namePadded = this.#padText(name, nameWidth);
 		line += namePadded;
 
-		// Trigger hint
-		if (ext.trigger) {
+		// Provider badge (ALL view only)
+		if (showProviderBadge) {
+			const badge = theme.fg("dim", `[${ext.source.provider}]`);
+			const remainingWidth = width - visibleWidth(line) - 2;
+			if (remainingWidth > Bun.stringWidth(ext.source.provider) + 3) {
+				line += `  ${badge}`;
+			}
+		} else if (ext.trigger) {
+			// Trigger hint (provider view)
 			const triggerStyle = effectivelyDisabled ? "dim" : "muted";
 			const remainingWidth = width - visibleWidth(line) - 2;
 			if (remainingWidth > 5) {
@@ -282,6 +356,32 @@ export class ExtensionList implements Component {
 		return text + padding(targetWidth - width);
 	}
 
+	/**
+	 * Return the group key for a skill under the active axis.
+	 * Falls back: if the axis value is absent, try the next axes in order.
+	 * Returns null when no grouping information is available.
+	 */
+	/**
+	 * Return the group keys for a skill under the active axis.
+	 * Tag axis: a skill may belong to multiple groups (one per tag).
+	 * Other axes: at most one key, with fallback chain.
+	 * Returns an empty array when no grouping information is available.
+	 */
+	#skillGroupKeys(ext: Extension): string[] {
+		if (this.#groupingAxis === "tag") {
+			return ext.tags && ext.tags.length > 0 ? ext.tags : [];
+		}
+		const key = this.#skillGroupKey(ext);
+		return key !== null ? [key] : [];
+	}
+
+	/** Single-valued key for non-tag axes, with fallback chain. */
+	#skillGroupKey(ext: Extension): string | null {
+		if (this.#groupingAxis === "repo") return ext.repo ?? ext.author ?? ext.group ?? null;
+		if (this.#groupingAxis === "author") return ext.author ?? ext.group ?? null;
+		return ext.group ?? null; // dir axis: no further fallback
+	}
+
 	#rebuildList(): void {
 		this.#listItems = [];
 
@@ -291,12 +391,12 @@ export class ExtensionList implements Component {
 		// When searching, show flat list
 		if (this.#searchQuery.length > 0) {
 			for (const ext of filtered) {
-				this.#listItems.push({ type: "extension", item: ext });
+				this.#listItems.push({ type: "extension", item: ext, grouped: false });
 			}
 			return;
 		}
 
-		// Provider-specific view: Master switch + flat list
+		// Provider-specific view: Master switch + group headers + skills
 		if (this.#masterSwitchProvider) {
 			const providerName = filtered[0]?.source.providerName ?? this.#masterSwitchProvider;
 			const enabled = isProviderEnabled(this.#masterSwitchProvider);
@@ -308,8 +408,59 @@ export class ExtensionList implements Component {
 				enabled,
 			});
 
-			for (const ext of filtered) {
-				this.#listItems.push({ type: "extension", item: ext });
+			// Group skills by the active axis; fall back within each skill to the next available axis.
+			// Non-skill extensions always render flat after all skill groups.
+			if (filtered.some(e => e.kind === "skill")) {
+				const groups = new Map<string, Extension[]>();
+				const ungrouped: Extension[] = [];
+				const nonSkills: Extension[] = [];
+
+				for (const ext of filtered) {
+					if (ext.kind !== "skill") {
+						nonSkills.push(ext);
+						continue;
+					}
+					// Bucket by all keys for this skill (tag axis: may produce multiple buckets).
+					const keys = this.#skillGroupKeys(ext);
+					if (keys.length > 0) {
+						for (const key of keys) {
+							const list = groups.get(key) ?? [];
+							list.push(ext);
+							groups.set(key, list);
+						}
+					} else {
+						ungrouped.push(ext);
+					}
+				}
+
+				for (const [groupValue, skills] of groups) {
+					const allDisabled = skills.every(s => s.state === "disabled");
+					const anyDisabled = skills.some(s => s.state === "disabled");
+					this.#listItems.push({
+						type: "group-header",
+						groupAxis: this.#groupingAxis,
+						groupValue,
+						label: groupValue,
+						count: skills.length,
+						enabled: !allDisabled,
+						mixed: anyDisabled && !allDisabled,
+					});
+					for (const skill of skills) {
+						this.#listItems.push({ type: "extension", item: skill, grouped: true });
+					}
+				}
+
+				for (const skill of ungrouped) {
+					this.#listItems.push({ type: "extension", item: skill, grouped: false });
+				}
+				for (const ext of nonSkills) {
+					this.#listItems.push({ type: "extension", item: ext, grouped: false });
+				}
+			} else {
+				// Provider has no skills — show flat list
+				for (const ext of filtered) {
+					this.#listItems.push({ type: "extension", item: ext, grouped: false });
+				}
 			}
 			return;
 		}
@@ -347,8 +498,45 @@ export class ExtensionList implements Component {
 				count: items.length,
 			});
 
-			for (const ext of items) {
-				this.#listItems.push({ type: "extension", item: ext });
+			if (kind === "skill") {
+				// In ALL view, group skills by the active axis with provider badges on each row.
+				const groups = new Map<string, Extension[]>();
+				const ungrouped: Extension[] = [];
+				for (const ext of items) {
+					const keys = this.#skillGroupKeys(ext);
+					if (keys.length > 0) {
+						for (const key of keys) {
+							const list = groups.get(key) ?? [];
+							list.push(ext);
+							groups.set(key, list);
+						}
+					} else {
+						ungrouped.push(ext);
+					}
+				}
+				for (const [groupValue, skills] of groups) {
+					const allDisabled = skills.every(s => s.state === "disabled");
+					const anyDisabled = skills.some(s => s.state === "disabled");
+					this.#listItems.push({
+						type: "group-header",
+						groupAxis: this.#groupingAxis,
+						groupValue,
+						label: groupValue,
+						count: skills.length,
+						enabled: !allDisabled,
+						mixed: anyDisabled && !allDisabled,
+					});
+					for (const skill of skills) {
+						this.#listItems.push({ type: "extension", item: skill, grouped: true });
+					}
+				}
+				for (const ext of ungrouped) {
+					this.#listItems.push({ type: "extension", item: ext, grouped: false });
+				}
+			} else {
+				for (const ext of items) {
+					this.#listItems.push({ type: "extension", item: ext, grouped: false });
+				}
 			}
 		}
 	}
@@ -415,6 +603,9 @@ export class ExtensionList implements Component {
 			const item = this.#listItems[this.#selectedIndex];
 			if (item?.type === "master") {
 				this.callbacks.onMasterToggle?.(item.providerId);
+			} else if (item?.type === "group-header") {
+				const newEnabled = !item.enabled;
+				this.callbacks.onGroupToggle?.(item.groupAxis, item.groupValue, newEnabled);
 			} else if (item?.type === "extension") {
 				// Only allow toggling if master is enabled
 				const masterDisabled =
@@ -432,6 +623,9 @@ export class ExtensionList implements Component {
 			const item = this.#listItems[this.#selectedIndex];
 			if (item?.type === "master") {
 				this.callbacks.onMasterToggle?.(item.providerId);
+			} else if (item?.type === "group-header") {
+				const newEnabled = !item.enabled;
+				this.callbacks.onGroupToggle?.(item.groupAxis, item.groupValue, newEnabled);
 			} else if (item?.type === "extension") {
 				const masterDisabled =
 					this.#masterSwitchProvider !== null && !isProviderEnabled(this.#masterSwitchProvider);
