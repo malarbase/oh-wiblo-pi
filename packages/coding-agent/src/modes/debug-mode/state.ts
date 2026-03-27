@@ -3,7 +3,5 @@ export interface DebugModeState {
 	sessionId: string;
 	logPath: string;
 	ingestUrl: string;
-	previousModel: string;
-	previousThinkingLevel: string;
 	server: unknown;
 }
