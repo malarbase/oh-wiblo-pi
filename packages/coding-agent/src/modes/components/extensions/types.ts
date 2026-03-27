@@ -61,6 +61,14 @@ export interface Extension {
 	shadowedBy?: string;
 	/** Raw item data for inspector */
 	raw: unknown;
+	/** Author of the skill (from metadata.author) */
+	author?: string;
+	/** Repository URL (from metadata.repo) */
+	repo?: string;
+	/** Tags associated with the skill (from metadata.tags) */
+	tags?: string[];
+	/** Directory-based group (fallback when metadata absent) */
+	group?: string;
 }
 
 /**

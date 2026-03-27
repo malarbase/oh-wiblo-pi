@@ -47,6 +47,33 @@ export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): P
 	const extensions: Extension[] = [];
 	const disabledExtensions = new Set<string>(disabledIds ?? []);
 
+	// Helper to expand synthetic group entries for skills
+	// This allows bulk disabling of skills by repo, author, or directory
+	const expandDisabledGroups = (skill: Skill): void => {
+		for (const disabled of disabledExtensions) {
+			// skill-repo:<repo> -> disable all skills with matching metadata.repo
+			if (disabled.startsWith("skill-repo:")) {
+				const repoValue = disabled.slice("skill-repo:".length);
+				if (skill.repo === repoValue) {
+					disabledExtensions.add(`skill:${skill.name}`);
+				}
+			}
+			// skill-author:<author> -> disable all skills with matching metadata.author
+			if (disabled.startsWith("skill-author:")) {
+				const authorValue = disabled.slice("skill-author:".length);
+				if (skill.author === authorValue) {
+					disabledExtensions.add(`skill:${skill.name}`);
+				}
+			}
+			// skill-dir:<dirname> -> disable all skills with matching directory group
+			if (disabled.startsWith("skill-dir:")) {
+				const dirValue = disabled.slice("skill-dir:".length);
+				if (skill.group === dirValue) {
+					disabledExtensions.add(`skill:${skill.name}`);
+				}
+			}
+		}
+	};
 	// Helper to convert capability items to extensions
 	function addItems<T extends { name: string; path: string; _source: SourceMeta }>(
 		items: T[],
@@ -58,6 +85,11 @@ export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): P
 		},
 	): void {
 		for (const item of items) {
+			// Expand group entries for skills
+			if (kind === "skill") {
+				expandDisabledGroups(item as unknown as Skill);
+			}
+
 			const id = makeExtensionId(kind, item.name);
 			const isDisabled = disabledExtensions.has(id);
 			const isShadowed = (item as { _shadowed?: boolean })._shadowed;
@@ -80,7 +112,7 @@ export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): P
 				state = "active";
 			}
 
-			extensions.push({
+			const extension: Extension = {
 				id,
 				kind,
 				name: item.name,
@@ -93,7 +125,18 @@ export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): P
 				disabledReason,
 				shadowedBy: opts?.getShadowedBy?.(item),
 				raw: item,
-			});
+			};
+
+			// Map metadata fields from skill to extension
+			if (kind === "skill" && "author" in item) {
+				const skill = item as unknown as Skill;
+				extension.author = skill.author;
+				extension.repo = skill.repo;
+				extension.tags = skill.tags;
+				extension.group = skill.group;
+			}
+
+			extensions.push(extension);
 		}
 	}
 
@@ -542,6 +585,52 @@ export function toggleProvider(providerId: string): boolean {
 		enableProvider(providerId);
 		return true;
 	}
+}
+
+/**
+ * Toggle a group of skills on/off by grouping axis and value.
+ * Writing/removing synthetic entries from the settings.
+ */
+export function toggleGroup(
+	settingsManager: ExtensionSettingsManager,
+	extensions: Extension[],
+	axis: "repo" | "author" | "dir" | "tag",
+	groupValue: string,
+	enabled: boolean,
+): void {
+	const disabled = new Set(settingsManager.getDisabledExtensions());
+	const groupEntry = `skill-${axis}:${groupValue}`;
+
+	if (enabled) {
+		// Enabling a group: remove the group entry and individual skill entries for this group
+		disabled.delete(groupEntry);
+
+		// Also remove individual `skill:` entries for skills in this group
+		const matchingSkills = extensions.filter(e => {
+			if (e.kind !== "skill") return false;
+			switch (axis) {
+				case "repo":
+					return e.repo === groupValue;
+				case "author":
+					return e.author === groupValue;
+				case "dir":
+					return e.group === groupValue;
+				case "tag":
+					return e.tags?.includes(groupValue);
+				default:
+					return false;
+			}
+		});
+
+		for (const skill of matchingSkills) {
+			disabled.delete(`skill:${skill.name}`);
+		}
+	} else {
+		// Disabling a group: add the group entry
+		disabled.add(groupEntry);
+	}
+
+	settingsManager.setDisabledExtensions(Array.from(disabled));
 }
 
 /**

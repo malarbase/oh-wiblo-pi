@@ -23,6 +23,8 @@ export interface ExtensionListCallbacks {
 	onSelectionChange?: (extension: Extension | null) => void;
 	/** Called when extension is toggled */
 	onToggle?: (extensionId: string, enabled: boolean) => void;
+	/** Called when group is toggled */
+	onGroupToggle?: (axis: "repo" | "author" | "dir" | "tag", value: string, enabled: boolean) => void;
 	/** Called when master switch is toggled */
 	onMasterToggle?: (providerId: string) => void;
 	/** Provider ID for master switch (null = no master switch) */
@@ -35,6 +37,15 @@ const DEFAULT_MAX_VISIBLE = 15;
 type ListItem =
 	| { type: "master"; providerId: string; providerName: string; enabled: boolean }
 	| { type: "kind-header"; kind: ExtensionKind; label: string; icon: string; count: number }
+	| {
+			type: "group-header";
+			groupAxis: "repo" | "author" | "dir" | "tag";
+			groupValue: string;
+			label: string;
+			count: number;
+			enabled: boolean;
+			mixed: boolean;
+	  }
 	| { type: "extension"; item: Extension };
 
 export class ExtensionList implements Component {
@@ -142,6 +153,8 @@ export class ExtensionList implements Component {
 				lines.push(this.#renderMasterSwitch(listItem, isSelected, width));
 			} else if (listItem.type === "kind-header") {
 				lines.push(this.#renderKindHeader(listItem, isSelected, width));
+			} else if (listItem.type === "group-header") {
+				lines.push(this.#renderGroupHeader(listItem, isSelected, width));
 			} else {
 				lines.push(this.#renderExtensionRow(listItem.item, isSelected, width, masterDisabled));
 			}
@@ -179,6 +192,26 @@ export class ExtensionList implements Component {
 	#renderKindHeader(item: ListItem & { type: "kind-header" }, isSelected: boolean, width: number): string {
 		const countBadge = theme.fg("muted", `(${item.count})`);
 		let line = `${item.icon} ${item.label} ${countBadge}`;
+
+		if (isSelected) {
+			line = theme.bold(theme.fg("accent", line));
+			line = theme.bg("selectedBg", line);
+		} else {
+			line = theme.fg("muted", line);
+		}
+
+		return truncateToWidth(line, width);
+	}
+
+	#renderGroupHeader(item: ListItem & { type: "group-header" }, isSelected: boolean, width: number): string {
+		const checkbox = item.enabled
+			? item.mixed
+				? theme.fg("accent", "[-]") // Mixed state
+				: theme.fg("success", theme.checkbox.checked)
+			: theme.fg("dim", theme.checkbox.unchecked);
+		const label = `${item.label} (${item.count})`;
+
+		let line = `${checkbox}  ${label}`;
 
 		if (isSelected) {
 			line = theme.bold(theme.fg("accent", line));
@@ -296,7 +329,7 @@ export class ExtensionList implements Component {
 			return;
 		}
 
-		// Provider-specific view: Master switch + flat list
+		// Provider-specific view: Master switch + group headers + skills
 		if (this.#masterSwitchProvider) {
 			const providerName = filtered[0]?.source.providerName ?? this.#masterSwitchProvider;
 			const enabled = isProviderEnabled(this.#masterSwitchProvider);
@@ -308,8 +341,103 @@ export class ExtensionList implements Component {
 				enabled,
 			});
 
-			for (const ext of filtered) {
-				this.#listItems.push({ type: "extension", item: ext });
+			// For skills provider, insert group headers
+			if (this.#masterSwitchProvider === "skill") {
+				// Group skills by repo, then author, then dir
+				const byRepo = new Map<string, Extension[]>();
+				const byAuthor = new Map<string, Extension[]>();
+				const byDir = new Map<string, Extension[]>();
+				const ungrouped: Extension[] = [];
+
+				for (const ext of filtered) {
+					if (ext.kind !== "skill") continue;
+
+					if (ext.repo) {
+						const list = byRepo.get(ext.repo) ?? [];
+						list.push(ext);
+						byRepo.set(ext.repo, list);
+					} else if (ext.author) {
+						const list = byAuthor.get(ext.author) ?? [];
+						list.push(ext);
+						byAuthor.set(ext.author, list);
+					} else if (ext.group) {
+						const list = byDir.get(ext.group) ?? [];
+						list.push(ext);
+						byDir.set(ext.group, list);
+					} else {
+						ungrouped.push(ext);
+					}
+				}
+
+				// Render repo groups
+				for (const [repo, skills] of byRepo) {
+					const allDisabled = skills.every(s => s.state === "disabled");
+					const anyDisabled = skills.some(s => s.state === "disabled");
+
+					this.#listItems.push({
+						type: "group-header",
+						groupAxis: "repo",
+						groupValue: repo,
+						label: repo,
+						count: skills.length,
+						enabled: !allDisabled,
+						mixed: anyDisabled && !allDisabled,
+					});
+
+					for (const skill of skills) {
+						this.#listItems.push({ type: "extension", item: skill });
+					}
+				}
+
+				// Render author groups
+				for (const [author, skills] of byAuthor) {
+					const allDisabled = skills.every(s => s.state === "disabled");
+					const anyDisabled = skills.some(s => s.state === "disabled");
+
+					this.#listItems.push({
+						type: "group-header",
+						groupAxis: "author",
+						groupValue: author,
+						label: author,
+						count: skills.length,
+						enabled: !allDisabled,
+						mixed: anyDisabled && !allDisabled,
+					});
+
+					for (const skill of skills) {
+						this.#listItems.push({ type: "extension", item: skill });
+					}
+				}
+
+				// Render directory groups
+				for (const [dir, skills] of byDir) {
+					const allDisabled = skills.every(s => s.state === "disabled");
+					const anyDisabled = skills.some(s => s.state === "disabled");
+
+					this.#listItems.push({
+						type: "group-header",
+						groupAxis: "dir",
+						groupValue: dir,
+						label: dir,
+						count: skills.length,
+						enabled: !allDisabled,
+						mixed: anyDisabled && !allDisabled,
+					});
+
+					for (const skill of skills) {
+						this.#listItems.push({ type: "extension", item: skill });
+					}
+				}
+
+				// Render ungrouped skills
+				for (const skill of ungrouped) {
+					this.#listItems.push({ type: "extension", item: skill });
+				}
+			} else {
+				// For other providers, show flat list
+				for (const ext of filtered) {
+					this.#listItems.push({ type: "extension", item: ext });
+				}
 			}
 			return;
 		}
@@ -415,6 +543,9 @@ export class ExtensionList implements Component {
 			const item = this.#listItems[this.#selectedIndex];
 			if (item?.type === "master") {
 				this.callbacks.onMasterToggle?.(item.providerId);
+			} else if (item?.type === "group-header") {
+				const newEnabled = !item.enabled;
+				this.callbacks.onGroupToggle?.(item.groupAxis, item.groupValue, newEnabled);
 			} else if (item?.type === "extension") {
 				// Only allow toggling if master is enabled
 				const masterDisabled =
@@ -432,6 +563,9 @@ export class ExtensionList implements Component {
 			const item = this.#listItems[this.#selectedIndex];
 			if (item?.type === "master") {
 				this.callbacks.onMasterToggle?.(item.providerId);
+			} else if (item?.type === "group-header") {
+				const newEnabled = !item.enabled;
+				this.callbacks.onGroupToggle?.(item.groupAxis, item.groupValue, newEnabled);
 			} else if (item?.type === "extension") {
 				const masterDisabled =
 					this.#masterSwitchProvider !== null && !isProviderEnabled(this.#masterSwitchProvider);

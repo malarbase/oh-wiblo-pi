@@ -33,6 +33,14 @@ export interface Skill {
 	level: "user" | "project";
 	/** Source metadata */
 	_source: SourceMeta;
+	/** Author of the skill (from metadata.author) */
+	author?: string;
+	/** Repository URL (from metadata.repo) */
+	repo?: string;
+	/** Tags associated with the skill (from metadata.tags) */
+	tags?: string[];
+	/** Directory-based group (fallback when metadata absent) */
+	group?: string;
 }
 
 export const skillCapability = defineCapability<Skill>({
