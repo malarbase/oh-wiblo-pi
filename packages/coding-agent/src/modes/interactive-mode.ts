@@ -938,7 +938,7 @@ export class InteractiveMode implements InteractiveModeContext {
 	async handleAskModeCommand(): Promise<void> {
 		const state = this.session.getAskModeState();
 		if (state?.enabled) {
-			this.session.disableAskMode();
+			await this.session.disableAskMode();
 			this.statusLine.setAskModeStatus(undefined);
 			this.updateEditorTopBorder();
 			this.ui.requestRender();

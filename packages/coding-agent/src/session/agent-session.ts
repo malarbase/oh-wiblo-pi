@@ -109,8 +109,10 @@ import { getCurrentThemeName, theme } from "../modes/theme/theme";
 import { normalizeDiff, normalizeToLF, ParseError, previewPatch, stripBom } from "../patch";
 import type { PlanModeState } from "../plan-mode/state";
 import askModeContextPrompt from "../prompts/system/ask-mode-context.md" with { type: "text" };
+import askModeOffPrompt from "../prompts/system/ask-mode-off.md" with { type: "text" };
 import autoHandoffThresholdFocusPrompt from "../prompts/system/auto-handoff-threshold-focus.md" with { type: "text" };
 import debugModeContextPrompt from "../prompts/system/debug-mode-context.md" with { type: "text" };
+import debugModeOffPrompt from "../prompts/system/debug-mode-off.md" with { type: "text" };
 import eagerTodoPrompt from "../prompts/system/eager-todo.md" with { type: "text" };
 import handoffDocumentPrompt from "../prompts/system/handoff-document.md" with { type: "text" };
 import planModeActivePrompt from "../prompts/system/plan-mode-active.md" with { type: "text" };
@@ -2114,13 +2116,18 @@ export class AgentSession {
 		this.#askModeState = { enabled: true };
 	}
 
-	disableAskMode(): void {
+	async disableAskMode(): Promise<void> {
 		this.#askModeState = undefined;
+		await this.sendCustomMessage({
+			customType: "ask-mode-off",
+			content: askModeOffPrompt,
+			display: false,
+		});
 	}
 
 	async enableDebugMode(): Promise<void> {
 		if (this.#askModeState?.enabled) {
-			this.disableAskMode();
+			await this.disableAskMode();
 		}
 		if (this.#planModeState?.enabled) {
 			this.setPlanModeState(undefined);
@@ -2130,15 +2137,6 @@ export class AgentSession {
 			logger.warn("Debug mode: 'ask' tool not available — reproduce/confirm loop will use RPC fallback");
 		}
 
-		const previousModel = this.model?.id ?? "";
-		const previousThinkingLevel = String(this.thinkingLevel ?? "");
-
-		const slowModel = this.resolveRoleModel("slow");
-		if (slowModel) {
-			await this.setModel(slowModel);
-		}
-		this.setThinkingLevel(ThinkingLevel.High);
-
 		const sessionId = this.sessionId;
 		const logPath = path.resolve(this.sessionManager.getCwd(), `.pi/debug-${sessionId}.log`);
 
@@ -2147,8 +2145,6 @@ export class AgentSession {
 			sessionId,
 			logPath,
 			ingestUrl: "",
-			previousModel,
-			previousThinkingLevel,
 			server: null,
 		};
 	}
@@ -2157,18 +2153,12 @@ export class AgentSession {
 		const state = this.#debugModeState;
 		if (!state?.enabled) return;
 
-		if (state.previousModel) {
-			const models = this.getAvailableModels();
-			const prev = models.find(m => m.id === state.previousModel);
-			if (prev) {
-				await this.setModel(prev);
-			}
-		}
-		if (state.previousThinkingLevel) {
-			this.setThinkingLevel(state.previousThinkingLevel as ThinkingLevel);
-		}
-
 		this.#debugModeState = undefined;
+		await this.sendCustomMessage({
+			customType: "debug-mode-off",
+			content: debugModeOffPrompt,
+			display: false,
+		});
 	}
 
 	#buildAskModeMessage(): CustomMessage | null {
