@@ -31,13 +31,13 @@ feature branch           upstream/main
 
 ## Last Sync Point
 
-**Upstream base:** `9d8638186` (fix: only show update banner when npm version is strictly newer (#552))
-**Date:** 2026-03-27
-**omp commits since:** ~110+
+**Upstream base:** `8d8464df1` (feat(patch): added language-specific import management with deduplication)
+**Date:** 2026-04-04
+**omp commits since:** 0
 
 To generate patches for your next sync:
 ```bash
-git format-patch 8cb08be50..upstream/main
+git format-patch 8d8464df1..upstream/main
 ```
 
 Update this section after each successful rebase.
