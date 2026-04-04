@@ -156,3 +156,107 @@ Loaded via symbolic link.
 		expect(session.skillWarnings).toEqual([]);
 	});
 });
+
+describe("disabledExtensions threading into skillsSettings", () => {
+	let tempDir: string;
+	let tempHomeDir: string;
+	let originalHome: string | undefined;
+
+	beforeEach(() => {
+		tempDir = path.join(os.tmpdir(), `pi-sdk-disabled-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+		const skillsDir = path.join(tempDir, ".omp", "skills", "secret-skill");
+		fs.mkdirSync(skillsDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(skillsDir, "SKILL.md"),
+			`---\nname: secret-skill\ndescription: A skill that should be suppressible.\n---\n\n# Secret Skill\n\nSensitive content here.\n`,
+		);
+		originalHome = process.env.HOME;
+		tempHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-sdk-disabled-home-"));
+		process.env.HOME = tempHomeDir;
+		const nativeUserSkillsDir = path.join(tempHomeDir, ".omp", "agent", "skills");
+		fs.mkdirSync(nativeUserSkillsDir, { recursive: true });
+	});
+
+	afterEach(() => {
+		if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true });
+		if (tempHomeDir) fs.rmSync(tempHomeDir, { recursive: true, force: true });
+		if (originalHome === undefined) {
+			delete process.env.HOME;
+		} else {
+			process.env.HOME = originalHome;
+		}
+	});
+
+	it("should exclude disabled skill from session.skills and session.skillsSettings", async () => {
+		const settings = Settings.isolated({
+			"skills.enabled": true,
+			"skills.enableCodexUser": false,
+			"skills.enableClaudeUser": false,
+			"skills.enableClaudeProject": false,
+			"skills.enablePiUser": false,
+			"skills.enablePiProject": true,
+			disabledExtensions: ["skill:secret-skill"],
+		});
+
+		const { session } = await createAgentSession({
+			cwd: tempDir,
+			agentDir: tempDir,
+			sessionManager: SessionManager.inMemory(),
+			settings,
+		});
+
+		// The skill must not appear in the discovered list
+		expect(session.skills.some((s: Skill) => s.name === "secret-skill")).toBe(false);
+
+		// skillsSettings exposed on the session must carry disabledExtensions
+		// so that any subsequent rebuildSystemPrompt call also filters correctly
+		expect(session.skillsSettings?.disabledExtensions).toContain("skill:secret-skill");
+	});
+
+	it("should exclude disabled skill from the built system prompt", async () => {
+		const settings = Settings.isolated({
+			"skills.enabled": true,
+			"skills.enableCodexUser": false,
+			"skills.enableClaudeUser": false,
+			"skills.enableClaudeProject": false,
+			"skills.enablePiUser": false,
+			"skills.enablePiProject": true,
+			disabledExtensions: ["skill:secret-skill"],
+		});
+
+		const { session } = await createAgentSession({
+			cwd: tempDir,
+			agentDir: tempDir,
+			sessionManager: SessionManager.inMemory(),
+			settings,
+		});
+
+		// The system prompt must not contain the skill's name or content
+		expect(session.systemPrompt).not.toContain("secret-skill");
+		expect(session.systemPrompt).not.toContain("Sensitive content here");
+	});
+
+	it("should include non-disabled skill in the built system prompt", async () => {
+		// Sanity check: without disabling, the skill IS present
+		const settings = Settings.isolated({
+			"skills.enabled": true,
+			"skills.enableCodexUser": false,
+			"skills.enableClaudeUser": false,
+			"skills.enableClaudeProject": false,
+			"skills.enablePiUser": false,
+			"skills.enablePiProject": true,
+			// no disabledExtensions
+		});
+
+		const { session } = await createAgentSession({
+			cwd: tempDir,
+			agentDir: tempDir,
+			sessionManager: SessionManager.inMemory(),
+			settings,
+		});
+
+		expect(session.skills.some((s: Skill) => s.name === "secret-skill")).toBe(true);
+		expect(session.systemPrompt).toContain("secret-skill");
+	});
+
+});
