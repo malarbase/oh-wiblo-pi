@@ -29,10 +29,7 @@ function createPathContext(): SegmentContext {
 				stripWorkPrefix: true,
 			},
 		},
-		planMode: null,
-		loopMode: null,
-		askMode: null,
-		debugMode: null,
+		agentMode: { mode: "none", planPaused: false },
 		usageStats: {
 			input: 0,
 			output: 0,

@@ -142,9 +142,9 @@ export class InputController {
 		// Wire up extension shortcuts
 		this.registerExtensionShortcuts();
 
-		const planModeKeys = this.ctx.keybindings.getKeys("app.plan.toggle");
-		for (const key of planModeKeys) {
-			this.ctx.editor.setCustomKeyHandler(key, () => void this.ctx.handlePlanModeCommand());
+		const modeCycleKeys = this.ctx.keybindings.getKeys("app.mode.cycle");
+		for (const key of modeCycleKeys) {
+			this.ctx.editor.setCustomKeyHandler(key, () => void this.ctx.handleModeCycleCommand());
 		}
 
 		for (const key of this.ctx.keybindings.getKeys("app.session.new")) {

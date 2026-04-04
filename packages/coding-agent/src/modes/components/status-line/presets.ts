@@ -2,7 +2,7 @@ import type { PresetDef, StatusLinePreset } from "./types";
 
 export const STATUS_LINE_PRESETS: Record<StatusLinePreset, PresetDef> = {
 	default: {
-		leftSegments: ["pi", "model", "mode", "ask_mode", "debug_mode", "path", "git", "pr", "context_pct", "cost"],
+		leftSegments: ["pi", "model", "agent_mode", "path", "git", "pr", "context_pct", "cost"],
 		rightSegments: ["session_name"],
 		separator: "powerline-thin",
 		segmentOptions: {
@@ -14,7 +14,7 @@ export const STATUS_LINE_PRESETS: Record<StatusLinePreset, PresetDef> = {
 
 	minimal: {
 		leftSegments: ["path", "git"],
-		rightSegments: ["session_name", "ask_mode", "debug_mode", "context_pct"],
+		rightSegments: ["session_name", "agent_mode", "context_pct"],
 		separator: "slash",
 		segmentOptions: {
 			path: { abbreviate: true, maxLength: 30 },
@@ -23,7 +23,7 @@ export const STATUS_LINE_PRESETS: Record<StatusLinePreset, PresetDef> = {
 	},
 
 	compact: {
-		leftSegments: ["model", "mode", "ask_mode", "debug_mode", "git", "pr"],
+		leftSegments: ["model", "agent_mode", "git", "pr"],
 		rightSegments: ["session_name", "cost", "context_pct"],
 		separator: "powerline-thin",
 		segmentOptions: {
@@ -33,7 +33,7 @@ export const STATUS_LINE_PRESETS: Record<StatusLinePreset, PresetDef> = {
 	},
 
 	full: {
-		leftSegments: ["pi", "hostname", "model", "mode", "ask_mode", "debug_mode", "path", "git", "pr", "subagents"],
+		leftSegments: ["pi", "hostname", "model", "agent_mode", "path", "git", "pr", "subagents"],
 		rightSegments: [
 			"session_name",
 			"token_in",
@@ -56,7 +56,7 @@ export const STATUS_LINE_PRESETS: Record<StatusLinePreset, PresetDef> = {
 
 	nerd: {
 		// Full preset with all Nerd Font icons
-		leftSegments: ["pi", "hostname", "model", "mode", "ask_mode", "debug_mode", "path", "git", "pr", "session", "subagents"],
+		leftSegments: ["pi", "hostname", "model", "agent_mode", "path", "git", "pr", "session", "subagents"],
 		rightSegments: [
 			"session_name",
 			"token_in",
@@ -81,7 +81,7 @@ export const STATUS_LINE_PRESETS: Record<StatusLinePreset, PresetDef> = {
 
 	ascii: {
 		// No Nerd Font dependencies
-		leftSegments: ["model", "mode", "ask_mode", "debug_mode", "path", "git", "pr"],
+		leftSegments: ["model", "agent_mode", "path", "git", "pr"],
 		rightSegments: ["session_name", "token_total", "cost", "context_pct"],
 		separator: "ascii",
 		segmentOptions: {
@@ -93,7 +93,7 @@ export const STATUS_LINE_PRESETS: Record<StatusLinePreset, PresetDef> = {
 
 	custom: {
 		// User-defined - these are just defaults that get overridden
-		leftSegments: ["model", "mode", "ask_mode", "debug_mode", "path", "git", "pr"],
+		leftSegments: ["model", "agent_mode", "path", "git", "pr"],
 		rightSegments: ["session_name", "token_total", "cost", "context_pct"],
 		separator: "powerline-thin",
 		segmentOptions: {},

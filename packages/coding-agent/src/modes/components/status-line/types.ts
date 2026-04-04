@@ -20,19 +20,11 @@ export interface SegmentContext {
 	session: AgentSession;
 	width: number;
 	options: StatusLineSegmentOptions;
-	planMode: {
-		enabled: boolean;
-		paused: boolean;
-	} | null;
-	loopMode: {
-		enabled: boolean;
-	} | null;
-	askMode: {
-		enabled: boolean;
-	} | null;
-	debugMode: {
-		enabled: boolean;
-	} | null;
+	agentMode: {
+		mode: "none" | "plan" | "ask" | "debug";
+		/** true only when plan mode is paused (mode is "none" but paused state persists) */
+		planPaused: boolean;
+	};
 	// Cached values for performance (computed once per render)
 	usageStats: {
 		input: number;

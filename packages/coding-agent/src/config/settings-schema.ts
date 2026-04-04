@@ -63,7 +63,7 @@ export const TAB_METADATA: Record<SettingTab, { label: string; icon: `tab.${stri
 export type StatusLineSegmentId =
 	| "pi"
 	| "model"
-	| "mode"
+	| "agent_mode"
 	| "path"
 	| "git"
 	| "pr"
@@ -81,9 +81,7 @@ export type StatusLineSegmentId =
 	| "hostname"
 	| "cache_read"
 	| "cache_write"
-	| "session_name"
-	| "ask_mode"
-	| "debug_mode";
+	| "session_name";
 
 /** Submenu choice metadata. */
 export type SubmenuOption<V extends string = string> = {

@@ -239,6 +239,7 @@ export interface InteractiveModeContext {
 	disableLoopMode(): void;
 	pauseLoop(): void;
 	handleExitPlanModeTool(details: ExitPlanModeDetails): Promise<void>;
+	handleModeCycleCommand(): Promise<void>;
 	handleAskModeCommand(): Promise<void>;
 	handleDebugModeCommand(): Promise<void>;
 

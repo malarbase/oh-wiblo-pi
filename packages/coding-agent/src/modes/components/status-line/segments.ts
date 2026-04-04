@@ -76,48 +76,27 @@ const modelSegment: StatusLineSegment = {
 	},
 };
 
-const modeSegment: StatusLineSegment = {
-	id: "mode",
+const agentModeSegment: StatusLineSegment = {
+	id: "agent_mode",
 	render(ctx) {
-		const plan = ctx.planMode;
-		if (plan && (plan.enabled || plan.paused)) {
-			const label = plan.paused ? "Plan ⏸" : "Plan";
-			const content = withIcon(theme.icon.plan, label);
-			const color = plan.paused ? "warning" : "accent";
-			return { content: theme.fg(color, content), visible: true };
+		const { mode, planPaused } = ctx.agentMode;
+		if (mode === "plan") {
+			const content = withIcon(theme.icon.plan, "Plan");
+			return { content: theme.fg("accent", content), visible: true };
 		}
-
-		const loop = ctx.loopMode;
-		if (loop?.enabled) {
-			const content = withIcon(theme.icon.loop, "Loop");
-			return { content: theme.fg("customMessageLabel", content), visible: true };
+		if (planPaused) {
+			const content = withIcon(theme.icon.plan, "Plan ⏸");
+			return { content: theme.fg("warning", content), visible: true };
 		}
-
+		if (mode === "ask") {
+			const content = withIcon(theme.icon.plan, "Ask");
+			return { content: theme.fg("accent", content), visible: true };
+		}
+		if (mode === "debug") {
+			const content = withIcon(theme.icon.plan, "Debug");
+			return { content: theme.fg("warning", content), visible: true };
+		}
 		return { content: "", visible: false };
-	},
-};
-
-const askModeSegment: StatusLineSegment = {
-	id: "ask_mode",
-	render(ctx) {
-		const status = ctx.askMode;
-		if (!status?.enabled) {
-			return { content: "", visible: false };
-		}
-		const content = withIcon(theme.icon.plan, "Ask");
-		return { content: theme.fg("accent", content), visible: true };
-	},
-};
-
-const debugModeSegment: StatusLineSegment = {
-	id: "debug_mode",
-	render(ctx) {
-		const status = ctx.debugMode;
-		if (!status?.enabled) {
-			return { content: "", visible: false };
-		}
-		const content = withIcon(theme.icon.plan, "Debug");
-		return { content: theme.fg("warning", content), visible: true };
 	},
 };
 
@@ -405,9 +384,7 @@ const sessionNameSegment: StatusLineSegment = {
 export const SEGMENTS: Record<StatusLineSegmentId, StatusLineSegment> = {
 	pi: piSegment,
 	model: modelSegment,
-	mode: modeSegment,
-	ask_mode: askModeSegment,
-	debug_mode: debugModeSegment,
+	agent_mode: agentModeSegment,
 	path: pathSegment,
 	git: gitSegment,
 	pr: prSegment,
