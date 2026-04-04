@@ -57,7 +57,7 @@ export const TAB_METADATA: Record<SettingTab, { label: string; icon: `tab.${stri
 export type StatusLineSegmentId =
 	| "pi"
 	| "model"
-	| "plan_mode"
+	| "agent_mode"
 	| "path"
 	| "git"
 	| "pr"
@@ -74,9 +74,7 @@ export type StatusLineSegmentId =
 	| "session"
 	| "hostname"
 	| "cache_read"
-	| "cache_write"
-	| "ask_mode"
-	| "debug_mode";
+	| "cache_write";
 
 interface UiMetadata {
 	tab: SettingTab;

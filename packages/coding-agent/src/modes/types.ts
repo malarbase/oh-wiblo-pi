@@ -228,6 +228,7 @@ export interface InteractiveModeContext {
 	registerExtensionShortcuts(): void;
 	handlePlanModeCommand(initialPrompt?: string): Promise<void>;
 	handleExitPlanModeTool(details: ExitPlanModeDetails): Promise<void>;
+	handleModeCycleCommand(): Promise<void>;
 	handleAskModeCommand(): Promise<void>;
 	handleDebugModeCommand(): Promise<void>;
 

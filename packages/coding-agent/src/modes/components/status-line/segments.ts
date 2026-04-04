@@ -74,42 +74,27 @@ const modelSegment: StatusLineSegment = {
 	},
 };
 
-const planModeSegment: StatusLineSegment = {
-	id: "plan_mode",
+const agentModeSegment: StatusLineSegment = {
+	id: "agent_mode",
 	render(ctx) {
-		const status = ctx.planMode;
-		if (!status || (!status.enabled && !status.paused)) {
-			return { content: "", visible: false };
+		const { mode, planPaused } = ctx.agentMode;
+		if (mode === "plan") {
+			const content = withIcon(theme.icon.plan, "Plan");
+			return { content: theme.fg("accent", content), visible: true };
 		}
-
-		const label = status.paused ? "Plan ⏸" : "Plan";
-		const content = withIcon(theme.icon.plan, label);
-		const color = status.paused ? "warning" : "accent";
-		return { content: theme.fg(color, content), visible: true };
-	},
-};
-
-const askModeSegment: StatusLineSegment = {
-	id: "ask_mode",
-	render(ctx) {
-		const status = ctx.askMode;
-		if (!status?.enabled) {
-			return { content: "", visible: false };
+		if (planPaused) {
+			const content = withIcon(theme.icon.plan, "Plan ⏸");
+			return { content: theme.fg("warning", content), visible: true };
 		}
-		const content = withIcon(theme.icon.plan, "Ask");
-		return { content: theme.fg("accent", content), visible: true };
-	},
-};
-
-const debugModeSegment: StatusLineSegment = {
-	id: "debug_mode",
-	render(ctx) {
-		const status = ctx.debugMode;
-		if (!status?.enabled) {
-			return { content: "", visible: false };
+		if (mode === "ask") {
+			const content = withIcon(theme.icon.plan, "Ask");
+			return { content: theme.fg("accent", content), visible: true };
 		}
-		const content = withIcon(theme.icon.plan, "Debug");
-		return { content: theme.fg("warning", content), visible: true };
+		if (mode === "debug") {
+			const content = withIcon(theme.icon.plan, "Debug");
+			return { content: theme.fg("warning", content), visible: true };
+		}
+		return { content: "", visible: false };
 	},
 };
 
@@ -385,9 +370,7 @@ const cacheWriteSegment: StatusLineSegment = {
 export const SEGMENTS: Record<StatusLineSegmentId, StatusLineSegment> = {
 	pi: piSegment,
 	model: modelSegment,
-	plan_mode: planModeSegment,
-	ask_mode: askModeSegment,
-	debug_mode: debugModeSegment,
+	agent_mode: agentModeSegment,
 	path: pathSegment,
 	git: gitSegment,
 	pr: prSegment,

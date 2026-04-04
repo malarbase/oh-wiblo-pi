@@ -1,6 +1,18 @@
 # Changelog
 
 ## [Unreleased]
+### Breaking Changes
+
+- `app.plan.toggle` keybinding id removed; migrated to `app.mode.cycle`. User configs containing `"app.plan.toggle"` or the legacy `"togglePlanMode"` key are automatically remapped on load.
+- Status bar segment ids `plan_mode`, `ask_mode`, and `debug_mode` removed and replaced by a single `agent_mode` segment. Custom status-line configurations referencing the old ids must be updated to `"agent_mode"`.
+
+### Changed
+
+- Replaced `app.plan.toggle` keybinding with `app.mode.cycle` (default `Alt+M`), which cycles through all agent modes in sequence: none → plan → ask → debug → none. The previous default `Alt+Shift+P` did not work on macOS.
+- Consolidated three separate status bar mode segments (`plan_mode`, `ask_mode`, `debug_mode`) into a single `agent_mode` segment that renders the active mode label.
+- All mode transitions (plan, ask, debug) now route through a single `#setActiveMode()` helper ensuring atomic status bar updates, `appendModeChange` calls, and mutual exclusion. Previously, partial update windows could leave two mode context blocks injected simultaneously.
+
+
 ### Added
 
 - Added `edit.manageImports` setting to enable/disable post-edit import and include management
