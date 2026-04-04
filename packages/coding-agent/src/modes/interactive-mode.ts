@@ -76,6 +76,12 @@ import {
 import type { CompactionQueuedMessage, InteractiveModeContext, SubmittedUserInput, TodoItem, TodoPhase } from "./types";
 import { UiHelpers } from "./utils/ui-helpers";
 
+/** The three named modes a session can be in, plus the default. */
+type ActiveMode = "none" | "plan" | "ask" | "debug";
+
+/** Cycle order for app.mode.cycle keybinding. */
+const MODE_CYCLE_ORDER: ActiveMode[] = ["none", "plan", "ask", "debug"];
+
 const EDITOR_MAX_HEIGHT_MIN = 6;
 const EDITOR_MAX_HEIGHT_MAX = 18;
 const EDITOR_RESERVED_ROWS = 12;
@@ -142,7 +148,8 @@ export class InteractiveMode implements InteractiveModeContext {
 	isBashMode = false;
 	toolOutputExpanded = false;
 	todoExpanded = false;
-	planModeEnabled = false;
+	/** Authoritative mode state. planModeEnabled and planModePaused are derived from this. */
+	#activeMode: ActiveMode = "none";
 	planModePaused = false;
 	planModePlanFilePath: string | undefined = undefined;
 	todoPhases: TodoPhase[] = [];
@@ -315,6 +322,11 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.#selectorController = new SelectorController(this);
 		this.#inputController = new InputController(this);
 		this.#observerRegistry = new SessionObserverRegistry();
+	}
+
+	/** Backward-compatible getter — true when plan mode is active. */
+	get planModeEnabled(): boolean {
+		return this.#activeMode === "plan";
 	}
 
 	async init(): Promise<void> {
@@ -669,16 +681,79 @@ export class InteractiveMode implements InteractiveModeContext {
 	}
 
 	#updatePlanModeStatus(): void {
-		const status =
-			this.planModeEnabled || this.planModePaused
-				? {
-						enabled: this.planModeEnabled,
-						paused: this.planModePaused,
-					}
-				: undefined;
-		this.statusLine.setPlanModeStatus(status);
+		// Delegate to the unified status updater.
+		this.#updateAgentModeStatus();
+	}
+
+	/**
+	 * Unified status bar update — drives the single agent_mode segment.
+	 * Called by #setActiveMode after every transition.
+	 */
+	#updateAgentModeStatus(): void {
+		this.statusLine.setAgentModeStatus(this.#activeMode, this.planModePaused);
 		this.updateEditorTopBorder();
 		this.ui.requestRender();
+	}
+
+	/**
+	 * Atomically transition to `next` mode.
+	 * Handles exit of the current mode, entry of the next, status bar update,
+	 * and appendModeChange — all in one place.
+	 */
+	async #setActiveMode(next: ActiveMode, options?: { silent?: boolean; initialPrompt?: string }): Promise<void> {
+		const current = this.#activeMode;
+		if (current === next) return;
+
+		// Exit current mode
+		if (current === "plan") {
+			await this.#exitPlanMode({ silent: options?.silent ?? next !== "none" });
+		} else if (current === "ask") {
+			// Disable ask-mode state silently (the mode-off message is still sent)
+			await this.session.disableAskMode();
+		} else if (current === "debug") {
+			await this.#exitDebugModeInternal();
+		}
+
+		// Enter next mode
+		if (next === "plan") {
+			await this.#enterPlanMode();
+		} else if (next === "ask") {
+			this.session.enableAskMode();
+			await this.session.sendAskModeContext();
+			if (!options?.silent) this.showStatus("Ask mode enabled. Read-only — no edits allowed.");
+		} else if (next === "debug") {
+			await this.#enterDebugModeInternal();
+		} else {
+			// none: status shown by exit handlers
+		}
+
+		// Update status bar and record the transition
+		// Note: #activeMode was already set by #enterPlanMode / #exitPlanMode for plan transitions.
+		// For ask/debug/none we set it here.
+		if (next !== "plan") {
+			this.#activeMode = next;
+		}
+		this.#updateAgentModeStatus();
+		const modeChangeArg = next === "plan" ? "plan" : next === "ask" ? "ask" : next === "debug" ? "debug" : "none";
+		this.sessionManager.appendModeChange(modeChangeArg);
+
+		if (next === "none" && !options?.silent) {
+			if (current === "ask") this.showStatus("Ask mode disabled.");
+			else if (current === "debug") this.showStatus("Debug mode disabled.");
+		}
+
+		if (next === "plan" && options?.initialPrompt && this.onInputCallback) {
+			this.onInputCallback(this.startPendingSubmission({ text: options.initialPrompt }));
+		}
+	}
+
+	/**
+	 * Cycle through modes: none → plan → ask → debug → none.
+	 */
+	async handleModeCycleCommand(): Promise<void> {
+		const idx = MODE_CYCLE_ORDER.indexOf(this.#activeMode);
+		const next = MODE_CYCLE_ORDER[(idx + 1) % MODE_CYCLE_ORDER.length]!;
+		await this.#setActiveMode(next);
 	}
 
 	async #applyPlanModeModel(): Promise<void> {
@@ -730,9 +805,11 @@ export class InteractiveMode implements InteractiveModeContext {
 		if (sessionContext.mode === "plan") {
 			const planFilePath = sessionContext.modeData?.planFilePath as string | undefined;
 			await this.#enterPlanMode({ planFilePath });
+			// #activeMode already set to "plan" inside #enterPlanMode
 		} else if (sessionContext.mode === "plan_paused") {
 			this.planModePaused = true;
 			this.#planModeHasEntered = true;
+			// Keep #activeMode as "none" since plan is paused, not active
 			this.#updatePlanModeStatus();
 		}
 	}
@@ -752,7 +829,7 @@ export class InteractiveMode implements InteractiveModeContext {
 
 		this.#planModePreviousTools = previousTools;
 		this.planModePlanFilePath = planFilePath;
-		this.planModeEnabled = true;
+		this.#activeMode = "plan";
 
 		await this.session.setActiveToolsByName(uniquePlanTools);
 		this.session.setPlanModeState({
@@ -794,7 +871,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			}
 		}
 		this.session.setPlanModeState(undefined);
-		this.planModeEnabled = false;
+		this.#activeMode = "none";
 		this.planModePaused = options?.paused ?? false;
 		this.planModePlanFilePath = undefined;
 		this.#planModePreviousTools = undefined;
@@ -955,12 +1032,12 @@ export class InteractiveMode implements InteractiveModeContext {
 			);
 			if (!confirmed) return;
 			await this.#exitPlanMode({ paused: true });
+			this.#activeMode = "none";
+			this.#updateAgentModeStatus();
+			this.sessionManager.appendModeChange("plan_paused");
 			return;
 		}
-		await this.#enterPlanMode();
-		if (initialPrompt && this.onInputCallback) {
-			this.onInputCallback(this.startPendingSubmission({ text: initialPrompt }));
-		}
+		await this.#setActiveMode("plan", { initialPrompt });
 	}
 
 	async handleExitPlanModeTool(details: ExitPlanModeDetails): Promise<void> {
@@ -1022,43 +1099,32 @@ export class InteractiveMode implements InteractiveModeContext {
 	}
 
 	async handleAskModeCommand(): Promise<void> {
-		const state = this.session.getAskModeState();
-		if (state?.enabled) {
-			await this.session.disableAskMode();
-			this.statusLine.setAskModeStatus(undefined);
-			this.updateEditorTopBorder();
-			this.ui.requestRender();
-			this.sessionManager.appendModeChange("none");
-			this.showStatus("Ask mode disabled.");
-			return;
-		}
-
-		if (this.planModeEnabled) {
-			await this.#exitPlanMode({ silent: true });
-		}
-
-		this.session.enableAskMode();
-		await this.session.sendAskModeContext();
-		this.statusLine.setAskModeStatus({ enabled: true });
-		this.updateEditorTopBorder();
-		this.ui.requestRender();
-		this.sessionManager.appendModeChange("ask");
-		this.showStatus("Ask mode enabled. Read-only — no edits allowed.");
+		const isAsk = this.#activeMode === "ask";
+		await this.#setActiveMode(isAsk ? "none" : "ask");
 	}
 
 	async handleDebugModeCommand(): Promise<void> {
+		const isDebug = this.#activeMode === "debug";
+		await this.#setActiveMode(isDebug ? "none" : "debug");
+	}
+
+	/** Pure debug mode exit — shuts down log server and removes context. Called by #setActiveMode. */
+	async #exitDebugModeInternal(): Promise<void> {
 		const state = this.session.getDebugModeState();
-		if (state?.enabled) {
-			await this.#exitDebugMode();
-			return;
+		if (state?.server) {
+			try {
+				const server = state.server as { stop: () => void };
+				server.stop();
+			} catch {
+				// best-effort cleanup
+			}
 		}
+		await this.session.disableDebugMode();
+	}
 
-		if (this.planModeEnabled) {
-			await this.#exitPlanMode({ silent: true });
-		}
-
+	/** Pure debug mode entry — enables state, starts log server, sends context. Called by #setActiveMode. */
+	async #enterDebugModeInternal(): Promise<void> {
 		await this.session.enableDebugMode();
-
 		const debugState = this.session.getDebugModeState();
 		if (debugState) {
 			try {
@@ -1070,31 +1136,8 @@ export class InteractiveMode implements InteractiveModeContext {
 				debugState.ingestUrl = "";
 			}
 		}
-
 		await this.session.sendDebugModeContext();
-		this.statusLine.setDebugModeStatus({ enabled: true });
-		this.updateEditorTopBorder();
-		this.ui.requestRender();
-		this.sessionManager.appendModeChange("debug");
 		this.showStatus("Debug mode enabled. Extended thinking + evidence-first debugging.");
-	}
-
-	async #exitDebugMode(): Promise<void> {
-		const state = this.session.getDebugModeState();
-		if (state?.server) {
-			try {
-				const server = state.server as { stop: () => void };
-				server.stop();
-			} catch {
-				// best-effort cleanup
-			}
-		}
-		await this.session.disableDebugMode();
-		this.statusLine.setDebugModeStatus(undefined);
-		this.updateEditorTopBorder();
-		this.ui.requestRender();
-		this.sessionManager.appendModeChange("none");
-		this.showStatus("Debug mode disabled.");
 	}
 
 	stop(): void {

@@ -1333,7 +1333,10 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 				toolNames,
 				rules: rulebookRules,
 				alwaysApplyRules,
-				skillsSettings: { ...settings.getGroup("skills"), disabledExtensions: settings.get("disabledExtensions") ?? [] },
+				skillsSettings: {
+					...settings.getGroup("skills"),
+					disabledExtensions: settings.get("disabledExtensions") ?? [],
+				},
 				customPrompt: options.systemPrompt,
 				appendSystemPrompt: appendPrompt,
 				repeatToolDescriptions,

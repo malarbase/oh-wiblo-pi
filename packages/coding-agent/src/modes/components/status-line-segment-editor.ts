@@ -18,7 +18,7 @@ import { ALL_SEGMENT_IDS } from "./status-line/segments";
 const SEGMENT_INFO: Record<StatusLineSegmentId, { label: string; short: string }> = {
 	pi: { label: "Pi", short: "π icon" },
 	model: { label: "Model", short: "model name" },
-	plan_mode: { label: "Plan Mode", short: "plan status" },
+	agent_mode: { label: "Mode", short: "active mode (plan/ask/debug)" },
 	path: { label: "Path", short: "working dir" },
 	git: { label: "Git", short: "branch/status" },
 	pr: { label: "PR", short: "pull request" },
@@ -37,8 +37,6 @@ const SEGMENT_INFO: Record<StatusLineSegmentId, { label: string; short: string }
 	cache_read: { label: "Cache ↓", short: "cache read" },
 	cache_write: { label: "Cache ↑", short: "cache write" },
 	session_name: { label: "Session Name", short: "named session" },
-	ask_mode: { label: "Ask Mode", short: "ask status" },
-	debug_mode: { label: "Debug Mode", short: "debug status" },
 };
 
 type Column = "left" | "right" | "disabled";

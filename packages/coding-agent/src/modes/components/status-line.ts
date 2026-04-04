@@ -56,9 +56,10 @@ export class StatusLineComponent implements Component {
 	#hookStatuses: Map<string, string> = new Map();
 	#subagentCount: number = 0;
 	#sessionStartTime: number = Date.now();
-	#planModeStatus: { enabled: boolean; paused: boolean } | null = null;
-	#askModeStatus: { enabled: boolean } | null = null;
-	#debugModeStatus: { enabled: boolean } | null = null;
+	#agentMode: { mode: "none" | "plan" | "ask" | "debug"; planPaused: boolean } = {
+		mode: "none",
+		planPaused: false,
+	};
 
 	// Git status caching (1s TTL)
 	#cachedGitStatus: { staged: number; unstaged: number; untracked: number } | null = null;
@@ -100,16 +101,8 @@ export class StatusLineComponent implements Component {
 		this.#sessionStartTime = time;
 	}
 
-	setPlanModeStatus(status: { enabled: boolean; paused: boolean } | undefined): void {
-		this.#planModeStatus = status ?? null;
-	}
-
-	setAskModeStatus(status: { enabled: boolean } | undefined): void {
-		this.#askModeStatus = status ?? null;
-	}
-
-	setDebugModeStatus(status: { enabled: boolean } | undefined): void {
-		this.#debugModeStatus = status ?? null;
+	setAgentModeStatus(mode: "none" | "plan" | "ask" | "debug", planPaused = false): void {
+		this.#agentMode = { mode, planPaused };
 	}
 
 	setHookStatus(key: string, text: string | undefined): void {
@@ -335,9 +328,7 @@ export class StatusLineComponent implements Component {
 			session: this.session,
 			width,
 			options: this.#resolveSettings().segmentOptions ?? {},
-			planMode: this.#planModeStatus,
-			askMode: this.#askModeStatus,
-			debugMode: this.#debugModeStatus,
+			agentMode: this.#agentMode,
 			usageStats,
 			contextPercent,
 			contextWindow,

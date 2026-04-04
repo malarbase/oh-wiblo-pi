@@ -247,5 +247,4 @@ describe("disabledExtensions threading into skillsSettings", () => {
 		expect(session.skills.some((s: Skill) => s.name === "secret-skill")).toBe(true);
 		expect(session.systemPrompt).toContain("secret-skill");
 	});
-
 });
