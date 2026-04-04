@@ -248,9 +248,9 @@ async function loadSlashCommands(ctx: LoadContext): Promise<LoadResult<SlashComm
 	const warnings: string[] = [];
 
 	const userBase = getUserPi(ctx);
-	const userCommandsDir = path.join(userBase, "commands");
+	const userPromptsDir = path.join(userBase, "prompts");
 
-	const userResult = await loadFilesFromDir<SlashCommand>(ctx, userCommandsDir, PROVIDER_ID, "user", {
+	const userResult = await loadFilesFromDir<SlashCommand>(ctx, userPromptsDir, PROVIDER_ID, "user", {
 		extensions: ["md"],
 		transform: (name, content, filePath, source) => {
 			const cmdName = name.replace(/\.md$/, "");
@@ -267,9 +267,9 @@ async function loadSlashCommands(ctx: LoadContext): Promise<LoadResult<SlashComm
 	items.push(...userResult.items);
 	if (userResult.warnings) warnings.push(...userResult.warnings);
 
-	const projectCommandsDir = path.join(ctx.cwd, CONFIG_DIR, "commands");
+	const projectPromptsDir = path.join(ctx.cwd, CONFIG_DIR, "prompts");
 
-	const projectResult = await loadFilesFromDir<SlashCommand>(ctx, projectCommandsDir, PROVIDER_ID, "project", {
+	const projectResult = await loadFilesFromDir<SlashCommand>(ctx, projectPromptsDir, PROVIDER_ID, "project", {
 		extensions: ["md"],
 		transform: (name, content, filePath, source) => {
 			const cmdName = name.replace(/\.md$/, "");
