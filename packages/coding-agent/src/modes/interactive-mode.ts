@@ -26,6 +26,7 @@ import type {
 	ExtensionWidgetOptions,
 } from "../extensibility/extensions";
 import type { CompactOptions } from "../extensibility/extensions/types";
+import { loadSkills } from "../extensibility/skills";
 import { BUILTIN_SLASH_COMMANDS, loadSlashCommands } from "../extensibility/slash-commands";
 import { resolveLocalUrlToPath } from "../internal-urls";
 import { LSP_STARTUP_EVENT_CHANNEL, type LspStartupEvent } from "../lsp/startup-events";
@@ -303,7 +304,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		// Build skill commands from session.skills (if enabled)
 		const skillCommandList: SlashCommand[] = [];
 		if (settings.get("skills.enableSkillCommands")) {
-			for (const skill of this.session.skills) {
+			for (const skill of this.session.getActiveSkills?.() ?? this.session.skills ?? []) {
 				const commandName = `skill:${skill.name}`;
 				this.skillCommands.set(commandName, skill.filePath);
 				skillCommandList.push({ name: commandName, description: skill.description });
@@ -487,6 +488,43 @@ export class InteractiveMode implements InteractiveModeContext {
 		);
 		this.editor.setAutocompleteProvider(autocompleteProvider);
 		this.session.setSlashCommands(fileCommands);
+	}
+
+	async #rebuildSkillCommands(): Promise<void> {
+		this.skillCommands.clear();
+		const skillCommandList: SlashCommand[] = [];
+		if (settings.get("skills.enableSkillCommands")) {
+			const skillsSettings = settings.getGroup("skills");
+			const disabledExtensions = (settings.get("disabledExtensions") as string[]) ?? [];
+			const { skills } = await loadSkills({
+				...skillsSettings,
+				cwd: this.sessionManager.getCwd(),
+				disabledExtensions,
+			});
+			for (const skill of skills) {
+				const commandName = `skill:${skill.name}`;
+				this.skillCommands.set(commandName, skill.filePath);
+				skillCommandList.push({ name: commandName, description: skill.description });
+			}
+		}
+		const builtinCommandNames = new Set(BUILTIN_SLASH_COMMANDS.map(c => c.name));
+		const hookCommands: SlashCommand[] = (
+			this.session.extensionRunner?.getRegisteredCommands(builtinCommandNames) ?? []
+		).map(cmd => ({
+			name: cmd.name,
+			description: cmd.description ?? "(hook command)",
+			getArgumentCompletions: cmd.getArgumentCompletions,
+		}));
+		const customCommands: SlashCommand[] = this.session.customCommands.map(loaded => ({
+			name: loaded.command.name,
+			description: `${loaded.command.description} (${loaded.source})`,
+		}));
+		this.#pendingSlashCommands = [...BUILTIN_SLASH_COMMANDS, ...hookCommands, ...customCommands, ...skillCommandList];
+		await this.refreshSlashCommandState();
+	}
+
+	async refreshSkillCommands(): Promise<void> {
+		await this.#rebuildSkillCommands();
 	}
 
 	async getUserInput(): Promise<SubmittedUserInput> {

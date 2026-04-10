@@ -253,7 +253,13 @@ export interface AgentSessionConfig {
 	/** Current session message-to-LLM conversion pipeline */
 	convertToLlm?: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
 	/** System prompt builder that can consider tool availability */
-	rebuildSystemPrompt?: (toolNames: string[], tools: Map<string, AgentTool>) => Promise<string>;
+	rebuildSystemPrompt?: (
+		toolNames: string[],
+		tools: Map<string, AgentTool>,
+		skillsOverride?: Skill[],
+	) => Promise<string>;
+	/** Re-discovers skills from disk; injected by SDK to keep AgentSession decoupled from discovery internals. */
+	rediscoverSkills?: () => Promise<Skill[]>;
 	/** Enable hidden-by-default MCP tool discovery for this session. */
 	mcpDiscoveryEnabled?: boolean;
 	/** MCP tool names to activate for the current session when discovery mode is enabled. */
@@ -413,6 +419,11 @@ const noOpUIContext: ExtensionUIContext = {
 	setToolsExpanded: () => {},
 };
 
+/** Returns true when two string arrays contain the same elements in the same order. */
+function arraysEqual(a: string[], b: string[]): boolean {
+	return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
 // ============================================================================
 // AgentSession Class
 // ============================================================================
@@ -500,6 +511,13 @@ export class AgentSession {
 	#mcpPromptCommands: LoadedCustomCommand[] = [];
 
 	#skillsSettings: SkillsSettings | undefined;
+	#rediscoverSkills: (() => Promise<Skill[]>) | undefined;
+	/** Skills to use for the current session — overrides the initial frozen list after re-discovery. */
+	#sessionSkills: Skill[] | undefined;
+	/** Snapshot of disabled extension IDs at the start of the current session, for change detection. */
+	#lastDiscoveredDisabledIds: string[];
+	/** Whether the last #sessionSkills update came from a real discovery run (setting was on). */
+	#lastRediscoverEnabled: boolean;
 
 	// Model registry for API key resolution
 	#modelRegistry: ModelRegistry;
@@ -509,7 +527,9 @@ export class AgentSession {
 	#transformContext: (messages: AgentMessage[], signal?: AbortSignal) => AgentMessage[] | Promise<AgentMessage[]>;
 	#onPayload: SimpleStreamOptions["onPayload"] | undefined;
 	#convertToLlm: (messages: AgentMessage[]) => Message[] | Promise<Message[]>;
-	#rebuildSystemPrompt: ((toolNames: string[], tools: Map<string, AgentTool>) => Promise<string>) | undefined;
+	#rebuildSystemPrompt:
+		| ((toolNames: string[], tools: Map<string, AgentTool>, skillsOverride?: Skill[]) => Promise<string>)
+		| undefined;
 	#baseSystemPrompt: string;
 	#mcpDiscoveryEnabled = false;
 	#discoverableMCPTools = new Map<string, DiscoverableMCPTool>();
@@ -589,6 +609,9 @@ export class AgentSession {
 		this.#skillWarnings = config.skillWarnings ?? [];
 		this.#customCommands = config.customCommands ?? [];
 		this.#skillsSettings = config.skillsSettings;
+		this.#rediscoverSkills = config.rediscoverSkills;
+		this.#lastDiscoveredDisabledIds = config.skillsSettings?.disabledExtensions ?? [];
+		this.#lastRediscoverEnabled = !!config.skillsSettings && !!this.#rediscoverSkills;
 		this.#modelRegistry = config.modelRegistry;
 		this.#validateRetryFallbackChains();
 		this.#toolRegistry = config.toolRegistry ?? new Map();
@@ -2164,7 +2187,11 @@ export class AgentSession {
 
 		// Rebuild base system prompt with new tool set
 		if (this.#rebuildSystemPrompt) {
-			this.#baseSystemPrompt = await this.#rebuildSystemPrompt(validToolNames, this.#toolRegistry);
+			this.#baseSystemPrompt = await this.#rebuildSystemPrompt(
+				validToolNames,
+				this.#toolRegistry,
+				this.#sessionSkills,
+			);
 			this.agent.setSystemPrompt(this.#baseSystemPrompt);
 		}
 		if (options?.persistMCPSelection !== false) {
@@ -2205,7 +2232,11 @@ export class AgentSession {
 	async refreshBaseSystemPrompt(): Promise<void> {
 		if (!this.#rebuildSystemPrompt) return;
 		const activeToolNames = this.getActiveToolNames();
-		this.#baseSystemPrompt = await this.#rebuildSystemPrompt(activeToolNames, this.#toolRegistry);
+		this.#baseSystemPrompt = await this.#rebuildSystemPrompt(
+			activeToolNames,
+			this.#toolRegistry,
+			this.#sessionSkills,
+		);
 		this.agent.setSystemPrompt(this.#baseSystemPrompt);
 	}
 
@@ -2473,7 +2504,7 @@ export class AgentSession {
 		return {
 			role: "custom",
 			customType: "ask-mode-context",
-			content: renderPromptTemplate(askModeContextPrompt),
+			content: prompt.render(askModeContextPrompt),
 			display: false,
 			attribution: "agent",
 			timestamp: Date.now(),
@@ -2486,7 +2517,7 @@ export class AgentSession {
 		return {
 			role: "custom",
 			customType: "debug-mode-context",
-			content: renderPromptTemplate(debugModeContextPrompt, {
+			content: prompt.render(debugModeContextPrompt, {
 				ingestUrl: state.ingestUrl,
 				logPath: state.logPath,
 				sessionId: state.sessionId,
@@ -3387,6 +3418,11 @@ export class AgentSession {
 		return this.#skills;
 	}
 
+	/** Skills for the current session — re-discovered list after /new, or initial list if no re-discovery has run. */
+	getActiveSkills(): readonly Skill[] {
+		return this.#sessionSkills ?? this.#skills;
+	}
+
 	/** Skill loading warnings captured by SDK */
 	get skillWarnings(): readonly SkillWarning[] {
 		return this.#skillWarnings;
@@ -3552,6 +3588,31 @@ export class AgentSession {
 			await this.sessionManager.flush();
 		}
 		await this.sessionManager.newSession(options);
+		// Reset the session-start disabled extensions baseline so the Extension Control Center
+		// badge comparison reflects this new session's start state, not the original process start.
+		const currentDisabledIds = (this.settings.get("disabledExtensions") as string[]) ?? [];
+		if (this.#skillsSettings) {
+			this.#skillsSettings = {
+				...this.#skillsSettings,
+				disabledExtensions: currentDisabledIds,
+			};
+		}
+		// Re-discover skills if the disabled-extensions set changed and a discoverer is injected.
+		const rediscoverEnabled = !!this.settings.get("skills.rediscoverOnNewSession");
+		if (
+			this.#rediscoverSkills &&
+			(rediscoverEnabled !== this.#lastRediscoverEnabled ||
+				!arraysEqual(currentDisabledIds, this.#lastDiscoveredDisabledIds))
+		) {
+			this.#sessionSkills = await this.#rediscoverSkills();
+			// Rebuild the system prompt now unless #applyActiveToolsByName will do it below
+			// (it only runs when MCP discovery is enabled).
+			if (!nextDiscoverySessionToolNames) {
+				await this.refreshBaseSystemPrompt();
+			}
+		}
+		this.#lastRediscoverEnabled = rediscoverEnabled;
+		this.#lastDiscoveredDisabledIds = currentDisabledIds;
 		this.setTodoPhases([]);
 		this.agent.sessionId = this.sessionManager.getSessionId();
 		this.#steeringMessages = [];

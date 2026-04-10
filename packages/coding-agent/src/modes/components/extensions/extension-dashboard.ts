@@ -50,6 +50,7 @@ export class ExtensionDashboard extends Container {
 		private readonly cwd: string,
 		private readonly settings: Settings | null,
 		private readonly terminalHeight: number,
+		private readonly sessionDisabledIds: string[],
 	) {
 		super();
 	}
@@ -58,8 +59,14 @@ export class ExtensionDashboard extends Container {
 		cwd: string,
 		settings: Settings | null = null,
 		terminalHeight?: number,
+		sessionDisabledIds?: string[],
 	): Promise<ExtensionDashboard> {
-		const dashboard = new ExtensionDashboard(cwd, settings, terminalHeight ?? process.stdout.rows ?? 24);
+		const dashboard = new ExtensionDashboard(
+			cwd,
+			settings,
+			terminalHeight ?? process.stdout.rows ?? 24,
+			sessionDisabledIds ?? [],
+		);
 		await dashboard.#init();
 		return dashboard;
 	}
@@ -67,7 +74,7 @@ export class ExtensionDashboard extends Container {
 	async #init(): Promise<void> {
 		const sm = this.settings ?? (await Settings.init());
 		const disabledIds = sm ? ((sm.get("disabledExtensions") as string[]) ?? []) : [];
-		this.#state = await createInitialState(this.cwd, disabledIds);
+		this.#state = await createInitialState(this.cwd, disabledIds, this.sessionDisabledIds);
 
 		// Calculate max visible items based on terminal height
 		// Reserve ~10 lines for header, tabs, help text, borders
@@ -228,14 +235,14 @@ export class ExtensionDashboard extends Container {
 
 		// Optimistic update: re-evaluate state synchronously from in-memory data so the
 		// checkbox flips immediately, before the async disk reload completes.
-		reevaluateExtensionStates(this.#state.extensions, disabledIds);
+		reevaluateExtensionStates(this.#state.extensions, disabledIds, this.sessionDisabledIds);
 		this.#mainList.setExtensions(this.#state.searchFiltered);
 		this.#buildLayout();
 		this.onRequestRender?.();
 
 		// Full reload from disk to reconcile any external changes.
 		const currentTabId = this.#state.tabs[this.#state.activeTabIndex]?.id;
-		this.#state = await refreshState(this.#state, this.cwd, disabledIds);
+		this.#state = await refreshState(this.#state, this.cwd, disabledIds, this.sessionDisabledIds);
 
 		// Restore tab position after reload.
 		if (currentTabId) {

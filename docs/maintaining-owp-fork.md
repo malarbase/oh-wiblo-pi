@@ -31,13 +31,13 @@ feature branch           upstream/main
 
 ## Last Sync Point
 
-**Upstream base:** `8d8464df1` (feat(patch): added language-specific import management with deduplication)
-**Date:** 2026-04-04
+**Upstream base:** `b196f4712` (chore: bump version to 14.0.4)
+**Date:** 2026-04-10
 **omp commits since:** 0
 
 To generate patches for your next sync:
 ```bash
-git format-patch 8d8464df1..upstream/main
+git format-patch b196f4712..upstream/main
 ```
 
 Update this section after each successful rebase.

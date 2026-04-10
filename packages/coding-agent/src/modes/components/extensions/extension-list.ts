@@ -283,6 +283,16 @@ export class ExtensionList implements Component {
 		const namePadded = this.#padText(name, nameWidth);
 		line += namePadded;
 
+		// Relaunch badge: shown when the extension's state differs from the session-start state.
+		if (ext.sessionChanged) {
+			const relaunchBadge = theme.fg("warning", "[new session]");
+			const badgeWidth = Bun.stringWidth("[new session]");
+			const remainingWidth = width - visibleWidth(line) - 2;
+			if (remainingWidth >= badgeWidth) {
+				line += `  ${relaunchBadge}`;
+			}
+		}
+
 		// Provider badge (ALL view only)
 		if (showProviderBadge) {
 			const badge = theme.fg("dim", `[${ext.source.provider}]`);

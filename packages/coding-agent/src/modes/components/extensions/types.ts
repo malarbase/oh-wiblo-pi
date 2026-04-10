@@ -69,6 +69,8 @@ export interface Extension {
 	tags?: string[];
 	/** Directory-based group (fallback when metadata absent) */
 	group?: string;
+	/** Whether the extension's state differs from the session-start state (requires omp relaunch to apply) */
+	sessionChanged?: boolean;
 }
 
 /**

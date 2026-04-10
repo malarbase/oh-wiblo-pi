@@ -110,8 +110,10 @@ export interface ToolSession {
 	forcePythonWarmup?: boolean;
 	/** Pre-loaded context files (AGENTS.md, etc) */
 	contextFiles?: ContextFileEntry[];
-	/** Pre-loaded skills */
+	/** Pre-loaded skills (frozen initial list) */
 	skills?: Skill[];
+	/** Active skills for the current session — updated after re-discovery on /new. Use this instead of `skills` for any resolution that must reflect ECC toggles. */
+	getActiveSkills?: () => readonly Skill[];
 	/** Pre-loaded prompt templates */
 	promptTemplates?: PromptTemplate[];
 	/** Whether LSP integrations are enabled */
