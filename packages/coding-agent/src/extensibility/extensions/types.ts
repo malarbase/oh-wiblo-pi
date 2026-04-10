@@ -1010,6 +1010,7 @@ export interface ExtensionAPI {
 	on(event: "tool_result", handler: ExtensionHandler<ToolResultEvent, ToolResultEventResult>): void;
 	on(event: "user_bash", handler: ExtensionHandler<UserBashEvent, UserBashEventResult>): void;
 	on(event: "user_python", handler: ExtensionHandler<UserPythonEvent, UserPythonEventResult>): void;
+	on(event: "session_directory", handler: SessionDirectoryHandler): void;
 
 	// =========================================================================
 	// Tool Registration
@@ -1284,6 +1285,14 @@ export type SetModelHandler = (model: Model) => Promise<boolean>;
 export type GetThinkingLevelHandler = () => ThinkingLevel | undefined;
 
 export type SetThinkingLevelHandler = (level: ThinkingLevel, persist?: boolean) => void;
+
+/**
+ * Handler for the `session_directory` event.
+ * Called before the session manager is created with the current working directory.
+ * Return a non-empty string to redirect session storage to a custom path.
+ * Return undefined (or nothing) to leave the default path unchanged.
+ */
+export type SessionDirectoryHandler = (cwd: string) => string | undefined | Promise<string | undefined>;
 
 /** Shared state created by loader, used during registration and runtime. */
 export interface ExtensionRuntimeState {

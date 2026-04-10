@@ -4,13 +4,22 @@
 import type * as fs1 from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { createJiti } from "@mariozechner/jiti";
 import type { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
+import * as _bundledPiAgentCore from "@oh-my-pi/pi-agent-core";
 import type { ImageContent, Model, TextContent } from "@oh-my-pi/pi-ai";
+import * as _bundledPiAi from "@oh-my-pi/pi-ai";
+import * as _bundledPiCodingAgent from "@oh-my-pi/pi-coding-agent";
+import * as _bundledPiNatives from "@oh-my-pi/pi-natives";
 import type { KeyId } from "@oh-my-pi/pi-tui";
+import * as _bundledPiTui from "@oh-my-pi/pi-tui";
+import * as _bundledPiUtils from "@oh-my-pi/pi-utils";
 import { hasFsCode, isEacces, isEnoent, logger } from "@oh-my-pi/pi-utils";
 import type { TSchema } from "@sinclair/typebox";
 import * as TypeBox from "@sinclair/typebox";
+import * as _bundledTypebox from "@sinclair/typebox";
 import { type ExtensionModule, extensionModuleCapability } from "../../capability/extension-module";
+import { isBunBinary } from "../../config";
 import { loadCapability } from "../../discovery";
 import { getExtensionNameFromPath } from "../../discovery/helpers";
 import type { ExecOptions } from "../../exec/exec";
@@ -32,6 +41,56 @@ import type {
 } from "./types";
 
 type HandlerFn = (...args: unknown[]) => Promise<unknown>;
+
+// Packages that extensions may import. In binary mode these are served as
+// virtual modules (bypassing filesystem resolution). In dev mode they are
+// resolved to workspace node_modules via an alias map.
+const VIRTUAL_MODULES: Record<string, unknown> = {
+	"@oh-my-pi/pi-coding-agent": _bundledPiCodingAgent,
+	"@oh-my-pi/pi-agent-core": _bundledPiAgentCore,
+	"@oh-my-pi/pi-ai": _bundledPiAi,
+	"@oh-my-pi/pi-tui": _bundledPiTui,
+	"@oh-my-pi/pi-utils": _bundledPiUtils,
+	"@oh-my-pi/pi-natives": _bundledPiNatives,
+	"@sinclair/typebox": _bundledTypebox,
+};
+
+/**
+ * Build the jiti alias map for dev mode (bun run).
+ * Maps each bundled package name to its resolved path in workspace node_modules
+ * so jiti resolves imports consistently with Bun's module resolution.
+ */
+function getAliases(): Record<string, string> {
+	const aliases: Record<string, string> = {};
+	for (const pkg of Object.keys(VIRTUAL_MODULES)) {
+		try {
+			// import.meta.resolve returns a file:// URL; strip the protocol.
+			aliases[pkg] = import.meta.resolve(pkg).replace(/^file:\/\//, "");
+		} catch {
+			// Package not resolvable (shouldn't happen in dev, log and skip)
+			logger.warn("Extension loader: could not resolve alias for package", { pkg });
+		}
+	}
+	return aliases;
+}
+
+/**
+ * Load a user-authored extension module at the given absolute path.
+ * Uses jiti for TypeScript transpilation with dual-mode resolution:
+ * - Binary mode: virtualModules map packages to in-binary copies.
+ * - Dev mode: alias map resolves packages from workspace node_modules.
+ */
+async function loadExtensionModule(resolvedPath: string): Promise<unknown> {
+	const jiti = isBunBinary
+		? createJiti(import.meta.url, {
+				virtualModules: VIRTUAL_MODULES,
+				tryNative: false,
+			})
+		: createJiti(import.meta.url, {
+				alias: getAliases(),
+			});
+	return jiti.import(resolvedPath);
+}
 
 export class ExtensionRuntimeNotInitializedError extends Error {
 	constructor() {
@@ -269,7 +328,7 @@ async function loadExtension(
 	const resolvedPath = resolvePath(extensionPath, cwd);
 
 	try {
-		const module = await import(resolvedPath);
+		const module = (await loadExtensionModule(resolvedPath)) as Record<string, unknown>;
 		const factory = (module.default ?? module) as ExtensionFactory;
 
 		if (typeof factory !== "function") {

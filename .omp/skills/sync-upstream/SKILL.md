@@ -84,9 +84,14 @@ Once all conflicts are resolved:
    ```
    Native build dependencies (e.g. `zig`) are declared in `mise.toml`. Run `mise install` first if a tool is missing.
 2. `bun check:ts` must pass — do not push if it fails.
-3. Start omp and confirm no `Schema error` in the startup output. If `~/.omp/agent/models.yml` fails schema validation (e.g. an invalid `discovery.type`), fix it before continuing — schema changes in `src/config/model-registry.ts` are not flagged by `bun check:ts`.
-4. Update `docs/maintaining-owp-fork.md` § Last Sync Point with the new upstream base commit and date.
-5. `git push origin main --force-with-lease`
+3. Start owp and confirm no `Schema error` in the startup output. If `~/.omp/agent/models.yml` fails schema validation (e.g. an invalid `discovery.type`), fix it before continuing — schema changes in `src/config/model-registry.ts` are not flagged by `bun check:ts`.
+4. Rebuild and reinstall the `owp` binary so the global install reflects the synced code:
+   ```
+   /install-binary
+   ```
+   This runs `bun run build` in `packages/coding-agent` and copies `dist/owp` to the existing global install location.
+5. Update `docs/maintaining-owp-fork.md` § Last Sync Point with the new upstream base commit and date.
+6. `git push origin main --force-with-lease`
 
 ## Rollback
 

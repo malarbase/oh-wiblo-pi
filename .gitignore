@@ -67,3 +67,4 @@ scripts/session-stats/edit-analysis.csv
 .wt/
 CPU*.md
 .pi/
+.turbo/
