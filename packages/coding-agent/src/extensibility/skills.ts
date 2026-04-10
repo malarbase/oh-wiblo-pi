@@ -127,9 +127,35 @@ export async function loadSkills(options: LoadSkillsOptions = {}): Promise<LoadS
 	const disabledSkillNames = new Set(
 		(disabledExtensions ?? []).filter(id => id.startsWith("skill:")).map(id => id.slice(6)),
 	);
+
+	const syntheticDisabledGroups = (disabledExtensions ?? []).filter(
+		id =>
+			id.startsWith("skill-repo:") ||
+			id.startsWith("skill-author:") ||
+			id.startsWith("skill-dir:") ||
+			id.startsWith("skill-tag:"),
+	);
+
 	// Filter skills by source and patterns first
 	const filteredSkills = result.items.filter(capSkill => {
 		if (disabledSkillNames.has(capSkill.name)) return false;
+
+		// Expand synthetic group entries (matches ExtensionDashboard fallback chain)
+		for (const entry of syntheticDisabledGroups) {
+			if (
+				entry.startsWith("skill-repo:") &&
+				(capSkill.repo ?? capSkill.author ?? capSkill.group) === entry.slice("skill-repo:".length)
+			)
+				return false;
+			if (
+				entry.startsWith("skill-author:") &&
+				(capSkill.author ?? capSkill.group) === entry.slice("skill-author:".length)
+			)
+				return false;
+			if (entry.startsWith("skill-dir:") && capSkill.group === entry.slice("skill-dir:".length)) return false;
+			if (entry.startsWith("skill-tag:") && capSkill.tags?.includes(entry.slice("skill-tag:".length))) return false;
+		}
+
 		if (!isSourceEnabled(capSkill._source)) return false;
 		if (matchesIgnorePatterns(capSkill.name)) return false;
 		if (!matchesIncludePatterns(capSkill.name)) return false;

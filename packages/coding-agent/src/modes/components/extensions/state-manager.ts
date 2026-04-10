@@ -594,8 +594,18 @@ export function filterByProvider(extensions: Extension[], providerId: string): E
 /**
  * Create initial dashboard state.
  */
-export async function createInitialState(cwd?: string, disabledIds?: string[]): Promise<DashboardState> {
+export async function createInitialState(
+	cwd?: string,
+	disabledIds?: string[],
+	sessionDisabledIds?: string[],
+): Promise<DashboardState> {
 	const extensions = await loadAllExtensions(cwd, disabledIds);
+
+	// Annotate sessionChanged based on session-start state
+	if (sessionDisabledIds !== undefined) {
+		reevaluateExtensionStates(extensions, disabledIds ?? [], sessionDisabledIds);
+	}
+
 	const tabs = buildProviderTabs(extensions);
 	const tabFiltered = extensions; // "all" tab by default
 	const searchFiltered = tabFiltered;
@@ -675,36 +685,50 @@ export function toggleGroup(
 }
 
 /**
- * Re-evaluate state (active/disabled/shadowed) for all extensions in the current state
- * using only in-memory data: the provided disabled ID set and the global provider enable flags.
- * No disk I/O. Used for optimistic UI updates immediately after a toggle.
+ * Build a fully expanded disabled set from raw disabled IDs.
+ * Resolves synthetic group entries (skill-repo:, skill-author:, skill-dir:, skill-tag:)
+ * into individual skill:name entries using the same fallback chain as the grouping UI.
+ * Non-skill entries pass through unchanged.
  */
-export function reevaluateExtensionStates(extensions: Extension[], disabledIds: string[]): void {
-	const disabledSet = new Set<string>(disabledIds);
-
-	// Expand synthetic group entries so individual skill IDs get added.
-	// Uses the same fallback chain as the grouping UI:
-	//   skill-repo:<v>   matches skills where (repo ?? author ?? group) === v
-	//   skill-author:<v> matches skills where (author ?? group) === v
-	//   skill-dir:<v>    matches skills where group === v
-	//   skill-tag:<v>    matches skills that include v in their tags
+function buildExpandedDisabledSet(extensions: Extension[], rawIds: string[]): Set<string> {
+	const expanded = new Set<string>(rawIds);
 	for (const ext of extensions) {
 		if (ext.kind !== "skill") continue;
 		const skill = ext.raw as Skill;
-		for (const entry of disabledSet) {
+		for (const entry of expanded) {
 			if (
 				entry.startsWith("skill-repo:") &&
 				(skill.repo ?? skill.author ?? skill.group) === entry.slice("skill-repo:".length)
 			)
-				disabledSet.add(`skill:${ext.name}`);
+				expanded.add(`skill:${ext.name}`);
 			if (entry.startsWith("skill-author:") && (skill.author ?? skill.group) === entry.slice("skill-author:".length))
-				disabledSet.add(`skill:${ext.name}`);
+				expanded.add(`skill:${ext.name}`);
 			if (entry.startsWith("skill-dir:") && skill.group === entry.slice("skill-dir:".length))
-				disabledSet.add(`skill:${ext.name}`);
+				expanded.add(`skill:${ext.name}`);
 			if (entry.startsWith("skill-tag:") && skill.tags?.includes(entry.slice("skill-tag:".length)))
-				disabledSet.add(`skill:${ext.name}`);
+				expanded.add(`skill:${ext.name}`);
 		}
 	}
+	return expanded;
+}
+
+/**
+ * Re-evaluate state (active/disabled/shadowed) for all extensions in the current state
+ * using only in-memory data: the provided disabled ID set and the global provider enable flags.
+ * No disk I/O. Used for optimistic UI updates immediately after a toggle.
+ *
+ * @param sessionDisabledIds - The disabled IDs that were active at session start.
+ *   When provided, each extension's sessionChanged field is updated to indicate
+ *   that the current effective state differs from the session-start state.
+ */
+export function reevaluateExtensionStates(
+	extensions: Extension[],
+	disabledIds: string[],
+	sessionDisabledIds?: string[],
+): void {
+	const disabledSet = buildExpandedDisabledSet(extensions, disabledIds);
+	const sessionSet =
+		sessionDisabledIds !== undefined ? buildExpandedDisabledSet(extensions, sessionDisabledIds) : null;
 
 	for (const ext of extensions) {
 		const isDisabled = disabledSet.has(ext.id);
@@ -723,6 +747,14 @@ export function reevaluateExtensionStates(extensions: Extension[], disabledIds: 
 				ext.disabledReason = undefined;
 			}
 		}
+
+		// Annotate whether this extension's effective state changed since session start.
+		// sessionChanged is true when: disabled now but was active at start, or active now but was disabled at start.
+		if (sessionSet !== null) {
+			const wasDisabledAtSessionStart = sessionSet.has(ext.id);
+			const isDisabledNow = ext.state === "disabled";
+			ext.sessionChanged = isDisabledNow !== wasDisabledAtSessionStart;
+		}
 	}
 }
 
@@ -733,8 +765,15 @@ export async function refreshState(
 	state: DashboardState,
 	cwd?: string,
 	disabledIds?: string[],
+	sessionDisabledIds?: string[],
 ): Promise<DashboardState> {
 	const extensions = await loadAllExtensions(cwd, disabledIds);
+
+	// Annotate sessionChanged on freshly loaded extensions
+	if (sessionDisabledIds !== undefined) {
+		reevaluateExtensionStates(extensions, disabledIds ?? [], sessionDisabledIds);
+	}
+
 	const tabs = buildProviderTabs(extensions);
 
 	// Get current provider from tabs

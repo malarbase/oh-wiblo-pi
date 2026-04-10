@@ -2127,6 +2127,17 @@ export const SETTINGS_SCHEMA = {
 		ui: { tab: "tasks", label: "Skill Commands", description: "Register skills as /skill:name commands" },
 	},
 
+	"skills.rediscoverOnNewSession": {
+		type: "boolean",
+		default: true,
+		ui: {
+			tab: "tasks",
+			label: "Rediscover Skills on New Session",
+			description:
+				"Re-scan skill directories when /new is used, so Extension Control Center toggles take effect without relaunching",
+		},
+	},
+
 	"skills.enableCodexUser": { type: "boolean", default: true },
 
 	"skills.enableClaudeUser": { type: "boolean", default: true },
@@ -2523,6 +2534,7 @@ export interface BranchSummarySettings {
 export interface SkillsSettings {
 	enabled?: boolean;
 	enableSkillCommands?: boolean;
+	rediscoverOnNewSession?: boolean;
 	enableCodexUser?: boolean;
 	enableClaudeUser?: boolean;
 	enableClaudeProject?: boolean;

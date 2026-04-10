@@ -176,11 +176,18 @@ export class SelectorController {
 	 * Replaces /status with a unified view of all providers and extensions.
 	 */
 	async showExtensionsDashboard(): Promise<void> {
-		const dashboard = await ExtensionDashboard.create(getProjectDir(), this.ctx.settings, this.ctx.ui.terminal.rows);
+		const sessionDisabledIds = this.ctx.session.skillsSettings?.disabledExtensions ?? [];
+		const dashboard = await ExtensionDashboard.create(
+			getProjectDir(),
+			this.ctx.settings,
+			this.ctx.ui.terminal.rows,
+			sessionDisabledIds,
+		);
 		this.showSelector(done => {
 			dashboard.onClose = () => {
 				done();
 				this.ctx.ui.requestRender();
+				void this.ctx.refreshSkillCommands();
 			};
 			dashboard.onRequestRender = () => {
 				this.ctx.ui.requestRender();

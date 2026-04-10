@@ -66,8 +66,9 @@ describe("InteractiveMode plan review rendering", () => {
 		});
 		await Bun.write(resolvedPlanPath, "# First plan\n\nalpha");
 
-		mode.planModeEnabled = true;
-		mode.planModePlanFilePath = planFilePath;
+		vi.spyOn(mode, "showStatus").mockImplementation(() => {});
+		vi.spyOn(mode.sessionManager, "appendModeChange").mockImplementation(() => "");
+		await mode.handlePlanModeCommand();
 		vi.spyOn(mode, "showHookSelector").mockResolvedValue("Stay in plan mode");
 
 		await mode.handleExitPlanModeTool({

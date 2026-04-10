@@ -64,7 +64,7 @@ export class InspectorPanel implements Component {
 
 		// Status badge
 		lines.push(theme.fg("muted", "Status:"));
-		lines.push(`  ${this.#getStatusBadge(ext.state, ext.disabledReason, ext.shadowedBy)}`);
+		lines.push(`  ${this.#getStatusBadge(ext.state, ext.disabledReason, ext.shadowedBy, ext.sessionChanged)}`);
 		lines.push("");
 
 		// Preview section (routed based on kind)
@@ -297,10 +297,11 @@ export class InspectorPanel implements Component {
 		return theme.fg(color as any, kind);
 	}
 
-	#getStatusBadge(state: ExtensionState, reason?: string, shadowedBy?: string): string {
+	#getStatusBadge(state: ExtensionState, reason?: string, shadowedBy?: string, sessionChanged?: boolean): string {
+		const restartSuffix = sessionChanged ? theme.fg("warning", " (takes effect on next new session)") : "";
 		switch (state) {
 			case "active":
-				return theme.fg("success", `${theme.status.enabled} Active`);
+				return theme.fg("success", `${theme.status.enabled} Active`) + restartSuffix;
 			case "disabled": {
 				const reasonText =
 					reason === "provider-disabled"
@@ -308,10 +309,13 @@ export class InspectorPanel implements Component {
 						: reason === "item-disabled"
 							? "manually disabled"
 							: "unknown";
-				return theme.fg("dim", `${theme.status.disabled} Disabled (${reasonText})`);
+				return theme.fg("dim", `${theme.status.disabled} Disabled (${reasonText})`) + restartSuffix;
 			}
 			case "shadowed":
-				return theme.fg("warning", `${theme.status.shadowed} Shadowed${shadowedBy ? ` by ${shadowedBy}` : ""}`);
+				return (
+					theme.fg("warning", `${theme.status.shadowed} Shadowed${shadowedBy ? ` by ${shadowedBy}` : ""}`) +
+					restartSuffix
+				);
 		}
 	}
 }

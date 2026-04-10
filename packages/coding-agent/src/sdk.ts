@@ -14,7 +14,6 @@ import {
 import type { Component } from "@oh-my-pi/pi-tui";
 import {
 	$env,
-	$flag,
 	getAgentDbPath,
 	getAgentDir,
 	getProjectDir,
@@ -707,6 +706,23 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 			: undefined;
 	discoveredSkillsPromise?.catch(() => {});
 
+	// Factory that re-discovers skills on demand (used by AgentSession.newSession()). Reads
+	// disabledExtensions from settings at call time so ECC toggles are reflected immediately.
+	const makeSkillDiscoverer = (): (() => Promise<Skill[]>) => {
+		return async () => {
+			if (!settings.get("skills.rediscoverOnNewSession")) {
+				return skills;
+			}
+			const currentSkillsSettings = settings.getGroup("skills");
+			const currentDisabledIds = (settings.get("disabledExtensions") as string[]) ?? [];
+			const result = await discoverSkills(cwd, agentDir, {
+				...currentSkillsSettings,
+				disabledExtensions: currentDisabledIds,
+			});
+			return result.skills;
+		};
+	};
+
 	// Initialize provider preferences from settings
 	const webSearchProvider = settings.get("providers.webSearch");
 	if (typeof webSearchProvider === "string" && isSearchProviderPreference(webSearchProvider)) {
@@ -1365,7 +1381,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 			}
 			const defaultPrompt = await buildSystemPromptInternal({
 				cwd,
-				skills,
+				skills: skillsOverride ?? skills,
 				contextFiles,
 				tools: promptTools,
 				toolNames,

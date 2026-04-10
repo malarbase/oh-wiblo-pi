@@ -801,7 +801,7 @@ export class TaskTool implements AgentTool<TSchema, TaskToolDetails, Theme> {
 
 			// Build full prompts using shared context only when the current task mode allows it.
 			const tasksWithContext = tasksWithUniqueIds.map(t => renderTemplate(sharedContext, t, simpleMode));
-			const availableSkills = [...(this.session.skills ?? [])];
+			const availableSkills = [...(this.session.getActiveSkills?.() ?? this.session.skills ?? [])];
 			const contextFiles = this.session.contextFiles?.filter(
 				file => path.basename(file.path).toLowerCase() !== "agents.md",
 			);
