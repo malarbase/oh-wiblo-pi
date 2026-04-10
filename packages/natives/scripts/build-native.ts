@@ -229,12 +229,21 @@ function resolveManagedCargoTargetDir(profileLabel: string): string | null {
 	return path.join(repoRoot, "target", "napi-build", `${buildTarget}-${variantLabel}-${profileLabel}`);
 }
 
-const isCI = Boolean(Bun.env.CI);
+// OWP_LOCAL_BUILD=1 lets developer machines with CI=1 in their env still do local builds.
+const isCI = Boolean(Bun.env.CI) && !Bun.env.OWP_LOCAL_BUILD;
 const useLocalProfile = !isCI && !isCrossCompile;
 const profileLabel = useLocalProfile ? "local" : "ci";
 const profileSuffix = useLocalProfile ? " (local)" : " (ci)";
 
 const buildOutputDirPrefix = resolveBuildOutputDirPrefix(profileLabel);
+
+// When building locally, suppress CI so fff-search's build.rs doesn't panic when
+// zlob (zig) is unavailable (e.g. macOS 26 + zig 0.15 incompatibility).
+// OWP_LOCAL_BUILD=1 lets developer machines with CI=1 in their shell env still
+// do local builds. Cargo subprocesses inherit the env, so we delete it here.
+if (useLocalProfile) {
+	delete Bun.env.CI;
+}
 
 // Build napi args
 const napiArgs = [
