@@ -31,13 +31,13 @@ feature branch           upstream/main
 
 ## Last Sync Point
 
-**Upstream base:** `b196f4712` (chore: bump version to 14.0.4)
-**Date:** 2026-04-10
+**Upstream base:** `7b63e60de` (chore: bump version to 14.1.2)
+**Date:** 2026-04-14
 **omp commits since:** 0
 
 To generate patches for your next sync:
 ```bash
-git format-patch b196f4712..upstream/main
+git format-patch 7b63e60de..upstream/main
 ```
 
 Update this section after each successful rebase.

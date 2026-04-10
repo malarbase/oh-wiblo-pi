@@ -59,3 +59,4 @@ packages/coding-agent/src/internal-urls/docs-index.generated.ts
 packages/typescript-edit-benchmark/runs/
 python/omp-rpc/src/omp_rpc.egg-info/
 .pi/
+.turbo/
