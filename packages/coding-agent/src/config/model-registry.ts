@@ -712,14 +712,11 @@ function mergeCustomModelHeaders(
 	providerHeaders: Record<string, string> | undefined,
 	modelHeaders: Record<string, string> | undefined,
 	authHeader: boolean | undefined,
-	apiKeyConfig: string | undefined,
+	resolvedApiKey: string | undefined,
 ): Record<string, string> | undefined {
 	let headers = providerHeaders || modelHeaders ? { ...providerHeaders, ...modelHeaders } : undefined;
-	if (authHeader && apiKeyConfig) {
-		const resolvedKey = resolveApiKeyConfig(apiKeyConfig);
-		if (resolvedKey) {
-			headers = { ...headers, Authorization: `Bearer ${resolvedKey}` };
-		}
+	if (authHeader && resolvedApiKey) {
+		headers = { ...headers, Authorization: `Bearer ${resolvedApiKey}` };
 	}
 	return headers;
 }
@@ -750,9 +747,17 @@ function buildCustomModelOverlay(
 	providerCompat: Model<Api>["compat"] | undefined,
 	providerAuth: ProviderAuthMode | undefined,
 	modelDef: CustomModelDefinitionLike,
+	/** Pre-resolved API key value (actual secret, not the raw config string). Used for authHeader baking. */
+	resolvedApiKey?: string | undefined,
 ): CustomModelOverlay | undefined {
 	const api = modelDef.api ?? providerApi;
 	if (!api) return undefined;
+	// Use pre-resolved key for authHeader injection. For plain (non-"!command") keys, fall back
+	// to resolveApiKeyConfig which handles env-var lookup. For "!command" keys the caller must
+	// supply resolvedApiKey, otherwise the raw command string would be embedded as a literal.
+	const keyForHeader =
+		resolvedApiKey ??
+		(providerApiKey && !providerApiKey.startsWith("!") ? resolveApiKeyConfig(providerApiKey) : undefined);
 	return {
 		id: modelDef.id,
 		provider: providerName,
@@ -765,7 +770,7 @@ function buildCustomModelOverlay(
 		cost: modelDef.cost,
 		contextWindow: modelDef.contextWindow,
 		maxTokens: modelDef.maxTokens,
-		headers: mergeCustomModelHeaders(providerHeaders, modelDef.headers, authHeader, providerApiKey),
+		headers: mergeCustomModelHeaders(providerHeaders, modelDef.headers, authHeader, keyForHeader),
 		compat: mergeCompat(providerCompat, modelDef.compat),
 		contextPromotionTarget: modelDef.contextPromotionTarget,
 		premiumMultiplier: modelDef.premiumMultiplier,
@@ -2139,6 +2144,14 @@ export class ModelRegistry {
 					resolvedBaseUrl = Bun.env[rawBaseUrl] || rawBaseUrl;
 				}
 			}
+			// Resolve the API key for authHeader baking: use the pre-resolved cache for
+			// "!command" strings so the raw command is never embedded as a literal value.
+			const rawApiKey = providerConfig.apiKey;
+			const resolvedApiKey = rawApiKey
+				? rawApiKey.startsWith("!")
+					? this.#resolvedCommandApiKeys.get(providerName)
+					: resolveApiKeyConfig(rawApiKey)
+				: undefined;
 			for (const modelDef of modelDefs) {
 				if (!resolvedBaseUrl) continue; // baseUrl not yet resolved; will retry after refresh()
 				const providerCompat = providerConfig.disableStrictTools
@@ -2154,6 +2167,7 @@ export class ModelRegistry {
 					providerCompat,
 					(providerConfig.auth as ProviderAuthMode | undefined) ?? undefined,
 					modelDef as CustomModelDefinitionLike,
+					resolvedApiKey,
 				);
 				if (!model) continue;
 				models.push(model);
@@ -2479,6 +2493,9 @@ export class ModelRegistry {
 
 		if (config.models && config.models.length > 0) {
 			// Build model overlays that persist across refresh() cycles
+			// Runtime-registered providers always supply a plain API key (never a "!command" string),
+			// so resolveApiKeyConfig is sufficient here.
+			const runtimeResolvedApiKey = config.apiKey ? resolveApiKeyConfig(config.apiKey) : undefined;
 			const newOverlays: CustomModelOverlay[] = [];
 			for (const modelDef of config.models) {
 				const overlay = buildCustomModelOverlay(
@@ -2491,6 +2508,7 @@ export class ModelRegistry {
 					config.compat,
 					undefined,
 					modelDef as CustomModelDefinitionLike,
+					runtimeResolvedApiKey,
 				);
 				if (!overlay) {
 					throw new Error(`Provider ${providerName}, model ${modelDef.id}: no "api" specified.`);
