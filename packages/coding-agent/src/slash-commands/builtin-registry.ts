@@ -955,6 +955,43 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<BuiltinSlashCommandSpec> = [
 		},
 	},
 	{
+		name: "refresh-models",
+		description: "Force re-fetch model discovery for all or a specific provider",
+		inlineHint: "[provider]",
+		allowArgs: true,
+		handle: async (command, runtime) => {
+			const registry = runtime.ctx.session.modelRegistry;
+			const provider = command.args.trim();
+			if (provider) {
+				const discoverable = registry.getDiscoverableProviders();
+				if (!discoverable.includes(provider)) {
+					runtime.ctx.showError(`Unknown discoverable provider: ${provider}`);
+					runtime.ctx.editor.setText("");
+					return;
+				}
+				runtime.ctx.showStatus(`Refreshing models for ${provider}...`);
+				await registry.refreshProvider(provider, "online");
+				const state = registry.getProviderDiscoveryState(provider);
+				const count = state?.models.length ?? 0;
+				runtime.ctx.showStatus(
+					`Refreshed ${provider}: ${count} model${count === 1 ? "" : "s"} (${state?.status ?? "unknown"}).`,
+				);
+			} else {
+				runtime.ctx.showStatus("Refreshing all model providers...");
+				await registry.refresh("online");
+				const providers = registry.getDiscoverableProviders();
+				const summary = providers
+					.map(p => {
+						const s = registry.getProviderDiscoveryState(p);
+						return `${p}: ${s?.models.length ?? 0} (${s?.status ?? "?"})`;
+					})
+					.join(", ");
+				runtime.ctx.showStatus(`Models refreshed. ${summary}`);
+			}
+			runtime.ctx.editor.setText("");
+		},
+	},
+	{
 		name: "force",
 		description: "Force next turn to use a specific tool",
 		inlineHint: "<tool-name> [prompt]",
