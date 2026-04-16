@@ -64,6 +64,11 @@ Update this section after each successful rebase.
 | `8dfdd26` | Biome format/lint fixes | `src/config/`, `src/session/` | chore |
 | `b997a68` | Restore complete toolSession, fix $flag ref | `src/sdk.ts` | bug fix |
 
+| `7b08522` | Improve rebase docs, owned symbols registry, feature checklist hook plan | `docs/maintaining-owp-fork.md`, `.omp/skills/sync-upstream/SKILL.md` | docs |
+| `77e3a2b` | feature-checklist extension, wire makeSkillDiscoverer, fix authHeader for !command keys | `.omp/extensions/feature-checklist.ts`, `src/sdk.ts` | code |
+| `8118025` | Note SHARED_FILES update requirement in feature guidelines | `.omp/skills/sync-upstream/SKILL.md` | docs |
+| `fad73d5` | Add /refresh-models slash command | `src/slash-commands/builtin-registry.ts` | code |
+
 > **Note:** Commit hashes change on every rebase. Update this table after each sync.
 
 ## Owned Symbols in Shared Files
