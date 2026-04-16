@@ -68,3 +68,6 @@ scripts/session-stats/edit-analysis.csv
 CPU*.md
 .pi/
 .turbo/
+.gitnexus
+.claude/
+CLAUDE.md
