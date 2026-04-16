@@ -707,6 +707,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 
 	// session_directory handlers (fired after extensions load) may override this.
 	// Using `let` so we can swap the session manager if an override is returned.
+	// biome-ignore lint/style/useConst: intentional let — session_directory handlers reassign this
 	let sessionManager =
 		options.sessionManager ??
 		logger.time("sessionManager", () =>
@@ -1312,8 +1313,13 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 
 		const repeatToolDescriptions = settings.get("repeatToolDescriptions");
 		const eagerTasks = settings.get("task.eager");
-		const intentField = settings.get("tools.intentTracing") || $env.PI_INTENT_TRACING === "1" ? INTENT_FIELD : undefined;
-		const rebuildSystemPrompt = async (toolNames: string[], tools: Map<string, AgentTool>, skillsOverride?: Skill[]): Promise<string> => {
+		const intentField =
+			settings.get("tools.intentTracing") || $env.PI_INTENT_TRACING === "1" ? INTENT_FIELD : undefined;
+		const rebuildSystemPrompt = async (
+			toolNames: string[],
+			tools: Map<string, AgentTool>,
+			skillsOverride?: Skill[],
+		): Promise<string> => {
 			toolContextStore.setToolNames(toolNames);
 			const discoverableMCPTools = mcpDiscoveryEnabled ? collectDiscoverableMCPTools(tools.values()) : [];
 			const discoverableMCPSummary = summarizeDiscoverableMCPTools(discoverableMCPTools);
@@ -1606,6 +1612,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 			extensionRunner,
 			customCommands: customCommandsResult.commands,
 			skills,
+			rediscoverSkills: makeSkillDiscoverer(),
 			skillWarnings,
 			skillsSettings: settings.getGroup("skills"),
 			modelRegistry,

@@ -59,6 +59,7 @@ Copy the binary:
 ```bash
 cp packages/coding-agent/dist/owp <resolved_destination>/owp
 chmod +x <resolved_destination>/owp
+codesign --sign - --force <resolved_destination>/owp
 ```
 
 Verify the promoted binary:

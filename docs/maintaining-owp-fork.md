@@ -48,10 +48,38 @@ Update this section after each successful rebase.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
-| `45537147a` | Identity (README) | `README.md` | docs only |
-| `5537e22c2` | Ask/Debug mode | `src/modes/ask-mode/`, `src/modes/debug-mode/`, `src/discovery/pi.ts`, +5 more | code |
-| `69a9b052b` | Skill grouping + `!command` baseUrl + `openai-compatible` discovery | `src/modes/components/extensions/`, `src/config/model-registry.ts`, `src/discovery/helpers.ts`, `src/capability/skill.ts` | code |
+| `bf4c916` | Identity (README) | `README.md` | docs only |
+| `f2bccc2` | Ask/Debug mode | `src/modes/ask-mode/`, `src/modes/debug-mode/`, `src/session/agent-session.ts`, `src/slash-commands/builtin-registry.ts`, `src/prompts/system/ask-mode-context.md`, `src/prompts/system/debug-mode-context.md` | code |
+| `7b06f29` | Skill grouping + two-level scan + `!command` baseUrl + `openai-compatible` discovery | `src/modes/components/extensions/`, `src/config/model-registry.ts`, `src/discovery/helpers.ts`, `src/discovery/pi.ts`, `src/capability/skill.ts` | code |
+| `472e35a` | sync-upstream skill and script | `.omp/skills/sync-upstream/` | tooling |
+| `22302b5` | Fix plugin installer path + symlink injection | `packages/coding-agent/src/installer.ts` | bug fix |
+| `045816f` | Cast node Blob to Web Blob for tsgo | `packages/utils/src/streams.ts` | bug fix |
+| `1cae00e` | Send mode-off context message on disable | `src/modes/ask-mode/`, `src/modes/debug-mode/` | bug fix |
+| `9cf45d9` | Thread disabledExtensions into skillsSettings | `src/sdk.ts` | bug fix |
+| `e8bc6aa` | Unified agent mode cycle keybinding (alt+m) | `src/modes/components/status-line/`, `src/config/settings-schema.ts` | code |
+| `cb7960c` | Load slash commands from prompts/ not commands/ | `src/session/agent-session.ts` | bug fix |
+| `d2fc86e` | Rediscover skills on /new after ECC toggles | `src/sdk.ts`, `src/capability/skill.ts` | code |
+| `36d1caf` | Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/` | bug fix |
+| `52a5b29` | session_directory event, jiti extension loader, identity updates | `src/sdk.ts`, `src/session/`, `src/capability/` | code (wip) |
+| `8dfdd26` | Biome format/lint fixes | `src/config/`, `src/session/` | chore |
+| `b997a68` | Restore complete toolSession, fix $flag ref | `src/sdk.ts` | bug fix |
 
+> **Note:** Commit hashes change on every rebase. Update this table after each sync.
+
+## Owned Symbols in Shared Files
+
+The sync-upstream skill (`.omp/skills/sync-upstream/SKILL.md § Owned Symbols`) maintains the
+authoritative symbol-level ownership registry. During rebase, conflicts in shared files must
+preserve these specific symbols rather than taking wholesale blocks.
+
+The most conflict-prone file is `sdk.ts`. OWP owns these symbols inside it:
+- `makeSkillDiscoverer()` — skill rediscovery factory
+- `skillsOverride` param in `rebuildSystemPrompt` — allows override on /new
+- `disabledExtensions` spread in `skillsSettings` — threads ECC toggles
+- `let sessionManager` — allows session_directory handler override
+- `customPrompt: options.systemPrompt` — custom prompt in string-typed branch only
+
+---
 
 ## Upstream Bug Fixes (Pending Upstream PR)
 
@@ -63,8 +91,6 @@ Bugs fixed in owp that also exist in omp. These commits should be upstreamed. Du
 
 When filing upstream, note: the `getAgentDir()` vs `getPluginsDir()` bug is latent in omp too (both resolve to `~/.omp/plugins` on stock omp since `agentDir == ~/.omp`), but becomes visible in owp where `agentDir == ~/.omp/agent`. The symlink injection fix is owp-specific (package rename `@mariozechner/*` → `@oh-my-pi/*`).
 
-
-Each feature owns specific files/directories. During rebase, conflicts in owned files go to us; conflicts in upstream-only files go to upstream.
 
 ---
 
@@ -87,13 +113,13 @@ During rebase, the agent resolves conflicts using the decision tree below.
 If upstream changed anything under `packages/natives/` or `crates/`, the native addon must be rebuilt before omp will work:
 
 ```bash
-git diff --name-only HEAD@{1} HEAD | grep -qE '^(packages/natives|crates)/' && mise exec -- bun --cwd=packages/natives run build:native
+git diff --name-only HEAD@{1} HEAD | grep -qE '^(packages/natives|crates)/' && mise exec -- bun --cwd=packages/natives run build
 ```
 
 If omp fails to start with `Failed to load pi_natives native addon ... Missing: <symbol>`, run the build unconditionally:
 
 ```bash
-mise exec -- bun --cwd=packages/natives run build:native
+mise exec -- bun --cwd=packages/natives run build
 ```
 
 Native dependencies (e.g. `zig` for MiMalloc/zlob) are managed via `mise.toml` — run `mise install` once if the build fails due to a missing tool.
@@ -146,6 +172,10 @@ Is the file in "Owned Files" (§ Fork Features)?
   → YES: Prefer ours, verify compilation
   → NO: Continue below
 
+Is the conflicting hunk inside a shared file with owp-owned symbols (§ Owned Symbols)?
+  → YES: Take upstream's structure, graft in owp-owned symbols, verify all survive
+  → NO: Continue below
+
 Is upstream's change a rename/refactor of something we depend on?
   → YES: Adapt ours to the new shape, verify compilation
   → NO: Continue below
@@ -177,11 +207,26 @@ Result: Take upstream, verify compilation
 
 ---
 
-## Guidelines for Adding Features
+## Implementing New Features
 
-When you add a new feature to the stack:
+### Design for rebase survival
 
-1. **Create a feature branch off upstream/main:**
+Features that own their own files rebase cleanly. Features that scatter inline code through
+`sdk.ts` conflict on every sync. Before implementing:
+
+- **Put logic in new files** under `src/modes/`, `src/config/`, or `src/capability/`.
+  Import and call from the minimum number of shared callsites.
+- **Minimize sdk.ts surface.** One import + one constructor arg = one conflict hunk.
+  Six scattered additions = six conflict hunks.
+- **Extend shared types, don't fork them.** Add literals to existing unions rather than
+  creating parallel types.
+- **Use extension hooks** when they exist (event handlers, extensionRunner).
+- **Update the symbol registry** in `.omp/skills/sync-upstream/SKILL.md` in the same commit
+  that touches shared files.
+
+### Git workflow
+
+1. Create a feature branch off upstream/main:
    ```bash
    git fetch upstream
    git checkout -b feat/my-feature upstream/main
@@ -189,16 +234,15 @@ When you add a new feature to the stack:
    git push origin feat/my-feature
    ```
 
-2. **Open a PR to fork/main.** Merge strategy: **squash**.
+2. Open a PR to fork/main. Merge strategy: **squash**.
 
-3. **After merge, update this doc (§ Fork Features):**
-   - Add the commit hash, feature name, owned files, status
-   - List the files that this feature owns entirely (conflicts in these go to us)
-   - List the interfaces/capabilities it depends on (upstream changes here may require escalation)
+3. After merge, update this doc (Fork Features table) with:
+   - The commit hash, feature name, owned files, status
+   - The interfaces/capabilities it depends on
 
-4. **Update identifiers in upstream-facing code:**
-   - If upstream adds a new extension/mode system and we add a parallel one, mark it in `docs/porting-from-pi-mono.md §15` as an intentional divergence
-   - If we enhance an existing upstream feature (e.g., skills), document the enhancement in the feature commit message
+4. Audit the contact surface:
+   - How many hunks does this commit add to sdk.ts?
+   - What shared-file symbols does it own? (add to SKILL.md § Owned Symbols)
 
 ---
 
@@ -290,15 +334,13 @@ If upstream changes one of these, escalate to user.
 
 **During sync:**
 - [ ] Agent logs all conflicts and resolutions
-- [ ] If `packages/natives/` or `crates/` changed: rebuild native addon (`mise exec -- bun --cwd=packages/natives run build:native`)
+- [ ] If `packages/natives/` or `crates/` changed: rebuild native addon (`mise exec -- bun --cwd=packages/natives run build`)
+- [ ] After conflict resolution: `grep -rn '<<<<<<' packages/` returns no results
+- [ ] After conflict resolution: `bunx tsgo -p tsconfig.json --noEmit` has no NEW errors
+- [ ] After conflict resolution: all owp-owned symbols verified present (see § Owned Symbols)
+- [ ] If owp deps were added: `bun install` run and bun.lock committed
 - [ ] Type check passes before push
 - [ ] Identity commit still present on main
-
-**After sync:**
-- [ ] Update "Last Sync Point" in this doc
-- [ ] Start omp and confirm no `Schema error` in startup output — if present, fix `~/.omp/agent/models.yml` to match the updated schema (see Step 3 above)
-- [ ] Spot-check ask/debug mode, skill grouping, skill scanning work
-- [ ] Verify new upstream features don't clash with yours
 
 ---
 

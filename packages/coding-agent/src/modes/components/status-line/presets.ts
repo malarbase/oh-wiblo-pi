@@ -34,7 +34,17 @@ export const STATUS_LINE_PRESETS: Record<StatusLinePreset, PresetDef> = {
 
 	full: {
 		leftSegments: ["pi", "hostname", "model", "agent_mode", "path", "git", "pr", "subagents"],
-		rightSegments: ["session_name", "token_in", "token_out", "token_rate", "cache_read", "cost", "context_pct", "time_spent", "time"],
+		rightSegments: [
+			"session_name",
+			"token_in",
+			"token_out",
+			"token_rate",
+			"cache_read",
+			"cost",
+			"context_pct",
+			"time_spent",
+			"time",
+		],
 		separator: "powerline",
 		segmentOptions: {
 			model: { showThinkingLevel: true },
