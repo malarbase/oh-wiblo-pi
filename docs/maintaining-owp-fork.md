@@ -48,26 +48,23 @@ Update this section after each successful rebase.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
-| `bf4c916` | Identity (README) | `README.md` | docs only |
-| `f2bccc2` | Ask/Debug mode | `src/modes/ask-mode/`, `src/modes/debug-mode/`, `src/session/agent-session.ts`, `src/slash-commands/builtin-registry.ts`, `src/prompts/system/ask-mode-context.md`, `src/prompts/system/debug-mode-context.md` | code |
-| `7b06f29` | Skill grouping + two-level scan + `!command` baseUrl + `openai-compatible` discovery | `src/modes/components/extensions/`, `src/config/model-registry.ts`, `src/discovery/helpers.ts`, `src/discovery/pi.ts`, `src/capability/skill.ts` | code |
-| `472e35a` | sync-upstream skill and script | `.omp/skills/sync-upstream/` | tooling |
-| `22302b5` | Fix plugin installer path + symlink injection | `packages/coding-agent/src/installer.ts` | bug fix |
-| `045816f` | Cast node Blob to Web Blob for tsgo | `packages/utils/src/streams.ts` | bug fix |
-| `1cae00e` | Send mode-off context message on disable | `src/modes/ask-mode/`, `src/modes/debug-mode/` | bug fix |
-| `9cf45d9` | Thread disabledExtensions into skillsSettings | `src/sdk.ts` | bug fix |
-| `e8bc6aa` | Unified agent mode cycle keybinding (alt+m) | `src/modes/components/status-line/`, `src/config/settings-schema.ts` | code |
-| `cb7960c` | Load slash commands from prompts/ not commands/ | `src/session/agent-session.ts` | bug fix |
-| `d2fc86e` | Rediscover skills on /new after ECC toggles | `src/sdk.ts`, `src/capability/skill.ts` | code |
-| `36d1caf` | Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/` | bug fix |
-| `52a5b29` | session_directory event, jiti extension loader, identity updates | `src/sdk.ts`, `src/session/`, `src/capability/` | code (wip) |
-| `8dfdd26` | Biome format/lint fixes | `src/config/`, `src/session/` | chore |
-| `b997a68` | Restore complete toolSession, fix $flag ref | `src/sdk.ts` | bug fix |
-
-| `7b08522` | Improve rebase docs, owned symbols registry, feature checklist hook plan | `docs/maintaining-owp-fork.md`, `.omp/skills/sync-upstream/SKILL.md` | docs |
-| `77e3a2b` | feature-checklist extension, wire makeSkillDiscoverer, fix authHeader for !command keys | `.omp/extensions/feature-checklist.ts`, `src/sdk.ts` | code |
-| `8118025` | Note SHARED_FILES update requirement in feature guidelines | `.omp/skills/sync-upstream/SKILL.md` | docs |
-| `fad73d5` | Add /refresh-models slash command | `src/slash-commands/builtin-registry.ts` | code |
+| `bb2efea` | Identity (README) | `README.md` | docs only |
+| `91b9b52` | Ask/Debug mode | `src/modes/ask-mode/`, `src/modes/debug-mode/`, `src/session/agent-session.ts`, `src/slash-commands/builtin-registry.ts`, `src/prompts/system/ask-mode-context.md`, `src/prompts/system/debug-mode-context.md` | code |
+| `23278c1` | Skill grouping + two-level scan + `!command` baseUrl + `openai-compatible` discovery | `src/modes/components/extensions/`, `src/config/model-registry.ts`, `src/discovery/helpers.ts`, `src/discovery/pi.ts`, `src/capability/skill.ts` | code |
+| `98bcebd` | sync-upstream skill and script | `.omp/skills/sync-upstream/` | tooling |
+| `0d8a054` | Fix plugin installer path + symlink injection | `packages/coding-agent/src/installer.ts` | bug fix |
+| `7e02487` | Cast node Blob to Web Blob for tsgo | `packages/utils/src/streams.ts` | bug fix |
+| `7cde66c` | Send mode-off context message on disable | `src/modes/ask-mode/`, `src/modes/debug-mode/` | bug fix |
+| `3d814f6` | Thread disabledExtensions into skillsSettings | `src/sdk.ts` | bug fix |
+| `4498305` | Unified agent mode cycle keybinding (alt+m) | `src/modes/components/status-line/`, `src/config/settings-schema.ts` | code |
+| `622e948` | Load slash commands from prompts/ not commands/ | `src/session/agent-session.ts` | bug fix |
+| `1b256ca` | Rediscover skills on /new after ECC toggles | `src/sdk.ts`, `src/capability/skill.ts` | code |
+| `fc0cf73` | Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/` | bug fix |
+| `75be25d` | session_directory event, jiti extension loader, authHeader fix | `src/sdk.ts`, `src/session/`, `src/capability/`, `src/extensibility/extensions/loader.ts` | code |
+| `5dfe001` | feature-checklist extension, rebase docs, owned symbols registry, SHARED_FILES note | `docs/maintaining-owp-fork.md`, `.omp/skills/sync-upstream/SKILL.md`, `.omp/extensions/feature-checklist.ts`, `src/sdk.ts` | code |
+| `608e6f5` | Add /refresh-models slash command | `src/slash-commands/builtin-registry.ts` | code |
+| `4392f86` | Track cache write tokens via LiteLLM passthrough fields; add bin/owp switcher | `packages/ai/src/providers/openai-completions.ts`, `bin/owp`, `mise.toml`, `docs/cache-token-tracking.md` | code |
+| `6455aed` | Add .gitnexus, .claude/, CLAUDE.md to .gitignore | `.gitignore` | chore |
 
 > **Note:** Commit hashes change on every rebase. Update this table after each sync.
 

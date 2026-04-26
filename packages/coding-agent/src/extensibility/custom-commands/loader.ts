@@ -1,14 +1,20 @@
 /**
- * Custom command loader - loads TypeScript command modules using native Bun import.
+ * Custom command loader - loads TypeScript command modules using jiti.
  *
- * Dependencies (@sinclair/typebox and pi-coding-agent) are injected via the CustomCommandAPI
- * to avoid import resolution issues with custom commands loaded from user directories.
+ * In binary mode, workspace packages (@oh-my-pi/*, @sinclair/typebox) are served as
+ * virtual modules so user commands can import them regardless of where owp is launched.
+ * In dev mode, jiti aliases resolve them from workspace node_modules as usual.
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { createJiti } from "@mariozechner/jiti";
+import * as _bundledPiCodingAgent from "@oh-my-pi/pi-coding-agent";
+import * as _bundledPiUtils from "@oh-my-pi/pi-utils";
 import { getAgentDir, getProjectDir, isEnoent, logger } from "@oh-my-pi/pi-utils";
 import * as typebox from "@sinclair/typebox";
-import { getConfigDirs } from "../../config";
+import * as _bundledTypebox from "@sinclair/typebox";
+import { getConfigDirs, isBunBinary } from "../../config";
+import * as _bundledResolveConfigValue from "../../config/resolve-config-value";
 import { execCommand } from "../../exec/exec";
 import { GreenCommand } from "./bundled/ci-green";
 import { ReviewCommand } from "./bundled/review";
@@ -21,8 +27,28 @@ import type {
 	LoadedCustomCommand,
 } from "./types";
 
+// Packages that custom commands may import. Served as virtual modules in binary
+// mode so commands resolve them regardless of the working directory.
+const VIRTUAL_MODULES: Record<string, unknown> = {
+	"@oh-my-pi/pi-coding-agent": _bundledPiCodingAgent,
+	"@oh-my-pi/pi-coding-agent/config/resolve-config-value": _bundledResolveConfigValue,
+	"@oh-my-pi/pi-utils": _bundledPiUtils,
+	"@sinclair/typebox": _bundledTypebox,
+};
+
+function getAliases(): Record<string, string> {
+	const aliases: Record<string, string> = {};
+	for (const pkg of Object.keys(VIRTUAL_MODULES)) {
+		try {
+			aliases[pkg] = import.meta.resolve(pkg).replace(/^file:\/\//, "");
+		} catch {
+			logger.warn("Custom command loader: could not resolve alias for package", { pkg });
+		}
+	}
+	return aliases;
+}
 /**
- * Load a single command module using native Bun import.
+ * Load a single command module using jiti with virtual module injection.
  */
 async function loadCommandModule(
 	commandPath: string,
@@ -30,8 +56,11 @@ async function loadCommandModule(
 	sharedApi: CustomCommandAPI,
 ): Promise<{ commands: CustomCommand[] | null; error: string | null }> {
 	try {
-		const module = await import(commandPath);
-		const factory = (module.default ?? module) as CustomCommandFactory;
+		const jiti = isBunBinary
+			? createJiti(import.meta.url, { virtualModules: VIRTUAL_MODULES, tryNative: false })
+			: createJiti(import.meta.url, { alias: getAliases() });
+		const module = await jiti.import(commandPath);
+		const factory = ((module as { default?: unknown }).default ?? module) as CustomCommandFactory;
 
 		if (typeof factory !== "function") {
 			return { commands: null, error: "Command must export a default function" };
