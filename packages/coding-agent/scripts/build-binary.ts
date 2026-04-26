@@ -3,7 +3,7 @@
 import * as path from "node:path";
 
 const packageDir = path.join(import.meta.dir, "..");
-const outputPath = path.join(packageDir, "dist", "omp");
+const outputPath = path.join(packageDir, "dist", "owp");
 
 function shouldAdhocSignDarwinBinary(): boolean {
 	return process.platform === "darwin";
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
 					"../..",
 					"./src/cli.ts",
 					"--outfile",
-					"dist/omp",
+					"dist/owp",
 				],
 				buildEnv,
 			);
@@ -50,6 +50,12 @@ async function main(): Promise<void> {
 			if (shouldAdhocSignDarwinBinary()) {
 				await runCommand(["codesign", "--force", "--sign", "-", outputPath]);
 			}
+
+			// Keep dist/omp in sync so the upstream binary name stays functional.
+			const ompPath = path.join(packageDir, "dist", "omp");
+			await Bun.write(ompPath, Bun.file(outputPath));
+			const fs = await import("node:fs/promises");
+			await fs.chmod(ompPath, 0o755);
 		} finally {
 			await runCommand(["bun", "--cwd=../natives", "run", "embed:native", "--reset"]);
 		}
