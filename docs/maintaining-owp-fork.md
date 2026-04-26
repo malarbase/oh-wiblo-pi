@@ -31,13 +31,13 @@ feature branch           upstream/main
 
 ## Last Sync Point
 
-**Upstream base:** `7b63e60de` (chore: bump version to 14.1.2)
-**Date:** 2026-04-14
+**Upstream base:** `05f50a6a7` (Merge pull request #623 from apoc/fix/notification-inject-on-receive)
+**Date:** 2026-04-26
 **omp commits since:** 0
 
 To generate patches for your next sync:
 ```bash
-git format-patch 7b63e60de..upstream/main
+git format-patch 05f50a6a7..upstream/main
 ```
 
 Update this section after each successful rebase.
