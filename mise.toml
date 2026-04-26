@@ -1,2 +1,7 @@
 [tools]
 zig = "0.15.2"
+
+
+[env]
+OWP_DEV = "1"
+_.path = ["bin", "packages/coding-agent/dist"]

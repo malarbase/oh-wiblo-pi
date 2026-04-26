@@ -966,20 +966,29 @@ function parseChunkUsage(
 ): AssistantMessage["usage"] {
 	const promptTokenDetails = getOptionalObjectProperty(rawUsage, "prompt_tokens_details");
 	const completionTokenDetails = getOptionalObjectProperty(rawUsage, "completion_tokens_details");
+	// cache_read: OpenAI standard (prompt_tokens_details.cached_tokens) or
+	// LiteLLM/Anthropic passthrough (cache_read_input_tokens at top level)
 	const cachedTokens =
 		getOptionalNumberProperty(rawUsage, "cached_tokens") ??
 		(promptTokenDetails ? getOptionalNumberProperty(promptTokenDetails, "cached_tokens") : undefined) ??
+		getOptionalNumberProperty(rawUsage, "cache_read_input_tokens") ??
+		0;
+	// cache_write: LiteLLM passes Anthropic's cache_creation_input_tokens through as an extra
+	// field, and some proxies also expose it under prompt_tokens_details.cache_write_tokens.
+	const cacheWriteTokens =
+		getOptionalNumberProperty(rawUsage, "cache_creation_input_tokens") ??
+		(promptTokenDetails ? getOptionalNumberProperty(promptTokenDetails, "cache_write_tokens") : undefined) ??
 		0;
 	const reasoningTokens =
 		(completionTokenDetails ? getOptionalNumberProperty(completionTokenDetails, "reasoning_tokens") : undefined) ?? 0;
-	const input = (getOptionalNumberProperty(rawUsage, "prompt_tokens") ?? 0) - cachedTokens;
+	const input = (getOptionalNumberProperty(rawUsage, "prompt_tokens") ?? 0) - cachedTokens - cacheWriteTokens;
 	const outputTokens = (getOptionalNumberProperty(rawUsage, "completion_tokens") ?? 0) + reasoningTokens;
 	const usage: AssistantMessage["usage"] = {
 		input,
 		output: outputTokens,
 		cacheRead: cachedTokens,
-		cacheWrite: 0,
-		totalTokens: input + outputTokens + cachedTokens,
+		cacheWrite: cacheWriteTokens,
+		totalTokens: input + outputTokens + cachedTokens + cacheWriteTokens,
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 		...(copilotPremiumRequests !== undefined ? { premiumRequests: copilotPremiumRequests } : {}),
 	};
