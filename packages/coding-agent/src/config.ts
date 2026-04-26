@@ -437,11 +437,11 @@ export function findAllNearestProjectConfigDirs(subpath: string, cwd: string = g
 /**
  * True when running as a compiled Bun binary (`bun build --compile`).
  * The build script injects `--define PI_COMPILED=true`, which Bun replaces with
- * the literal string "true" inside the binary. Under `bun run` the global is
+ * the boolean `true` inside the binary. Under `bun run` the global is
  * absent so the expression evaluates to false.
  */
-declare const PI_COMPILED: string | undefined;
-export const isBunBinary: boolean = typeof PI_COMPILED !== "undefined" && PI_COMPILED === "true";
+declare const PI_COMPILED: any;
+export const isBunBinary: boolean = typeof PI_COMPILED !== "undefined" && Boolean(PI_COMPILED);
 
 /**
  * True when running under any Bun runtime (both `bun run` and compiled binary).
