@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# When OWP_DEV=1, run the source directly via bun instead of the compiled binary.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [[ "$OWP_DEV" == "1" ]]; then
+    exec bun "$REPO_ROOT/packages/coding-agent/src/cli.ts" "$@"
+else
+    exec "$REPO_ROOT/packages/coding-agent/dist/owp" "$@"
+fi

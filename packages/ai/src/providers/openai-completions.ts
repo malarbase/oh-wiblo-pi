@@ -1031,9 +1031,18 @@ export function parseChunkUsage(
 ): AssistantMessage["usage"] {
 	const promptTokenDetails = getOptionalObjectProperty(rawUsage, "prompt_tokens_details");
 	const completionTokenDetails = getOptionalObjectProperty(rawUsage, "completion_tokens_details");
+	// cache_read: OpenAI standard (prompt_tokens_details.cached_tokens) or
+	// LiteLLM/Anthropic passthrough (cache_read_input_tokens at top level)
 	const cachedTokens =
 		getOptionalNumberProperty(rawUsage, "cached_tokens") ??
 		(promptTokenDetails ? getOptionalNumberProperty(promptTokenDetails, "cached_tokens") : undefined) ??
+		getOptionalNumberProperty(rawUsage, "cache_read_input_tokens") ??
+		0;
+	// cache_write: LiteLLM passes Anthropic's cache_creation_input_tokens through as an extra
+	// field, and some proxies also expose it under prompt_tokens_details.cache_write_tokens.
+	const cacheWriteTokens =
+		getOptionalNumberProperty(rawUsage, "cache_creation_input_tokens") ??
+		(promptTokenDetails ? getOptionalNumberProperty(promptTokenDetails, "cache_write_tokens") : undefined) ??
 		0;
 	// OpenRouter exposes cache writes via `prompt_tokens_details.cache_write_tokens`
 	// and INCLUDES them in `prompt_tokens`. Without subtracting, cache-write tokens
