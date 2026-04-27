@@ -55,7 +55,9 @@ Update this section after each successful rebase.
 | `0d8a054` | Fix plugin installer path + symlink injection | `packages/coding-agent/src/installer.ts` | bug fix |
 | `7e02487` | Cast node Blob to Web Blob for tsgo | `packages/utils/src/streams.ts` | bug fix |
 | `7cde66c` | Send mode-off context message on disable | `src/modes/ask-mode/`, `src/modes/debug-mode/` | bug fix |
+| `eac4e6d` | Add mise.toml with zig; document native rebuild in sync process | `mise.toml`, `.omp/skills/sync-upstream/SKILL.md`, `.omp/commands/sync-upstream.md` | tooling |
 | `3d814f6` | Thread disabledExtensions into skillsSettings | `src/sdk.ts` | bug fix |
+| `aa5ee1a` | Archive skill-group-toggle openspec spec | `openspec/specs/skill-group-toggle/spec.md` | tooling |
 | `4498305` | Unified agent mode cycle keybinding (alt+m) | `src/modes/components/status-line/`, `src/config/settings-schema.ts` | code |
 | `622e948` | Load slash commands from prompts/ not commands/ | `src/session/agent-session.ts` | bug fix |
 | `1b256ca` | Rediscover skills on /new after ECC toggles | `src/sdk.ts`, `src/capability/skill.ts` | code |
@@ -65,6 +67,9 @@ Update this section after each successful rebase.
 | `608e6f5` | Add /refresh-models slash command | `src/slash-commands/builtin-registry.ts` | code |
 | `4392f86` | Track cache write tokens via LiteLLM passthrough fields; add bin/owp switcher | `packages/ai/src/providers/openai-completions.ts`, `bin/owp`, `mise.toml`, `docs/cache-token-tracking.md` | code |
 | `6455aed` | Add .gitnexus, .claude/, CLAUDE.md to .gitignore | `.gitignore` | chore |
+| `f782a49` | Use jiti with virtualModules in custom command loader | `packages/coding-agent/src/extensibility/custom-commands/loader.ts` | bug fix |
+| `eee523d` | Build dist/owp as primary output, keep dist/omp in sync | `packages/coding-agent/scripts/build-binary.ts` | bug fix |
+| `6346716` | Fix isBunBinary evaluating to false in compiled binary | `packages/coding-agent/src/config.ts` | bug fix |
 
 > **Note:** Commit hashes change on every rebase. Update this table after each sync.
 
