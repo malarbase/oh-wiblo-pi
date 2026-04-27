@@ -71,6 +71,7 @@ Update this section after each successful rebase.
 | `eee523d` | Build dist/owp as primary output, keep dist/omp in sync | `packages/coding-agent/scripts/build-binary.ts` | bug fix |
 | `6346716` | Fix isBunBinary evaluating to false in compiled binary | `packages/coding-agent/src/config.ts` | bug fix |
 | `aefc32a` | Config-driven escape hatch for non-Anthropic gateways (`anthropic-beta` header override + `Model.disableStrictTools`) | `packages/ai/src/types.ts`, `packages/ai/src/providers/anthropic.ts`, `packages/coding-agent/src/config/model-registry.ts`, `.omp/extensions/feature-checklist.ts` | code |
+| `d36e67b` | Accept `@mariozechner/*` aliases in extension and custom command loaders | `packages/coding-agent/src/extensibility/extensions/loader.ts`, `packages/coding-agent/src/extensibility/custom-commands/loader.ts` | code |
 
 > **Note:** Commit hashes change on every rebase. Update this table after each sync.
 
