@@ -242,6 +242,49 @@ Once all conflicts are resolved:
    ```bash
    git push origin main --force-with-lease
    ```
+   If the push fails with `remote: fatal: did not receive expected object <sha>`,
+   see § Push Failure: Fork-Network Missing Objects below.
+
+## Push Failure: Fork-Network Missing Objects
+
+**Symptom:**
+```
+remote: fatal: did not receive expected object 2a0da9f7653a83fa51b38b36436aea2eb3dc7fe8
+error: remote unpack failed: index-pack failed
+```
+
+**Root cause:** GitHub fork networks share an object database between the parent repo
+(`can1357/oh-my-pi`) and the fork (`malarbase/oh-wiblo-pi`). During push negotiation,
+the fork advertises objects it can see through the alternate as `have`, so the client
+builds a thin pack with deltas against those bases. But when `receive-pack` runs
+server-side it looks up the bases in the *fork's own* object DB (which doesn't see
+through the alternate during writes) and finds them missing → unpack failure.
+
+Typically triggered after the parent repo is repacked, force-pushed, or GC'd in a way
+that orphans objects from the fork's view but leaves stale `have` advertisements.
+
+**Fix:** push each missing object as a temporary ref on origin, forcing the fork to
+copy it into its own object database. Loop until the main push succeeds, then delete
+the temp refs.
+
+```bash
+for i in $(seq 1 15); do
+  out=$(git push origin main --force-with-lease 2>&1)
+  missing=$(echo "$out" | grep -oE 'expected object [0-9a-f]{40}' | awk '{print $3}' | head -1)
+  [ -z "$missing" ] && { echo "$out" | tail -3; break; }
+  echo "Pinning missing object: $missing"
+  git fetch upstream "$missing" 2>&1 | tail -1
+  git push origin "$missing:refs/heads/_owns_${missing:0:8}" 2>&1 | tail -1
+done
+
+# Cleanup
+refs=$(git ls-remote origin '_owns_*' | awk '{print $2}' | sed 's|refs/heads/||')
+[ -n "$refs" ] && git push origin --delete $refs
+```
+
+Each iteration unblocks one delta base. Three to five iterations is typical for a
+multi-week sync gap; sometimes only one. The temporary `_owns_<sha8>` branches are
+harmless if forgotten but should be deleted when the push completes.
 
 ## Guidelines for New Features
 
