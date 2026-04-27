@@ -47,11 +47,17 @@ type HandlerFn = (...args: unknown[]) => Promise<unknown>;
 // resolved to workspace node_modules via an alias map.
 const VIRTUAL_MODULES: Record<string, unknown> = {
 	"@oh-my-pi/pi-coding-agent": _bundledPiCodingAgent,
+	"@mariozechner/pi-coding-agent": _bundledPiCodingAgent,
 	"@oh-my-pi/pi-agent-core": _bundledPiAgentCore,
+	"@mariozechner/pi-agent-core": _bundledPiAgentCore,
 	"@oh-my-pi/pi-ai": _bundledPiAi,
+	"@mariozechner/pi-ai": _bundledPiAi,
 	"@oh-my-pi/pi-tui": _bundledPiTui,
+	"@mariozechner/pi-tui": _bundledPiTui,
 	"@oh-my-pi/pi-utils": _bundledPiUtils,
+	"@mariozechner/pi-utils": _bundledPiUtils,
 	"@oh-my-pi/pi-natives": _bundledPiNatives,
+	"@mariozechner/pi-natives": _bundledPiNatives,
 	"@sinclair/typebox": _bundledTypebox,
 };
 
@@ -67,8 +73,11 @@ function getAliases(): Record<string, string> {
 			// import.meta.resolve returns a file:// URL; strip the protocol.
 			aliases[pkg] = import.meta.resolve(pkg).replace(/^file:\/\//, "");
 		} catch {
-			// Package not resolvable (shouldn't happen in dev, log and skip)
-			logger.warn("Extension loader: could not resolve alias for package", { pkg });
+			// Package not resolvable — @mariozechner/* aliases resolve natively in dev
+			// mode via tryNative, so a missing alias there is not an error.
+			if (!pkg.startsWith("@mariozechner/")) {
+				logger.warn("Extension loader: could not resolve alias for package", { pkg });
+			}
 		}
 	}
 	return aliases;

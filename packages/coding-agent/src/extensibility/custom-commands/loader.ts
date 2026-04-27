@@ -31,8 +31,10 @@ import type {
 // mode so commands resolve them regardless of the working directory.
 const VIRTUAL_MODULES: Record<string, unknown> = {
 	"@oh-my-pi/pi-coding-agent": _bundledPiCodingAgent,
+	"@mariozechner/pi-coding-agent": _bundledPiCodingAgent,
 	"@oh-my-pi/pi-coding-agent/config/resolve-config-value": _bundledResolveConfigValue,
 	"@oh-my-pi/pi-utils": _bundledPiUtils,
+	"@mariozechner/pi-utils": _bundledPiUtils,
 	"@sinclair/typebox": _bundledTypebox,
 };
 
@@ -42,7 +44,9 @@ function getAliases(): Record<string, string> {
 		try {
 			aliases[pkg] = import.meta.resolve(pkg).replace(/^file:\/\//, "");
 		} catch {
-			logger.warn("Custom command loader: could not resolve alias for package", { pkg });
+			if (!pkg.startsWith("@mariozechner/")) {
+				logger.warn("Custom command loader: could not resolve alias for package", { pkg });
+			}
 		}
 	}
 	return aliases;
