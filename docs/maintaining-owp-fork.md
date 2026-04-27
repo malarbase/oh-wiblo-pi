@@ -72,6 +72,7 @@ Update this section after each successful rebase.
 | `6346716` | Fix isBunBinary evaluating to false in compiled binary | `packages/coding-agent/src/config.ts` | bug fix |
 | `aefc32a` | Config-driven escape hatch for non-Anthropic gateways (`anthropic-beta` header override + `Model.disableStrictTools`) | `packages/ai/src/types.ts`, `packages/ai/src/providers/anthropic.ts`, `packages/coding-agent/src/config/model-registry.ts`, `.omp/extensions/feature-checklist.ts` | code |
 | `d36e67b` | Accept `@mariozechner/*` aliases in extension and custom command loaders | `packages/coding-agent/src/extensibility/extensions/loader.ts`, `packages/coding-agent/src/extensibility/custom-commands/loader.ts` | code |
+| `1aa2d17` | Scope `extensions-discovery` test filter past plugin-installed extensions | `packages/coding-agent/test/utils/filter-user-extensions.ts` | bug fix |
 
 > **Note:** Commit hashes change on every rebase. Update this table after each sync.
 
