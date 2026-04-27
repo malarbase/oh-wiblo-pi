@@ -130,7 +130,16 @@ export function buildAnthropicHeaders(options: AnthropicHeaderOptions): Record<s
 	const oauthToken = options.isOAuth ?? isAnthropicOAuthToken(options.apiKey);
 	const extraBetas = options.extraBetas ?? [];
 	const stream = options.stream ?? false;
-	const betaHeader = buildBetaHeader(claudeCodeBetaDefaults, extraBetas);
+	// Config-driven escape hatch: if the model/provider config explicitly sets `anthropic-beta`,
+	// it fully replaces the Claude Code beta defaults. An empty string omits the header entirely,
+	// which is what 3rd-party gateways (LiteLLM->Vertex/Bedrock) need when downstream Claude does
+	// not implement betas like `context-management-2025-06-27`.
+	const userBetaOverride = getHeaderCaseInsensitive(options.modelHeaders, "Anthropic-Beta");
+	const betaHeader =
+		userBetaOverride !== undefined
+			? buildBetaHeader([], [...userBetaOverride.split(","), ...extraBetas])
+			: buildBetaHeader(claudeCodeBetaDefaults, extraBetas);
+	const betaHeaderEntry: Record<string, string> = betaHeader ? { "Anthropic-Beta": betaHeader } : {};
 	const acceptHeader = stream ? "text/event-stream" : "application/json";
 	const modelHeaders = Object.fromEntries(
 		Object.entries(options.modelHeaders ?? {}).filter(([key]) => !enforcedHeaderKeys.has(key.toLowerCase())),
@@ -157,7 +166,7 @@ export function buildAnthropicHeaders(options: AnthropicHeaderOptions): Record<s
 			Accept: acceptHeader,
 			Authorization: `Bearer ${options.apiKey}`,
 			...sharedHeaders,
-			"Anthropic-Beta": betaHeader,
+			...betaHeaderEntry,
 			"User-Agent": userAgent,
 		};
 	} else if (!isAnthropicApiBaseUrl(options.baseUrl)) {
@@ -166,14 +175,14 @@ export function buildAnthropicHeaders(options: AnthropicHeaderOptions): Record<s
 			Accept: acceptHeader,
 			Authorization: `Bearer ${options.apiKey}`,
 			...sharedHeaders,
-			"Anthropic-Beta": betaHeader,
+			...betaHeaderEntry,
 		};
 	} else {
 		return {
 			...modelHeaders,
 			Accept: acceptHeader,
 			...sharedHeaders,
-			"Anthropic-Beta": betaHeader,
+			...betaHeaderEntry,
 			"X-Api-Key": options.apiKey,
 		};
 	}
@@ -1859,7 +1868,7 @@ function buildParams(
 		params.tools = convertTools(
 			context.tools,
 			isOAuthToken,
-			disableStrictTools || model.provider === "github-copilot",
+			disableStrictTools || model.disableStrictTools === true || model.provider === "github-copilot",
 			getAnthropicCompat(model).supportsEagerToolInputStreaming,
 		);
 	}

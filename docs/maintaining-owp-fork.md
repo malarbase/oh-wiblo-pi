@@ -70,6 +70,7 @@ Update this section after each successful rebase.
 | `f782a49` | Use jiti with virtualModules in custom command loader | `packages/coding-agent/src/extensibility/custom-commands/loader.ts` | bug fix |
 | `eee523d` | Build dist/owp as primary output, keep dist/omp in sync | `packages/coding-agent/scripts/build-binary.ts` | bug fix |
 | `6346716` | Fix isBunBinary evaluating to false in compiled binary | `packages/coding-agent/src/config.ts` | bug fix |
+| `c78a74a` | Config-driven escape hatch for non-Anthropic gateways (`anthropic-beta` header override + `Model.disableStrictTools`) | `packages/ai/src/types.ts`, `packages/ai/src/providers/anthropic.ts`, `packages/coding-agent/src/config/model-registry.ts`, `.omp/extensions/feature-checklist.ts` | code |
 
 > **Note:** Commit hashes change on every rebase. Update this table after each sync.
 

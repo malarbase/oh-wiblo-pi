@@ -98,6 +98,33 @@ describe("Anthropic request fingerprint alignment", () => {
 		expect("X-Stainless-Helper-Method" in claudeCodeHeaders).toBe(false);
 	});
 
+	it("omits Anthropic-Beta when model.headers anthropic-beta override is empty", () => {
+		// Config-driven opt-out for 3rd-party gateways (LiteLLM->Vertex/Bedrock) that pass
+		// Anthropic-Beta through to a Claude provider that does not implement Claude Code
+		// betas (e.g. context-management-2025-06-27). Setting headers.anthropic-beta = ""
+		// in models.yml replaces the defaults with nothing.
+		const headers = buildAnthropicHeaders({
+			apiKey: "litellm-key",
+			baseUrl: "https://llm-gateway.example.com/v1",
+			stream: true,
+			modelHeaders: { "anthropic-beta": "" },
+		});
+
+		expect("Anthropic-Beta" in headers).toBe(false);
+	});
+
+	it("replaces Claude Code beta defaults with explicit model.headers anthropic-beta value", () => {
+		const headers = buildAnthropicHeaders({
+			apiKey: "litellm-key",
+			baseUrl: "https://llm-gateway.example.com/v1",
+			stream: true,
+			modelHeaders: { "anthropic-beta": "web-search-2025-03-05" },
+		});
+
+		expect(headers["Anthropic-Beta"]).toBe("web-search-2025-03-05");
+		expect(headers["Anthropic-Beta"]).not.toContain("context-management-2025-06-27");
+	});
+
 	it("maps Stainless OS and arch values from explicit inputs", () => {
 		expect(mapStainlessOs("darwin")).toBe("MacOS");
 		expect(mapStainlessOs("windows")).toBe("Windows");
@@ -540,6 +567,36 @@ describe("Anthropic request fingerprint alignment", () => {
 
 		const strictNames = (payload.tools ?? []).filter(tool => tool.strict === true).map(tool => tool.name);
 		expect(strictNames).toEqual(["python"]);
+	});
+
+	it("strips strict=true from all tools when model.disableStrictTools is set", async () => {
+		// Required for Anthropic-API-compatible gateways like LiteLLM->Bedrock that hang the SSE
+		// stream silently when they see `strict: true` on tool definitions.
+		const tools: Tool[] = ["bash", "edit", "python", "grep"].map(name => ({
+			name,
+			description: `${name} tool`,
+			strict: true,
+			parameters: {
+				type: "object",
+				properties: { requiredValue: { type: "string" } },
+				required: ["requiredValue"],
+			} as unknown as TSchema,
+		}));
+
+		const gatewayModel: Model<"anthropic-messages"> = { ...ANTHROPIC_MODEL, disableStrictTools: true };
+
+		const payload = (await captureAnthropicPayload(
+			gatewayModel,
+			{
+				systemPrompt: "Stay concise.",
+				messages: [{ role: "user", content: "Hi", timestamp: Date.now() }],
+				tools,
+			},
+			{ isOAuth: false },
+		)) as { tools?: Array<{ name?: string; strict?: boolean }> };
+
+		const strictNames = (payload.tools ?? []).filter(tool => tool.strict === true).map(tool => tool.name);
+		expect(strictNames).toEqual([]);
 	});
 
 	it("drops fine-grained tool-streaming beta from default Anthropic client options", () => {

@@ -298,6 +298,7 @@ const ProviderConfigSchema = Type.Object({
 	headers: Type.Optional(Type.Record(Type.String(), Type.String())),
 	compat: Type.Optional(OpenAICompatSchema),
 	authHeader: Type.Optional(Type.Boolean()),
+	disableStrictTools: Type.Optional(Type.Boolean()),
 	auth: Type.Optional(ProviderAuthSchema),
 	discovery: Type.Optional(ProviderDiscoverySchema),
 	models: Type.Optional(Type.Array(ModelDefinitionSchema)),
@@ -706,6 +707,7 @@ type CustomModelOverlay = {
 	contextPromotionTarget?: string;
 	premiumMultiplier?: number;
 	isOAuth?: boolean;
+	disableStrictTools?: boolean;
 };
 
 function mergeCustomModelHeaders(
@@ -746,6 +748,7 @@ function buildCustomModelOverlay(
 	authHeader: boolean | undefined,
 	providerCompat: Model<Api>["compat"] | undefined,
 	providerAuth: ProviderAuthMode | undefined,
+	providerDisableStrictTools: boolean | undefined,
 	modelDef: CustomModelDefinitionLike,
 	/** Pre-resolved API key value (actual secret, not the raw config string). Used for authHeader baking. */
 	resolvedApiKey?: string | undefined,
@@ -775,6 +778,7 @@ function buildCustomModelOverlay(
 		contextPromotionTarget: modelDef.contextPromotionTarget,
 		premiumMultiplier: modelDef.premiumMultiplier,
 		isOAuth: resolveCustomModelIsOAuth(api, providerAuth),
+		disableStrictTools: providerDisableStrictTools,
 	};
 }
 
@@ -807,6 +811,7 @@ function finalizeCustomModel(model: CustomModelOverlay, options: CustomModelBuil
 		contextPromotionTarget: resolvedModel.contextPromotionTarget,
 		premiumMultiplier: resolvedModel.premiumMultiplier,
 		isOAuth: resolvedModel.isOAuth,
+		disableStrictTools: resolvedModel.disableStrictTools,
 	} as Model<Api>);
 }
 
@@ -2166,6 +2171,8 @@ export class ModelRegistry {
 					providerConfig.authHeader,
 					providerCompat,
 					(providerConfig.auth as ProviderAuthMode | undefined) ?? undefined,
+					providerConfig.compat,
+					providerConfig.disableStrictTools,
 					modelDef as CustomModelDefinitionLike,
 					resolvedApiKey,
 				);
@@ -2507,6 +2514,7 @@ export class ModelRegistry {
 					config.authHeader,
 					config.compat,
 					undefined,
+					(config as { disableStrictTools?: boolean }).disableStrictTools,
 					modelDef as CustomModelDefinitionLike,
 					runtimeResolvedApiKey,
 				);
