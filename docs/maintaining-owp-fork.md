@@ -31,13 +31,13 @@ feature branch           upstream/main
 
 ## Last Sync Point
 
-**Upstream base:** `05f50a6a7` (Merge pull request #623 from apoc/fix/notification-inject-on-receive)
-**Date:** 2026-04-26
+**Upstream base:** `fe61806ef` (style(coding-agent/test): drop trailing blank line from splice-block test)
+**Date:** 2026-04-27
 **omp commits since:** 0
 
 To generate patches for your next sync:
 ```bash
-git format-patch 05f50a6a7..upstream/main
+git format-patch fe61806ef..upstream/main
 ```
 
 Update this section after each successful rebase.
@@ -48,31 +48,31 @@ Update this section after each successful rebase.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
-| `bb2efea` | Identity (README) | `README.md` | docs only |
-| `91b9b52` | Ask/Debug mode | `src/modes/ask-mode/`, `src/modes/debug-mode/`, `src/session/agent-session.ts`, `src/slash-commands/builtin-registry.ts`, `src/prompts/system/ask-mode-context.md`, `src/prompts/system/debug-mode-context.md` | code |
-| `23278c1` | Skill grouping + two-level scan + `!command` baseUrl + `openai-compatible` discovery | `src/modes/components/extensions/`, `src/config/model-registry.ts`, `src/discovery/helpers.ts`, `src/discovery/pi.ts`, `src/capability/skill.ts` | code |
-| `98bcebd` | sync-upstream skill and script | `.omp/skills/sync-upstream/` | tooling |
-| `0d8a054` | Fix plugin installer path + symlink injection | `packages/coding-agent/src/installer.ts` | bug fix |
-| `7e02487` | Cast node Blob to Web Blob for tsgo | `packages/utils/src/streams.ts` | bug fix |
-| `7cde66c` | Send mode-off context message on disable | `src/modes/ask-mode/`, `src/modes/debug-mode/` | bug fix |
-| `eac4e6d` | Add mise.toml with zig; document native rebuild in sync process | `mise.toml`, `.omp/skills/sync-upstream/SKILL.md`, `.omp/commands/sync-upstream.md` | tooling |
-| `3d814f6` | Thread disabledExtensions into skillsSettings | `src/sdk.ts` | bug fix |
-| `aa5ee1a` | Archive skill-group-toggle openspec spec | `openspec/specs/skill-group-toggle/spec.md` | tooling |
-| `4498305` | Unified agent mode cycle keybinding (alt+m) | `src/modes/components/status-line/`, `src/config/settings-schema.ts` | code |
-| `622e948` | Load slash commands from prompts/ not commands/ | `src/session/agent-session.ts` | bug fix |
-| `1b256ca` | Rediscover skills on /new after ECC toggles | `src/sdk.ts`, `src/capability/skill.ts` | code |
-| `fc0cf73` | Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/` | bug fix |
-| `75be25d` | session_directory event, jiti extension loader, authHeader fix | `src/sdk.ts`, `src/session/`, `src/capability/`, `src/extensibility/extensions/loader.ts` | code |
-| `5dfe001` | feature-checklist extension, rebase docs, owned symbols registry, SHARED_FILES note | `docs/maintaining-owp-fork.md`, `.omp/skills/sync-upstream/SKILL.md`, `.omp/extensions/feature-checklist.ts`, `src/sdk.ts` | code |
-| `608e6f5` | Add /refresh-models slash command | `src/slash-commands/builtin-registry.ts` | code |
-| `4392f86` | Track cache write tokens via LiteLLM passthrough fields; add bin/owp switcher | `packages/ai/src/providers/openai-completions.ts`, `bin/owp`, `mise.toml`, `docs/cache-token-tracking.md` | code |
-| `6455aed` | Add .gitnexus, .claude/, CLAUDE.md to .gitignore | `.gitignore` | chore |
-| `f782a49` | Use jiti with virtualModules in custom command loader | `packages/coding-agent/src/extensibility/custom-commands/loader.ts` | bug fix |
-| `eee523d` | Build dist/owp as primary output, keep dist/omp in sync | `packages/coding-agent/scripts/build-binary.ts` | bug fix |
-| `6346716` | Fix isBunBinary evaluating to false in compiled binary | `packages/coding-agent/src/config.ts` | bug fix |
-| `aefc32a` | Config-driven escape hatch for non-Anthropic gateways (`anthropic-beta` header override + `Model.disableStrictTools`) | `packages/ai/src/types.ts`, `packages/ai/src/providers/anthropic.ts`, `packages/coding-agent/src/config/model-registry.ts`, `.omp/extensions/feature-checklist.ts` | code |
-| `d36e67b` | Accept `@mariozechner/*` aliases in extension and custom command loaders | `packages/coding-agent/src/extensibility/extensions/loader.ts`, `packages/coding-agent/src/extensibility/custom-commands/loader.ts` | code |
-| `1aa2d17` | Scope `extensions-discovery` test filter past plugin-installed extensions | `packages/coding-agent/test/utils/filter-user-extensions.ts` | bug fix |
+| `b138dbe` | Identity (README) | `README.md` | docs only |
+| `b02013b` | Ask/Debug mode | `src/modes/ask-mode/`, `src/modes/debug-mode/`, `src/session/agent-session.ts`, `src/slash-commands/builtin-registry.ts`, `src/prompts/system/ask-mode-context.md`, `src/prompts/system/debug-mode-context.md` | code |
+| `fcaa468` | Skill grouping + two-level scan + `!command` baseUrl + `openai-compatible` discovery | `src/modes/components/extensions/`, `src/config/model-registry.ts`, `src/discovery/helpers.ts`, `src/discovery/pi.ts`, `src/capability/skill.ts` | code |
+| `882426a` | sync-upstream skill and script | `.omp/skills/sync-upstream/` | tooling |
+| `6179ee9` | Fix plugin installer path + symlink injection | `packages/coding-agent/src/installer.ts` | bug fix |
+| `1df1343` | Cast node Blob to Web Blob for tsgo | `packages/utils/src/streams.ts` | bug fix |
+| `2b28c61` | Send mode-off context message on disable | `src/modes/ask-mode/`, `src/modes/debug-mode/` | bug fix |
+| `89adba8` | Add mise.toml with zig; document native rebuild in sync process | `mise.toml`, `.omp/skills/sync-upstream/SKILL.md`, `.omp/commands/sync-upstream.md` | tooling |
+| `8d37fea` | Thread disabledExtensions into skillsSettings | `src/sdk.ts` | bug fix |
+| `34ccd05` | Archive skill-group-toggle openspec spec | `openspec/specs/skill-group-toggle/spec.md` | tooling |
+| `8fa27d0` | Unified agent mode cycle keybinding (alt+m) | `src/modes/components/status-line/`, `src/config/settings-schema.ts` | code |
+| `6450d60` | Load slash commands from prompts/ not commands/ | `src/session/agent-session.ts` | bug fix |
+| `459a465` | Rediscover skills on /new after ECC toggles | `src/sdk.ts`, `src/capability/skill.ts` | code |
+| `2a3a9ab` | Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/` | bug fix |
+| `9ed34c8` | session_directory event, jiti extension loader, authHeader fix | `src/sdk.ts`, `src/session/`, `src/capability/`, `src/extensibility/extensions/loader.ts` | code |
+| `e180caf` | feature-checklist extension, rebase docs, owned symbols registry, SHARED_FILES note | `docs/maintaining-owp-fork.md`, `.omp/skills/sync-upstream/SKILL.md`, `.omp/extensions/feature-checklist.ts`, `src/sdk.ts` | code |
+| `3d71fe8` | Add /refresh-models slash command | `src/slash-commands/builtin-registry.ts` | code |
+| `5c79042` | Track cache write tokens via LiteLLM passthrough fields; add bin/owp switcher | `packages/ai/src/providers/openai-completions.ts`, `bin/owp`, `mise.toml`, `docs/cache-token-tracking.md` | code |
+| `4a53ecc` | Add .gitnexus, .claude/, CLAUDE.md to .gitignore | `.gitignore` | chore |
+| `c1b0dbb` | Use jiti with virtualModules in custom command loader | `packages/coding-agent/src/extensibility/custom-commands/loader.ts` | bug fix |
+| `1e4e9d6` | Build dist/owp as primary output, keep dist/omp in sync | `packages/coding-agent/scripts/build-binary.ts` | bug fix |
+| `c3153ca` | Fix isBunBinary evaluating to false in compiled binary | `packages/coding-agent/src/config.ts` | bug fix |
+| `fd3babf` | Config-driven escape hatch for non-Anthropic gateways (`anthropic-beta` header override + `Model.disableStrictTools`) | `packages/ai/src/types.ts`, `packages/ai/src/providers/anthropic.ts`, `packages/coding-agent/src/config/model-registry.ts`, `.omp/extensions/feature-checklist.ts` | code |
+| `1714fdf` | Accept `@mariozechner/*` aliases in extension and custom command loaders | `packages/coding-agent/src/extensibility/extensions/loader.ts`, `packages/coding-agent/src/extensibility/custom-commands/loader.ts` | code |
+| `ee79185` | Scope `extensions-discovery` test filter past plugin-installed extensions | `packages/coding-agent/test/utils/filter-user-extensions.ts` | bug fix |
 
 > **Note:** Commit hashes change on every rebase. Update this table after each sync.
 
