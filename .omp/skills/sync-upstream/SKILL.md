@@ -52,6 +52,7 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | Skill grouping | `src/modes/components/extensions/extension-list.ts`, `src/modes/components/extensions/state-manager.ts`, `src/modes/components/extensions/types.ts`, `src/capability/skill.ts` (group fields) |
 | baseUrl resolution | `src/config/model-registry.ts` (#customProviderBaseUrls, #resolvedCommandBaseUrls, #rewriteProviderBaseUrl, resolveApiKeyConfigSync, resolveApiKeyConfigAsync) |
 | openai-compatible discovery | `src/config/model-registry.ts` (ProviderDiscoverySchema `"openai-compatible"` literal, #discoverOpenAICompatibleModels, case in #discoverModelsByProviderType) |
+| disableStrictTools | `packages/ai/src/types.ts` (`disableStrictTools?` on `Model<TApi>`), `packages/ai/src/providers/anthropic.ts` (beta-header override, strict-tool check), `packages/coding-agent/src/config/model-registry.ts` (ProviderConfigSchema field, CustomModelOverlay field, buildCustomModelOverlay param) |
 
 
 ## Owned Symbols in Shared Files
@@ -107,6 +108,10 @@ only graft in the specific owp-owned symbols listed above.
 | openai-compatible | `case "openai-compatible"` in `#discoverModelsByProviderType` | Switch case |
 | openai-compatible | `LiteLLMModelInfo` interface | Type for LiteLLM model info fields |
 | openai-compatible | `#fetchLiteLLMModelInfo()` | Fetches LiteLLM's /v1/model/info |
+| disableStrictTools | `disableStrictTools` field in `ProviderConfigSchema` | Optional boolean; suppresses strict tool mode for Anthropic-API gateways |
+| disableStrictTools | `disableStrictTools?` field in `CustomModelOverlay` | Carries the flag through overlay construction |
+| disableStrictTools | `providerDisableStrictTools` param in `buildCustomModelOverlay()` | Threads flag from provider config into overlay |
+| disableStrictTools | `disableStrictTools` in `finalizeCustomModel()` | Passes flag onto the final `Model<Api>` object |
 
 ### presets.ts (packages/coding-agent/src/modes/components/status-line/presets.ts)
 
@@ -129,6 +134,19 @@ only graft in the specific owp-owned symbols listed above.
 | Unified mode | `agentModeSegment` | Renderer implementation |
 | Session naming | `sessionNameSegment` | Renderer implementation |
 
+
+### types.ts (packages/ai/src/types.ts)
+
+| Feature | Symbol | Description |
+|---------|--------|-------------|
+| disableStrictTools | `disableStrictTools?` on `Model<TApi>` | Optional boolean field; suppresses strict tool mode for Anthropic-API gateways |
+
+### anthropic.ts (packages/ai/src/providers/anthropic.ts)
+
+| Feature | Symbol | Description |
+|---------|--------|-------------|
+| disableStrictTools | `userBetaOverride` + `betaHeaderEntry` in `buildAnthropicHeaders()` | Reads `Anthropic-Beta` from modelHeaders; overrides default Claude Code beta defaults if present |
+| disableStrictTools | `model.disableStrictTools === true` check in `buildParams()` | Adds to the `disableStrictTools` condition alongside `github-copilot` provider guard |
 ## Upstream Divergences (take upstream)
 
 These omp files exist but owp intentionally doesn't override them. Always take upstream:

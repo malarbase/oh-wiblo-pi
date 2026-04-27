@@ -287,6 +287,7 @@ const ProviderConfigSchema = Type.Object({
 	headers: Type.Optional(Type.Record(Type.String(), Type.String())),
 	compat: Type.Optional(OpenAICompatSchema),
 	authHeader: Type.Optional(Type.Boolean()),
+	disableStrictTools: Type.Optional(Type.Boolean()),
 	auth: Type.Optional(ProviderAuthSchema),
 	discovery: Type.Optional(ProviderDiscoverySchema),
 	models: Type.Optional(Type.Array(ModelDefinitionSchema)),
@@ -690,6 +691,7 @@ type CustomModelOverlay = {
 	compat?: Model<Api>["compat"];
 	contextPromotionTarget?: string;
 	premiumMultiplier?: number;
+	disableStrictTools?: boolean;
 };
 
 function mergeCustomModelHeaders(
@@ -713,6 +715,7 @@ function buildCustomModelOverlay(
 	providerApiKey: string | undefined,
 	authHeader: boolean | undefined,
 	providerCompat: Model<Api>["compat"] | undefined,
+	providerDisableStrictTools: boolean | undefined,
 	modelDef: CustomModelDefinitionLike,
 	/** Pre-resolved API key value (actual secret, not the raw config string). Used for authHeader baking. */
 	resolvedApiKey?: string | undefined,
@@ -741,6 +744,7 @@ function buildCustomModelOverlay(
 		compat: mergeCompat(providerCompat, modelDef.compat),
 		contextPromotionTarget: modelDef.contextPromotionTarget,
 		premiumMultiplier: modelDef.premiumMultiplier,
+		disableStrictTools: providerDisableStrictTools,
 	};
 }
 
@@ -772,6 +776,7 @@ function finalizeCustomModel(model: CustomModelOverlay, options: CustomModelBuil
 		compat: resolvedModel.compat,
 		contextPromotionTarget: resolvedModel.contextPromotionTarget,
 		premiumMultiplier: resolvedModel.premiumMultiplier,
+		disableStrictTools: resolvedModel.disableStrictTools,
 	} as Model<Api>);
 }
 
@@ -2075,6 +2080,7 @@ export class ModelRegistry {
 					providerConfig.apiKey,
 					providerConfig.authHeader,
 					providerConfig.compat,
+					providerConfig.disableStrictTools,
 					modelDef as CustomModelDefinitionLike,
 					resolvedApiKey,
 				);
@@ -2413,6 +2419,7 @@ export class ModelRegistry {
 					config.apiKey,
 					config.authHeader,
 					config.compat,
+					(config as { disableStrictTools?: boolean }).disableStrictTools,
 					modelDef as CustomModelDefinitionLike,
 					runtimeResolvedApiKey,
 				);

@@ -587,4 +587,11 @@ export interface Model<TApi extends Api = any> {
 	 * - `"function"` or undefined: JSON function-tool with `{input: string}` (spec §1.2).
 	 */
 	applyPatchToolType?: "freeform" | "function";
+	/**
+	 * If true, suppress `strict: true` on tool definitions and skip strict-tool retry logic.
+	 * Set on Anthropic-API-compatible gateways (LiteLLM->Bedrock/Vertex) whose downstream
+	 * provider does not implement Anthropic's strict tool grammar — Bedrock currently hangs
+	 * the SSE stream silently when it sees `strict: true`, leaving no error to recover from.
+	 */
+	disableStrictTools?: boolean;
 }

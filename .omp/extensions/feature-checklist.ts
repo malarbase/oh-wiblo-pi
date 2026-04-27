@@ -9,6 +9,8 @@ const SHARED_FILES = [
 	"packages/coding-agent/src/modes/components/status-line/presets.ts",
 	"packages/coding-agent/src/modes/components/status-line/segments.ts",
 	"packages/coding-agent/src/modes/components/status-line-segment-editor.ts",
+	"packages/ai/src/types.ts",
+	"packages/ai/src/providers/anthropic.ts",
 ];
 
 const FORK_FEATURES_DOC = "docs/maintaining-owp-fork.md";
@@ -28,15 +30,17 @@ export default function (pi: ExtensionAPI) {
 		const changedFiles = result.stdout.trim().split("\n").filter(Boolean);
 		if (changedFiles.length === 0) return;
 
-		// Only act when coding-agent source was touched — skip docs-only, chore, sync commits.
-		const touchedSrc = changedFiles.some(f => f.startsWith(SRC_PREFIX));
+		// Only act when coding-agent or ai package source was touched — skip docs-only, chore, sync commits.
+		const touchedSrc = changedFiles.some(f => f.startsWith(SRC_PREFIX) || f.startsWith("packages/ai/src/"));
 		if (!touchedSrc) return;
 
 		const reminders: string[] = [];
 
 		// Reminder 1: shared files whose symbol registry must stay current.
+		// Suppressed if SKILL_DOC was also modified — the registry was already updated this session.
 		const touchedShared = changedFiles.filter(f => SHARED_FILES.includes(f));
-		if (touchedShared.length > 0) {
+		const touchedSkillDoc = changedFiles.includes(SKILL_DOC);
+		if (touchedShared.length > 0 && !touchedSkillDoc) {
 			reminders.push(
 				`**Owned Symbols registry out of date.** These shared files were modified:\n` +
 					touchedShared.map(f => `- \`${f}\``).join("\n") +
