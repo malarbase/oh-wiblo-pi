@@ -31,13 +31,13 @@ feature branch           upstream/main
 
 ## Last Sync Point
 
-**Upstream base:** `63de93da3` (chore: bump version to 14.6.2)
+**Upstream base:** `671caba66` (feat(coding-agent/hindsight): added per-session HindsightSessionState)
 **Date:** 2026-05-03
 **omp commits since:** 0
 
 To generate patches for your next sync:
 ```bash
-git format-patch 63de93da3..upstream/main
+git format-patch 671caba66..upstream/main
 ```
 
 Update this section after each successful rebase.
@@ -77,6 +77,9 @@ Update this section after each successful rebase.
 | `793c13e` | Add /plan load subcommand for iterative plan editing | `src/plan-mode/`, `src/slash-commands/builtin-registry.ts`, `src/session/agent-session.ts`, `src/modes/ask-mode/bash-readonly.ts`, `src/modes/ask-mode/tool-guard.ts`, `src/config/settings-schema.ts`, `src/config/settings.ts`, `packages/tui/src/components/settings-list.ts` | code |
 | `ad6114b` | Promote install-binary to TS custom command | `.omp/commands/install-binary/` | tooling |
 | `0badafa` | Deduplicate slash command autocomplete across TS and markdown sources; fix feature-checklist extension to use committed-state check | `src/modes/interactive-mode.ts`, `.omp/extensions/feature-checklist.ts` | bug fix |
+| `8549f24` | Fix logger.info → logger.debug in install-binary command | `.omp/commands/install-binary/` | bug fix |
+| `<TBD>` | SerpAPI Google AI Mode web search provider | `packages/coding-agent/src/web/search/providers/serpapi.ts`, `packages/coding-agent/src/web/search/types.ts`, `packages/coding-agent/src/web/search/provider.ts`, `packages/coding-agent/src/config/settings-schema.ts`, `packages/coding-agent/src/modes/components/settings-defs.ts`, `packages/coding-agent/src/cli/args.ts`, `packages/coding-agent/test/tools/web-search-serpapi.test.ts` | code |
+| `<TBD>` | Clear current settings layer (`c`) — peel project → global → default | `packages/coding-agent/src/modes/components/settings-selector.ts` | code |
 > **Note:** Commit hashes change on every rebase. Update this table after each sync.
 
 ## Owned Symbols in Shared Files
