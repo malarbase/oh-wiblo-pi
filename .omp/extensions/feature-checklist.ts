@@ -15,49 +15,54 @@ const SHARED_FILES = [
 
 const FORK_FEATURES_DOC = "docs/maintaining-owp-fork.md";
 const SKILL_DOC = ".omp/skills/sync-upstream/SKILL.md";
-const SRC_PREFIX = "packages/coding-agent/src/";
+const SRC_PATHS = ["packages/coding-agent/src/", "packages/ai/src/"];
 
 export default function (pi: ExtensionAPI) {
 	pi.on("agent_end", async (_event, ctx) => {
 		// Skip if more messages are queued — wait for the real end of the sequence.
 		if (ctx.hasPendingMessages()) return;
 
-		// Check unstaged + staged changes relative to HEAD.
-		// This covers mid-implementation state where edits exist but aren't committed yet.
-		const result = await pi.exec("git", ["diff", "--name-only", "HEAD"], { cwd: ctx.cwd });
-		if (result.code !== 0) return;
-
-		const changedFiles = result.stdout.trim().split("\n").filter(Boolean);
-		if (changedFiles.length === 0) return;
-
-		// Only act when coding-agent or ai package source was touched — skip docs-only, chore, sync commits.
-		const touchedSrc = changedFiles.some(f => f.startsWith(SRC_PREFIX) || f.startsWith("packages/ai/src/"));
-		if (!touchedSrc) return;
-
 		const reminders: string[] = [];
 
-		// Reminder 1: shared files whose symbol registry must stay current.
-		// Suppressed if SKILL_DOC was also modified — the registry was already updated this session.
-		const touchedShared = changedFiles.filter(f => SHARED_FILES.includes(f));
-		const touchedSkillDoc = changedFiles.includes(SKILL_DOC);
-		if (touchedShared.length > 0 && !touchedSkillDoc) {
-			reminders.push(
-				`**Owned Symbols registry out of date.** These shared files were modified:\n` +
-					touchedShared.map(f => `- \`${f}\``).join("\n") +
-					`\n\nUpdate \`${SKILL_DOC} § Owned Symbols\` with any new symbols added. ` +
-					`If symbols were removed, delete their rows.`,
-			);
+		// Reminder 1: Owned Symbols registry — fires on uncommitted changes to shared files
+		// when the skill doc wasn't also touched this session.
+		const diffResult = await pi.exec("git", ["diff", "--name-only", "HEAD"], { cwd: ctx.cwd });
+		if (diffResult.code === 0) {
+			const changedFiles = diffResult.stdout.trim().split("\n").filter(Boolean);
+			const touchedShared = changedFiles.filter(f => SHARED_FILES.includes(f));
+			const touchedSkillDoc = changedFiles.includes(SKILL_DOC);
+			if (touchedShared.length > 0 && !touchedSkillDoc) {
+				reminders.push(
+					`**Owned Symbols registry out of date.** These shared files were modified:\n` +
+						touchedShared.map(f => `- \`${f}\``).join("\n") +
+						`\n\nUpdate \`${SKILL_DOC} § Owned Symbols\` with any new symbols added. ` +
+						`If symbols were removed, delete their rows.`,
+				);
+			}
 		}
 
-		// Reminder 2: Fork Features table must reflect every feature commit.
-		// Check applies to any coding-agent source change, not just shared-file changes.
-		const touchedForkDoc = changedFiles.includes(FORK_FEATURES_DOC);
-		if (!touchedForkDoc) {
-			reminders.push(
-				`**Fork Features table not updated.** \`${FORK_FEATURES_DOC} § Fork Features\` ` +
-					`must reflect every feature commit. Run \`git log --oneline upstream/main..HEAD\` ` +
-					`and ensure the table matches.`,
-			);
+		// Reminder 2: Fork Features table — fires when any committed src change is not
+		// mentioned in the table. Checks committed state so it doesn't fire on
+		// in-progress edits or when the table was already updated in a prior commit.
+		const logResult = await pi.exec(
+			"git",
+			["log", "--format=%h", "upstream/main..HEAD", "--", ...SRC_PATHS],
+			{ cwd: ctx.cwd },
+		);
+		if (logResult.code === 0) {
+			const srcCommits = logResult.stdout.trim().split("\n").filter(Boolean);
+			if (srcCommits.length > 0) {
+				const catResult = await pi.exec("cat", [FORK_FEATURES_DOC], { cwd: ctx.cwd });
+				const tableContent = catResult.code === 0 ? catResult.stdout : "";
+				const undocumented = srcCommits.filter(hash => hash && !tableContent.includes(hash));
+				if (undocumented.length > 0) {
+					reminders.push(
+						`**Fork Features table not updated.** \`${FORK_FEATURES_DOC} § Fork Features\` ` +
+							`must reflect every feature commit. Run \`git log --oneline upstream/main..HEAD\` ` +
+							`and ensure the table matches.`,
+					);
+				}
+			}
 		}
 
 		if (reminders.length === 0) return;

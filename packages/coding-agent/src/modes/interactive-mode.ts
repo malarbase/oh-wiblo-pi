@@ -505,8 +505,9 @@ export class InteractiveMode implements InteractiveModeContext {
 			name: cmd.name,
 			description: cmd.description,
 		}));
+		const pendingNames = new Set(this.#pendingSlashCommands.map(cmd => cmd.name));
 		const autocompleteProvider = this.#inputController.createAutocompleteProvider(
-			[...this.#pendingSlashCommands, ...fileSlashCommands],
+			[...this.#pendingSlashCommands, ...fileSlashCommands.filter(cmd => !pendingNames.has(cmd.name))],
 			basePath,
 		);
 		this.editor.setAutocompleteProvider(autocompleteProvider);
