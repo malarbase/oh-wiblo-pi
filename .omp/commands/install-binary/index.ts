@@ -161,7 +161,7 @@ async function runPromote(
 		`Promoted: packages/coding-agent/dist/owp → ${destPath}\nVersion: ${version}`,
 		"info",
 	);
-	logger.info("install-binary: promoted", { destPath, version });
+	logger.debug("install-binary: promoted", { destPath, version });
 	return true;
 }
 
