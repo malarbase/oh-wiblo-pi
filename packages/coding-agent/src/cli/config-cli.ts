@@ -13,6 +13,7 @@ import {
 	getType,
 	getUi,
 	type SettingPath,
+	type SettingScope,
 	Settings,
 	type SettingValue,
 	settings,
@@ -33,6 +34,7 @@ export interface ConfigCommandArgs {
 	value?: string;
 	flags: {
 		json?: boolean;
+		scope?: SettingScope;
 	};
 }
 // =============================================================================
@@ -105,6 +107,21 @@ export function parseConfigArgs(args: string[]): ConfigCommandArgs | undefined {
 		const arg = args[i];
 		if (arg === "--json") {
 			result.flags.json = true;
+		} else if (arg === "--scope") {
+			const next = args[i + 1];
+			if (next !== "global" && next !== "project") {
+				console.error(chalk.red(`Invalid --scope: ${next ?? "<missing>"}. Valid: global, project`));
+				process.exit(1);
+			}
+			result.flags.scope = next;
+			i++;
+		} else if (arg.startsWith("--scope=")) {
+			const v = arg.slice("--scope=".length);
+			if (v !== "global" && v !== "project") {
+				console.error(chalk.red(`Invalid --scope: ${v}. Valid: global, project`));
+				process.exit(1);
+			}
+			result.flags.scope = v;
 		} else if (!arg.startsWith("-")) {
 			positionalArgs.push(arg);
 		}
@@ -170,7 +187,7 @@ function getTypeDisplay(def: CliSettingDef): string {
 // Schema-Driven Value Parsing
 // =============================================================================
 
-function parseAndSetValue(path: SettingPath, rawValue: string): void {
+function parseAndSetValue(path: SettingPath, rawValue: string, scope: SettingScope): void {
 	const schemaType = getType(path);
 	let parsedValue: unknown;
 
@@ -225,7 +242,7 @@ function parseAndSetValue(path: SettingPath, rawValue: string): void {
 			parsedValue = trimmed;
 	}
 
-	settings.set(path, parsedValue as SettingValue<typeof path>);
+	settings.set(path, parsedValue as SettingValue<typeof path>, { scope });
 }
 
 // =============================================================================
@@ -325,9 +342,13 @@ function handleGet(key: string | undefined, flags: { json?: boolean }): void {
 	console.log(formatValue(value));
 }
 
-async function handleSet(key: string | undefined, value: string | undefined, flags: { json?: boolean }): Promise<void> {
+async function handleSet(
+	key: string | undefined,
+	value: string | undefined,
+	flags: { json?: boolean; scope?: SettingScope },
+): Promise<void> {
 	if (!key || value === undefined) {
-		console.error(chalk.red(`Usage: ${APP_NAME} config set <key> <value>`));
+		console.error(chalk.red(`Usage: ${APP_NAME} config set <key> <value> [--scope global|project]`));
 		console.error(chalk.dim(`\nRun '${APP_NAME} config list' to see available keys`));
 		process.exit(1);
 	}
@@ -339,25 +360,29 @@ async function handleSet(key: string | undefined, value: string | undefined, fla
 		process.exit(1);
 	}
 
+	const scope: SettingScope = flags.scope ?? "global";
 	try {
-		parseAndSetValue(def.path, value);
+		parseAndSetValue(def.path, value, scope);
 	} catch (err) {
 		console.error(chalk.red(String(err)));
 		process.exit(1);
 	}
+	await settings.flush();
 
 	const newValue = settings.get(def.path);
 
 	if (flags.json) {
-		console.log(JSON.stringify({ key: def.path, value: newValue }));
+		console.log(JSON.stringify({ key: def.path, value: newValue, scope }));
 	} else {
-		console.log(chalk.green(`${theme.status.success} Set ${def.path} = ${formatValue(newValue)}`));
+		console.log(
+			chalk.green(`${theme.status.success} Set ${def.path} = ${formatValue(newValue)} ${chalk.dim(`(${scope})`)}`),
+		);
 	}
 }
 
-async function handleReset(key: string | undefined, flags: { json?: boolean }): Promise<void> {
+async function handleReset(key: string | undefined, flags: { json?: boolean; scope?: SettingScope }): Promise<void> {
 	if (!key) {
-		console.error(chalk.red(`Usage: ${APP_NAME} config reset <key>`));
+		console.error(chalk.red(`Usage: ${APP_NAME} config reset <key> [--scope global|project]`));
 		console.error(chalk.dim(`\nRun '${APP_NAME} config list' to see available keys`));
 		process.exit(1);
 	}
@@ -370,13 +395,19 @@ async function handleReset(key: string | undefined, flags: { json?: boolean }): 
 	}
 
 	const path = def.path as SettingPath;
+	const scope: SettingScope = flags.scope ?? "global";
 	const defaultValue = getDefault(path);
-	settings.set(path, defaultValue as SettingValue<typeof path>);
+	settings.set(path, defaultValue as SettingValue<typeof path>, { scope });
+	await settings.flush();
 
 	if (flags.json) {
-		console.log(JSON.stringify({ key: def.path, value: defaultValue }));
+		console.log(JSON.stringify({ key: def.path, value: defaultValue, scope }));
 	} else {
-		console.log(chalk.green(`${theme.status.success} Reset ${def.path} to ${formatValue(defaultValue)}`));
+		console.log(
+			chalk.green(
+				`${theme.status.success} Reset ${def.path} to ${formatValue(defaultValue)} ${chalk.dim(`(${scope})`)}`,
+			),
+		);
 	}
 }
 
@@ -400,15 +431,19 @@ ${chalk.bold("Commands:")}
   init-xdg           Initialize XDG Base Directory structure
 
 ${chalk.bold("Options:")}
-  --json             Output as JSON
+  --json                       Output as JSON
+  --scope global|project       Target the global (~/.omp) or project (<cwd>/.omp) layer.
+                               Default: global. Applies to set and reset.
 
 ${chalk.bold("Examples:")}
   ${APP_NAME} config list
   ${APP_NAME} config get theme
   ${APP_NAME} config set theme catppuccin-mocha
   ${APP_NAME} config set compaction.enabled false
+  ${APP_NAME} config set theme.dark dracula --scope project
   ${APP_NAME} config set defaultThinkingLevel medium
   ${APP_NAME} config reset steeringMode
+  ${APP_NAME} config reset theme.dark --scope project
   ${APP_NAME} config list --json
   ${APP_NAME} config init-xdg
 

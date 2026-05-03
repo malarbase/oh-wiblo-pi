@@ -13,7 +13,7 @@ import {
 	TabBar,
 	Text,
 } from "@oh-my-pi/pi-tui";
-import { type SettingPath, settings } from "../../config/settings";
+import { type SettingPath, type SettingScope, settings } from "../../config/settings";
 import type {
 	SettingTab,
 	StatusLinePreset,
@@ -218,6 +218,7 @@ export interface SettingsCallbacks {
  */
 export class SettingsSelectorComponent extends Container {
 	#tabBar: TabBar;
+	#scopeIndicator: Text | null = null;
 	#currentList: SettingsList | null = null;
 	#currentSubmenu: Container | null = null;
 	#pluginComponent: PluginSettingsComponent | null = null;
@@ -225,6 +226,7 @@ export class SettingsSelectorComponent extends Container {
 	#statusPreviewText: Text | null = null;
 	#currentTabId: SettingTab | "plugins" = "appearance";
 	#textInputActive = false;
+	#writeScope: SettingScope = "global";
 
 	constructor(
 		private readonly context: SettingsRuntimeContext,
@@ -241,6 +243,9 @@ export class SettingsSelectorComponent extends Container {
 			this.#switchToTab(this.#tabBar.getActiveTab().id as SettingTab | "plugins");
 		};
 		this.addChild(this.#tabBar);
+		// Scope toggle indicator
+		this.#scopeIndicator = new Text(this.#renderScopeIndicator(), 0, 0);
+		this.addChild(this.#scopeIndicator);
 
 		// Spacer after tab bar
 		this.addChild(new Spacer(1));
@@ -294,6 +299,7 @@ export class SettingsSelectorComponent extends Container {
 		}
 
 		const currentValue = this.#getCurrentValue(def);
+		const layer = settings.getLayer(def.path);
 
 		switch (def.type) {
 			case "boolean":
@@ -303,6 +309,7 @@ export class SettingsSelectorComponent extends Container {
 					description: def.description,
 					currentValue: currentValue ? "true" : "false",
 					values: ["true", "false"],
+					layer,
 				};
 
 			case "enum":
@@ -312,6 +319,7 @@ export class SettingsSelectorComponent extends Container {
 					description: def.description,
 					currentValue: currentValue as string,
 					values: [...def.values],
+					layer,
 				};
 
 			case "submenu":
@@ -321,6 +329,7 @@ export class SettingsSelectorComponent extends Container {
 					description: def.description,
 					currentValue: this.#getSubmenuCurrentValue(def.path, currentValue),
 					submenu: (cv, done) => this.#createSubmenu(def, cv, done),
+					layer,
 				};
 
 			case "text":
@@ -330,6 +339,7 @@ export class SettingsSelectorComponent extends Container {
 					description: def.description,
 					currentValue: (currentValue as string) ?? "",
 					submenu: (cv, done) => this.#createTextInput(def, cv, done),
+					layer,
 				};
 		}
 	}
@@ -475,19 +485,21 @@ export class SettingsSelectorComponent extends Container {
 	 * Set a setting value, handling type conversion.
 	 */
 	#setSettingValue(path: SettingPath, value: string): void {
+		const opts = { scope: this.#writeScope };
 		// Handle number conversions
 		const currentValue = settings.get(path);
 		if (path === "compaction.thresholdPercent" && value === "default") {
-			settings.set(path, -1 as never);
+			settings.set(path, -1 as never, opts);
 		} else if (path === "compaction.thresholdTokens" && value === "default") {
-			settings.set(path, -1 as never);
+			settings.set(path, -1 as never, opts);
 		} else if (typeof currentValue === "number") {
-			settings.set(path, Number(value) as never);
+			settings.set(path, Number(value) as never, opts);
 		} else if (typeof currentValue === "boolean") {
-			settings.set(path, (value === "true") as never);
+			settings.set(path, (value === "true") as never, opts);
 		} else {
-			settings.set(path, value as never);
+			settings.set(path, value as never, opts);
 		}
+		this.#refreshLayerForItem(path);
 	}
 
 	/**
@@ -527,14 +539,16 @@ export class SettingsSelectorComponent extends Container {
 
 				if (def.type === "boolean") {
 					const boolValue = newValue === "true";
-					settings.set(path, boolValue as never);
+					settings.set(path, boolValue as never, { scope: this.#writeScope });
+					this.#refreshLayerForItem(path);
 					this.callbacks.onChange(path, boolValue);
 
 					if (tabId === "appearance") {
 						this.#triggerStatusLinePreview();
 					}
 				} else if (def.type === "enum") {
-					settings.set(path, newValue as never);
+					settings.set(path, newValue as never, { scope: this.#writeScope });
+					this.#refreshLayerForItem(path);
 					this.callbacks.onChange(path, newValue);
 				}
 				// Submenu types are handled in createSubmenu
@@ -587,6 +601,42 @@ export class SettingsSelectorComponent extends Container {
 		this.addChild(this.#pluginComponent);
 	}
 
+	#renderScopeIndicator(): string {
+		const global =
+			this.#writeScope === "global" ? theme.bold(theme.fg("accent", "[Global]")) : theme.fg("muted", " Global ");
+		const project =
+			this.#writeScope === "project" ? theme.bold(theme.fg("accent", "[Project]")) : theme.fg("muted", " Project ");
+		return `  Save to: ${global} ${project}  ${theme.fg("dim", "(s to toggle, c to clear project override)")}`;
+	}
+
+	#updateScopeIndicator(): void {
+		this.#scopeIndicator?.setText(this.#renderScopeIndicator());
+	}
+
+	#toggleWriteScope(): void {
+		this.#writeScope = this.#writeScope === "global" ? "project" : "global";
+		this.#updateScopeIndicator();
+	}
+
+	#refreshLayerForItem(path: SettingPath): void {
+		if (!this.#currentList) return;
+		const layer = settings.getLayer(path);
+		this.#currentList.updateLayer(path, layer);
+	}
+
+	#clearProjectForSelected(): void {
+		if (!this.#currentList) return;
+		const item = this.#currentList.getSelectedItem();
+		if (!item || item.layer !== "project") return;
+		const path = item.id as SettingPath;
+		settings.clearProject(path);
+		const newValue = settings.get(path);
+		const displayValue = typeof newValue === "boolean" ? (newValue ? "true" : "false") : String(newValue ?? "");
+		this.#currentList.updateValue(path, displayValue);
+		this.#refreshLayerForItem(path);
+		this.callbacks.onChange(path, newValue);
+	}
+
 	getFocusComponent(): SettingsList | PluginSettingsComponent {
 		// Return the current focusable component - one of these will always be set
 		return (this.#currentList || this.#pluginComponent)!;
@@ -604,6 +654,18 @@ export class SettingsSelectorComponent extends Container {
 		) {
 			this.#tabBar.handleInput(data);
 			return;
+		}
+
+		// Scope toggle / project clear (only when no submenu/text input active)
+		if (!this.#textInputActive && !this.#currentSubmenu && this.#currentList) {
+			if (data === "s" || data === "S") {
+				this.#toggleWriteScope();
+				return;
+			}
+			if (data === "c" || data === "C") {
+				this.#clearProjectForSelected();
+				return;
+			}
 		}
 
 		// Escape at top level cancels

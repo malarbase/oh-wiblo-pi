@@ -2397,5 +2397,17 @@ export function getSettingsListTheme(): import("@oh-my-pi/pi-tui").SettingsListT
 		description: (text: string) => theme.fg("dim", text),
 		cursor: theme.fg("accent", `${theme.nav.cursor} `),
 		hint: (text: string) => theme.fg("dim", text),
+		layerBadge: (layer, _selected) => {
+			switch (layer) {
+				case "override":
+					return `${theme.fg("warning", "[O]")} `;
+				case "project":
+					return `${theme.fg("accent", "[P]")} `;
+				case "global":
+					return `${theme.fg("muted", "[G]")} `;
+				default:
+					return `${theme.fg("dim", "[·]")} `;
+			}
+		},
 	};
 }

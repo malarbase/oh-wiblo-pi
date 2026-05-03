@@ -16,6 +16,7 @@ import * as path from "node:path";
 import {
 	getAgentDbPath,
 	getAgentDir,
+	getProjectAgentDir,
 	getProjectDir,
 	isEnoent,
 	logger,
@@ -83,6 +84,39 @@ function getByPath(obj: RawSettings, segments: string[]): unknown {
 }
 
 /**
+ * Delete a nested value in an object by path segments.
+ * Prunes empty parent objects so saved files stay tidy.
+ * Returns true if the leaf existed and was deleted.
+ */
+function deleteByPath(obj: RawSettings, segments: string[]): boolean {
+	const stack: Array<{ parent: RawSettings; key: string }> = [];
+	let current = obj;
+	for (let i = 0; i < segments.length - 1; i++) {
+		const segment = segments[i];
+		const next = current[segment];
+		if (next === null || next === undefined || typeof next !== "object" || Array.isArray(next)) {
+			return false;
+		}
+		stack.push({ parent: current, key: segment });
+		current = next as RawSettings;
+	}
+	const leaf = segments[segments.length - 1];
+	if (!(leaf in current)) return false;
+	delete current[leaf];
+	// Prune empty parents bottom-up
+	while (stack.length > 0) {
+		const frame = stack.pop()!;
+		const child = frame.parent[frame.key] as RawSettings;
+		if (Object.keys(child).length === 0) {
+			delete frame.parent[frame.key];
+		} else {
+			break;
+		}
+	}
+	return true;
+}
+
+/**
  * Set a nested value in an object by path segments.
  * Creates intermediate objects as needed.
  */
@@ -102,23 +136,29 @@ function setByPath(obj: RawSettings, segments: string[], value: unknown): void {
 // Settings Class
 // ═══════════════════════════════════════════════════════════════════════════
 
+export type SettingScope = "global" | "project";
+export type SettingLayer = SettingScope | "override" | "default";
+
 export class Settings {
 	#configPath: string | null;
+	#projectPath: string | null;
 	#cwd: string;
 	#agentDir: string;
 	#storage: AgentStorage | null = null;
 
 	/** Global settings from config.yml */
 	#global: RawSettings = {};
-	/** Project settings from .claude/settings.yml etc */
+	/** Project settings from <cwd>/.omp/settings.json */
 	#project: RawSettings = {};
 	/** Runtime overrides (not persisted) */
 	#overrides: RawSettings = {};
 	/** Merged view (global + project + overrides) */
 	#merged: RawSettings = {};
 
-	/** Paths modified during this session (for partial save) */
-	#modified = new Set<string>();
+	/** Global paths modified during this session (for partial save) */
+	#modifiedGlobal = new Set<string>();
+	/** Project paths modified during this session (for partial save) */
+	#modifiedProject = new Set<string>();
 
 	/** Pending save (debounced) */
 	#saveTimer?: NodeJS.Timeout;
@@ -130,8 +170,9 @@ export class Settings {
 	private constructor(options: SettingsOptions = {}) {
 		this.#cwd = path.normalize(options.cwd ?? getProjectDir());
 		this.#agentDir = path.normalize(options.agentDir ?? getAgentDir());
-		this.#configPath = options.inMemory ? null : path.join(this.#agentDir, "config.yml");
 		this.#persist = !options.inMemory;
+		this.#configPath = this.#persist ? path.join(this.#agentDir, "config.yml") : null;
+		this.#projectPath = this.#persist ? path.join(getProjectAgentDir(this.#cwd), "settings.json") : null;
 
 		if (options.overrides) {
 			for (const [key, value] of Object.entries(options.overrides)) {
@@ -208,22 +249,66 @@ export class Settings {
 
 	/**
 	 * Set a setting value (sync).
-	 * Updates global settings and queues a background save.
-	 * Triggers hooks for settings that have side effects.
+	 * Defaults to global scope (~/.omp/agent/config.yml).
+	 * Pass `{ scope: "project" }` to write to <cwd>/.omp/settings.json instead.
+	 * Triggers hooks for settings that have side effects with the resulting merged value.
 	 */
-	set<P extends SettingPath>(path: P, value: SettingValue<P>): void {
+	set<P extends SettingPath>(path: P, value: SettingValue<P>, opts?: { scope?: SettingScope }): void {
 		const prev = this.get(path);
 		const segments = path.split(".");
-		setByPath(this.#global, segments, value);
-		this.#modified.add(path);
+		const scope = opts?.scope ?? "global";
+		if (scope === "project") {
+			setByPath(this.#project, segments, value);
+			this.#modifiedProject.add(path);
+		} else {
+			setByPath(this.#global, segments, value);
+			this.#modifiedGlobal.add(path);
+		}
 		this.#rebuildMerged();
 		this.#queueSave();
 
-		// Trigger hook if exists
-		const hook = SETTING_HOOKS[path];
-		if (hook) {
-			hook(value, prev);
-		}
+		this.#fireHook(path, prev);
+	}
+
+	/**
+	 * Clear a setting from the global layer (~/.omp/agent/config.yml).
+	 * Project and override layers are untouched, so `get()` may still return a value.
+	 */
+	clearGlobal(path: SettingPath): void {
+		const prev = this.get(path);
+		const segments = path.split(".");
+		if (!deleteByPath(this.#global, segments)) return;
+		this.#modifiedGlobal.add(path);
+		this.#rebuildMerged();
+		this.#queueSave();
+		this.#fireHook(path, prev);
+	}
+
+	/**
+	 * Clear a setting from the project layer (<cwd>/.omp/settings.json).
+	 * Global and override layers are untouched.
+	 */
+	clearProject(path: SettingPath): void {
+		const prev = this.get(path);
+		const segments = path.split(".");
+		if (!deleteByPath(this.#project, segments)) return;
+		this.#modifiedProject.add(path);
+		this.#rebuildMerged();
+		this.#queueSave();
+		this.#fireHook(path, prev);
+	}
+
+	/**
+	 * Report which layer currently provides the value for a path.
+	 * Returns "override" if a runtime override is set, then "project", then "global",
+	 * else "default" if no layer has it.
+	 */
+	getLayer(path: SettingPath): SettingLayer {
+		const segments = path.split(".");
+		if (getByPath(this.#overrides, segments) !== undefined) return "override";
+		if (getByPath(this.#project, segments) !== undefined) return "project";
+		if (getByPath(this.#global, segments) !== undefined) return "global";
+		return "default";
 	}
 
 	/**
@@ -262,7 +347,7 @@ export class Settings {
 		if (this.#savePromise) {
 			await this.#savePromise;
 		}
-		if (this.#modified.size > 0) {
+		if (this.#modifiedGlobal.size > 0 || this.#modifiedProject.size > 0) {
 			await this.#saveNow();
 		}
 	}
@@ -423,6 +508,20 @@ export class Settings {
 		try {
 			const content = await Bun.file(filePath).text();
 			const parsed = YAML.parse(content);
+			if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+				return {};
+			}
+			return this.#migrateRawSettings(parsed as RawSettings);
+		} catch (error) {
+			if (isEnoent(error)) return {};
+			logger.warn("Settings: failed to load", { path: filePath, error: String(error) });
+			return {};
+		}
+	}
+
+	async #loadJson(filePath: string): Promise<RawSettings> {
+		try {
+			const parsed = JSON.parse(await Bun.file(filePath).text());
 			if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
 				return {};
 			}
@@ -618,7 +717,8 @@ export class Settings {
 	// ─────────────────────────────────────────────────────────────────────────
 
 	#queueSave(): void {
-		if (!this.#persist || !this.#configPath) return;
+		if (!this.#persist) return;
+		if (!this.#configPath && !this.#projectPath) return;
 
 		// Debounce: wait 100ms for more changes
 		if (this.#saveTimer) {
@@ -633,37 +733,79 @@ export class Settings {
 	}
 
 	async #saveNow(): Promise<void> {
-		if (!this.#persist || !this.#configPath || this.#modified.size === 0) return;
+		if (!this.#persist) return;
+		if (this.#modifiedGlobal.size === 0 && this.#modifiedProject.size === 0) return;
 
-		const configPath = this.#configPath;
-		const modifiedPaths = [...this.#modified];
-		this.#modified.clear();
+		const globalPaths = [...this.#modifiedGlobal];
+		const projectPaths = [...this.#modifiedProject];
+		this.#modifiedGlobal.clear();
+		this.#modifiedProject.clear();
 
-		try {
-			await withFileLock(configPath, async () => {
-				// Re-read to preserve external changes
-				const current = await this.#loadYaml(configPath);
-
-				// Apply only our modified paths
-				for (const modPath of modifiedPaths) {
-					const segments = modPath.split(".");
-					const value = getByPath(this.#global, segments);
-					setByPath(current, segments, value);
-				}
-
-				// Update our global with any external changes we preserved
-				this.#global = current;
-				await Bun.write(configPath, YAML.stringify(this.#global, null, 2));
+		if (this.#configPath && globalPaths.length > 0) {
+			await this.#saveScope({
+				filePath: this.#configPath,
+				modifiedPaths: globalPaths,
+				load: filePath => this.#loadYaml(filePath),
+				serialize: data => YAML.stringify(data, null, 2),
+				layer: "global",
 			});
-		} catch (error) {
-			logger.warn("Settings: save failed", { error: String(error) });
-			// Re-add failed paths for retry
-			for (const p of modifiedPaths) {
-				this.#modified.add(p);
-			}
+		}
+
+		if (this.#projectPath && projectPaths.length > 0) {
+			await this.#saveScope({
+				filePath: this.#projectPath,
+				modifiedPaths: projectPaths,
+				load: filePath => this.#loadJson(filePath),
+				serialize: data => `${JSON.stringify(data, null, 2)}\n`,
+				layer: "project",
+			});
 		}
 
 		this.#rebuildMerged();
+	}
+
+	async #saveScope(opts: {
+		filePath: string;
+		modifiedPaths: string[];
+		load: (filePath: string) => Promise<RawSettings>;
+		serialize: (data: RawSettings) => string;
+		layer: SettingScope;
+	}): Promise<void> {
+		const { filePath, modifiedPaths, load, serialize, layer } = opts;
+		const inMemory = layer === "global" ? this.#global : this.#project;
+		const targetSet = layer === "global" ? this.#modifiedGlobal : this.#modifiedProject;
+
+		try {
+			await withFileLock(filePath, async () => {
+				// Re-read to preserve external changes
+				const current = await load(filePath);
+
+				// Apply only our modified paths (set or delete based on in-memory state)
+				for (const modPath of modifiedPaths) {
+					const segments = modPath.split(".");
+					const value = getByPath(inMemory, segments);
+					if (value === undefined) {
+						deleteByPath(current, segments);
+					} else {
+						setByPath(current, segments, value);
+					}
+				}
+
+				// Update our in-memory state with any external changes we preserved
+				if (layer === "global") {
+					this.#global = current;
+				} else {
+					this.#project = current;
+				}
+				await Bun.write(filePath, serialize(current));
+			});
+		} catch (error) {
+			logger.warn("Settings: save failed", { layer, path: filePath, error: String(error) });
+			// Re-add failed paths for retry
+			for (const p of modifiedPaths) {
+				targetSet.add(p);
+			}
+		}
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────
@@ -673,6 +815,13 @@ export class Settings {
 	#rebuildMerged(): void {
 		this.#merged = this.#deepMerge(this.#deepMerge({}, this.#global), this.#project);
 		this.#merged = this.#deepMerge(this.#merged, this.#overrides);
+	}
+
+	#fireHook<P extends SettingPath>(path: P, prev: SettingValue<P>): void {
+		const hook = SETTING_HOOKS[path];
+		if (hook) {
+			hook(this.get(path), prev);
+		}
 	}
 
 	#fireAllHooks(): void {

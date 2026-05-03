@@ -76,4 +76,11 @@ describe("ExitPlanModeTool", () => {
 			"Title may only contain letters, numbers, underscores, or hyphens.",
 		);
 	});
+
+	it("plan.storage: project produces absolute project path", async () => {
+		const tool = new ExitPlanModeTool(createSession({ settings: Settings.isolated({ "plan.storage": "project" }) }));
+		const result = await tool.execute("call-project", { title: "FEATURE_PLAN" });
+
+		expect(result.details?.finalPlanFilePath).toBe(path.resolve(tmpDir, ".omp", "plans", "FEATURE_PLAN.md"));
+	});
 });

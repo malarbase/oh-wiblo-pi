@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
 import { isEnoent, prompt } from "@oh-my-pi/pi-utils";
 import { type Static, Type } from "@sinclair/typebox";
+import { getFinalPlanPath } from "../plan-mode/storage";
 import exitPlanModeDescription from "../prompts/tools/exit-plan-mode.md" with { type: "text" };
 import type { ToolSession } from ".";
 import { resolvePlanPath } from "./plan-mode-guard";
@@ -13,7 +14,7 @@ const exitPlanModeSchema = Type.Object({
 
 type ExitPlanModeParams = Static<typeof exitPlanModeSchema>;
 
-function normalizePlanTitle(title: string): { title: string; fileName: string } {
+export function normalizePlanTitle(title: string): { title: string; fileName: string } {
 	const trimmed = title.trim();
 	if (!trimmed) {
 		throw new ToolError("Title is required and must not be empty.");
@@ -65,8 +66,10 @@ export class ExitPlanModeTool implements AgentTool<typeof exitPlanModeSchema, Ex
 		}
 
 		const normalized = normalizePlanTitle(params.title);
-		const finalPlanFilePath = `local://${normalized.fileName}`;
+		const storage = this.session.settings.get("plan.storage") as "session" | "project";
+		const finalPlanFilePath = getFinalPlanPath(storage, { cwd: this.session.cwd }, normalized.fileName);
 		const resolvedPlanPath = resolvePlanPath(this.session, state.planFilePath);
+		// Validate that the final plan path is resolvable (handles both local:// and absolute paths)
 		resolvePlanPath(this.session, finalPlanFilePath);
 		let planExists = false;
 		try {

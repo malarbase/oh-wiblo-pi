@@ -41,6 +41,16 @@ import { BUILTIN_SLASH_COMMANDS, loadSlashCommands } from "../extensibility/slas
 import { resolveLocalUrlToPath } from "../internal-urls";
 import { LSP_STARTUP_EVENT_CHANNEL, type LspStartupEvent } from "../lsp/startup-events";
 import { renameApprovedPlanFile } from "../plan-mode/approved-plan";
+import type { PlanModeLoadedFrom } from "../plan-mode/state";
+import {
+	derivePlanName,
+	getFinalPlanPath,
+	listSavedPlans,
+	type PlanStorage,
+	type PlanStorageContext,
+	resolveSavedPlan,
+	type SavedPlan,
+} from "../plan-mode/storage";
 import planModeApprovedPrompt from "../prompts/system/plan-mode-approved.md" with { type: "text" };
 import type { AgentSession, AgentSessionEvent } from "../session/agent-session";
 import { HistoryStorage } from "../session/history-storage";
@@ -48,6 +58,7 @@ import type { SessionContext, SessionManager } from "../session/session-manager"
 import { getRecentSessions } from "../session/session-manager";
 import { STTController, type SttState } from "../stt";
 import type { ExitPlanModeDetails, LspStartupServerInfo } from "../tools";
+import { normalizePlanTitle } from "../tools/exit-plan-mode";
 import { normalizeLocalScheme } from "../tools/path-utils";
 import { formatPhaseDisplayName } from "../tools/todo-write";
 import type { EventBus } from "../utils/event-bus";
@@ -584,7 +595,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.loopModeEnabled = false;
 		this.loopPrompt = undefined;
 		this.#cancelLoopAutoSubmit();
-		this.statusLine.setLoopModeStatus(undefined);
+		
 		this.updateEditorTopBorder();
 		this.ui.requestRender();
 		if (wasEnabled) {
@@ -609,7 +620,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 		this.loopModeEnabled = true;
 		this.loopPrompt = undefined;
-		this.statusLine.setLoopModeStatus({ enabled: true });
+		
 		this.updateEditorTopBorder();
 		this.ui.requestRender();
 		this.showStatus(
@@ -826,7 +837,10 @@ export class InteractiveMode implements InteractiveModeContext {
 	 * Handles exit of the current mode, entry of the next, status bar update,
 	 * and appendModeChange — all in one place.
 	 */
-	async #setActiveMode(next: ActiveMode, options?: { silent?: boolean; initialPrompt?: string }): Promise<void> {
+	async #setActiveMode(
+		next: ActiveMode,
+		options?: { silent?: boolean; initialPrompt?: string; loadedFrom?: PlanModeLoadedFrom },
+	): Promise<void> {
 		const current = this.#activeMode;
 		if (current === next) return;
 
@@ -842,7 +856,7 @@ export class InteractiveMode implements InteractiveModeContext {
 
 		// Enter next mode
 		if (next === "plan") {
-			await this.#enterPlanMode();
+			await this.#enterPlanMode({ loadedFrom: options?.loadedFrom });
 		} else if (next === "ask") {
 			this.session.enableAskMode();
 			await this.session.sendAskModeContext();
@@ -864,8 +878,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.sessionManager.appendModeChange(modeChangeArg);
 
 		if (next === "none" && !options?.silent) {
-			if (current === "ask") this.showStatus("Ask mode disabled.");
-			else if (current === "debug") this.showStatus("Debug mode disabled.");
+			this.showStatus("Agent mode enabled.");
 		}
 
 		if (next === "plan" && options?.initialPrompt && this.onInputCallback) {
@@ -930,7 +943,8 @@ export class InteractiveMode implements InteractiveModeContext {
 		const sessionContext = this.sessionManager.buildSessionContext();
 		if (sessionContext.mode === "plan") {
 			const planFilePath = sessionContext.modeData?.planFilePath as string | undefined;
-			await this.#enterPlanMode({ planFilePath });
+			const loadedFrom = sessionContext.modeData?.loadedFrom as PlanModeLoadedFrom | undefined;
+			await this.#enterPlanMode({ planFilePath, loadedFrom });
 			// #activeMode already set to "plan" inside #enterPlanMode
 		} else if (sessionContext.mode === "plan_paused") {
 			this.planModePaused = true;
@@ -940,7 +954,11 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 	}
 
-	async #enterPlanMode(options?: { planFilePath?: string; workflow?: "parallel" | "iterative" }): Promise<void> {
+	async #enterPlanMode(options?: {
+		planFilePath?: string;
+		workflow?: "parallel" | "iterative";
+		loadedFrom?: PlanModeLoadedFrom;
+	}): Promise<void> {
 		if (this.planModeEnabled) {
 			return;
 		}
@@ -963,6 +981,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			planFilePath,
 			workflow: options?.workflow ?? "parallel",
 			reentry: this.#planModeHasEntered,
+			loadedFrom: options?.loadedFrom,
 		});
 		if (this.session.isStreaming) {
 			await this.session.sendPlanModeContext({ deliverAs: "steer" });
@@ -970,7 +989,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.#planModeHasEntered = true;
 		await this.#applyPlanModeModel();
 		this.#updatePlanModeStatus();
-		this.sessionManager.appendModeChange("plan", { planFilePath });
+		this.sessionManager.appendModeChange("plan", { planFilePath, loadedFrom: options?.loadedFrom });
 		this.showStatus(`Plan mode enabled. Plan file: ${planFilePath}`);
 	}
 
@@ -1133,32 +1152,44 @@ export class InteractiveMode implements InteractiveModeContext {
 
 	async #approvePlan(
 		planContent: string,
-		options: { planFilePath: string; finalPlanFilePath: string },
+		options: { planFilePath: string; finalPlanFilePath: string; overwrite?: boolean },
 	): Promise<void> {
 		await renameApprovedPlanFile({
 			planFilePath: options.planFilePath,
 			finalPlanFilePath: options.finalPlanFilePath,
 			getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
 			getSessionId: () => this.sessionManager.getSessionId(),
+			overwrite: options.overwrite,
 		});
+		await this.#executePlan(planContent, options.finalPlanFilePath, { clearSession: true });
+	}
+
+	async #executePlan(planContent: string, finalPlanFilePath: string, opts: { clearSession: boolean }): Promise<void> {
 		const previousTools = this.#planModePreviousTools ?? this.session.getActiveToolNames();
-		await this.#exitPlanMode({ silent: true, paused: false });
-		await this.handleClearCommand();
-		// The new session has a fresh local:// root — persist the approved plan there
-		// so `local://<title>.md` resolves correctly in the execution session.
-		const newLocalPath = resolveLocalUrlToPath(options.finalPlanFilePath, {
-			getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
-			getSessionId: () => this.sessionManager.getSessionId(),
-		});
-		await Bun.write(newLocalPath, planContent);
+		if (this.planModeEnabled) {
+			await this.#exitPlanMode({ silent: true, paused: false });
+		}
+		if (opts.clearSession) {
+			await this.handleClearCommand();
+			// The new session has a fresh local:// root — persist the approved plan there
+			// so `local://<title>.md` resolves correctly in the execution session.
+			// For project paths, the file already exists at a stable path.
+			if (finalPlanFilePath.startsWith("local:")) {
+				const newLocalPath = resolveLocalUrlToPath(finalPlanFilePath, {
+					getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
+					getSessionId: () => this.sessionManager.getSessionId(),
+				});
+				await Bun.write(newLocalPath, planContent);
+			}
+		}
 		if (previousTools.length > 0) {
 			await this.session.setActiveToolsByName(previousTools);
 		}
-		this.session.setPlanReferencePath(options.finalPlanFilePath);
+		this.session.setPlanReferencePath(finalPlanFilePath);
 		this.session.markPlanReferenceSent();
 		const planModePrompt = prompt.render(planModeApprovedPrompt, {
 			planContent,
-			finalPlanFilePath: options.finalPlanFilePath,
+			finalPlanFilePath,
 		});
 		await this.session.prompt(planModePrompt, { synthetic: true });
 	}
@@ -1177,6 +1208,101 @@ export class InteractiveMode implements InteractiveModeContext {
 			return;
 		}
 		await this.#setActiveMode("plan", { initialPrompt });
+	}
+
+	/**
+	 * Shared resolver for /plan run and /plan load: resolves a bare name (or interactive picker) to a SavedPlan.
+	 * Returns null and shows a warning/error if unresolvable.
+	 */
+	async #resolveSavedPlanFromArgs(name: string | undefined, pickerTitle: string): Promise<SavedPlan | null> {
+		const ctx: PlanStorageContext = {
+			cwd: this.sessionManager.getCwd(),
+			getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
+			getSessionId: () => this.sessionManager.getSessionId(),
+		};
+		if (!name) {
+			const plans = await listSavedPlans(ctx);
+			if (plans.length === 0) {
+				this.showWarning("No saved plans found.");
+				return null;
+			}
+			const items = plans.map(p => `${p.name}  (${p.location}, ${p.mtime.toISOString()})`);
+			const choice = await this.showHookSelector(pickerTitle, items);
+			if (!choice) return null;
+			return plans[items.indexOf(choice)] ?? null;
+		}
+		try {
+			const plan = await resolveSavedPlan(name, ctx);
+			if (!plan) {
+				this.showError(`Plan not found: ${name}`);
+				return null;
+			}
+			return plan;
+		} catch (err) {
+			this.showError(err instanceof Error ? err.message : String(err));
+			return null;
+		}
+	}
+
+	async handlePlanRunCommand(args: string): Promise<void> {
+		const tokens = args.trim().split(/\s+/).filter(Boolean);
+		const keep = tokens.includes("--keep");
+		const positional = tokens.filter(t => t !== "--keep");
+		const name = positional.length > 0 ? positional.join(" ") : undefined;
+		const target = await this.#resolveSavedPlanFromArgs(name, "Run saved plan");
+		if (!target) return;
+		try {
+			const planContent = await Bun.file(target.absolutePath).text();
+			await this.#executePlan(planContent, target.url, { clearSession: !keep });
+		} catch (err) {
+			this.showError(`Failed to run plan: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
+	async handlePlanListCommand(): Promise<void> {
+		const ctx: PlanStorageContext = {
+			cwd: this.sessionManager.getCwd(),
+			getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
+			getSessionId: () => this.sessionManager.getSessionId(),
+		};
+		const plans = await listSavedPlans(ctx);
+		if (plans.length === 0) {
+			this.showStatus("No saved plans.");
+			return;
+		}
+		const lines = plans.map(p => `  ${p.name.padEnd(30)} ${p.location.padEnd(8)} ${p.mtime.toISOString()}`);
+		this.showStatus(`Saved plans:\n${lines.join("\n")}`);
+	}
+
+	async handlePlanLoadCommand(args: string): Promise<void> {
+		if (this.planModeEnabled) {
+			this.showWarning("Already in plan mode. Exit first (/plan) before loading a saved plan.");
+			return;
+		}
+		const trimmed = args.trim();
+		const spaceIdx = trimmed.indexOf(" ");
+		const name = spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx);
+		const iterationPrompt = spaceIdx === -1 ? undefined : trimmed.slice(spaceIdx + 1).trim() || undefined;
+		const target = await this.#resolveSavedPlanFromArgs(name || undefined, "Load saved plan");
+		if (!target) return;
+		try {
+			const planContent = await Bun.file(target.absolutePath).text();
+			const draftPath = await this.#getPlanFilePath();
+			const resolvedDraft = this.#resolvePlanFilePath(draftPath);
+			await Bun.write(resolvedDraft, planContent);
+			this.showStatus(`Loaded plan "${target.name}" into ${draftPath}.`);
+			await this.#setActiveMode("plan", {
+				initialPrompt: iterationPrompt,
+				loadedFrom: {
+					name: target.name,
+					absolutePath: target.absolutePath,
+					location: target.location,
+					url: target.url,
+				},
+			});
+		} catch (err) {
+			this.showError(`Failed to load plan: ${err instanceof Error ? err.message : String(err)}`);
+		}
 	}
 
 	async handleExitPlanModeTool(details: ExitPlanModeDetails): Promise<void> {
@@ -1199,30 +1325,90 @@ export class InteractiveMode implements InteractiveModeContext {
 			return;
 		}
 
+		const loadedFrom = this.session.getPlanModeState()?.loadedFrom;
+		const overwriteLabel = loadedFrom ? `Save and exit (overwrite ${loadedFrom.name})` : "Save and exit";
+		const selectorOptions = loadedFrom
+			? ["Approve and execute", overwriteLabel, "Save as new...", "Refine plan", "Stay in plan mode"]
+			: ["Approve and execute", "Save and exit", "Refine plan", "Stay in plan mode"];
+
 		this.#renderPlanPreview(planContent);
-		const choice = await this.showHookSelector(
-			"Plan mode - next step",
-			["Approve and execute", "Refine plan", "Stay in plan mode"],
-			{
-				helpText: this.#getPlanReviewHelpText(),
-				onExternalEditor: () => void this.#openPlanInExternalEditor(planFilePath),
-			},
-		);
+		const choice = await this.showHookSelector("Plan mode - next step", selectorOptions, {
+			helpText: this.#getPlanReviewHelpText(),
+			onExternalEditor: () => void this.#openPlanInExternalEditor(planFilePath),
+		});
 
 		if (choice === "Approve and execute") {
-			const finalPlanFilePath = details.finalPlanFilePath || planFilePath;
+			const finalPlanFilePath = loadedFrom?.url ?? (details.finalPlanFilePath || planFilePath);
 			try {
 				const latestPlanContent = await this.#readPlanFile(planFilePath);
 				if (!latestPlanContent) {
 					this.showError(`Plan file not found at ${planFilePath}`);
 					return;
 				}
-				await this.#approvePlan(latestPlanContent, { planFilePath, finalPlanFilePath });
+				await this.#approvePlan(latestPlanContent, { planFilePath, finalPlanFilePath, overwrite: !!loadedFrom });
 			} catch (error) {
 				this.showError(
 					`Failed to finalize approved plan: ${error instanceof Error ? error.message : String(error)}`,
 				);
 			}
+			return;
+		}
+		if (loadedFrom && choice === overwriteLabel) {
+			try {
+				await renameApprovedPlanFile({
+					planFilePath,
+					finalPlanFilePath: loadedFrom.url,
+					getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
+					getSessionId: () => this.sessionManager.getSessionId(),
+					overwrite: true,
+				});
+			} catch (err) {
+				this.showError(`Failed to save plan: ${err instanceof Error ? err.message : String(err)}`);
+				return;
+			}
+			await this.#exitPlanMode({ silent: true, paused: false });
+			this.showStatus(
+				`Plan saved to ${loadedFrom.url} (overwrote ${loadedFrom.name}). Run with: /plan run ${loadedFrom.name}`,
+			);
+			return;
+		}
+		if (choice === "Save and exit" || choice === "Save as new...") {
+			const ctx: PlanStorageContext = {
+				cwd: this.sessionManager.getCwd(),
+				getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
+				getSessionId: () => this.sessionManager.getSessionId(),
+			};
+			const existingPlans = await listSavedPlans(ctx);
+			const existingNames = new Set(existingPlans.map(p => p.name.toLowerCase()));
+			const defaultTitle = derivePlanName(planContent, existingNames);
+			const titleInput = (await this.showHookInput("Plan title (e.g. FOO_PLAN):", undefined, defaultTitle))?.trim();
+			if (!titleInput) return;
+			let normalized: { title: string; fileName: string };
+			try {
+				normalized = normalizePlanTitle(titleInput);
+			} catch (err) {
+				this.showError(err instanceof Error ? err.message : String(err));
+				return;
+			}
+			const storage = this.session.settings.get("plan.storage") as PlanStorage;
+			const finalPlanFilePath = getFinalPlanPath(
+				storage,
+				{ cwd: this.sessionManager.getCwd() },
+				normalized.fileName,
+			);
+			try {
+				await renameApprovedPlanFile({
+					planFilePath,
+					finalPlanFilePath,
+					getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
+					getSessionId: () => this.sessionManager.getSessionId(),
+				});
+			} catch (err) {
+				this.showError(`Failed to save plan: ${err instanceof Error ? err.message : String(err)}`);
+				return;
+			}
+			await this.#exitPlanMode({ silent: true, paused: false });
+			this.showStatus(`Plan saved to ${finalPlanFilePath}. Run with: /plan run ${normalized.title}`);
 			return;
 		}
 		if (choice === "Refine plan") {
@@ -1925,8 +2111,8 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.#extensionUiController.hideHookSelector();
 	}
 
-	showHookInput(title: string, placeholder?: string): Promise<string | undefined> {
-		return this.#extensionUiController.showHookInput(title, placeholder);
+	showHookInput(title: string, placeholder?: string, prefill?: string): Promise<string | undefined> {
+		return this.#extensionUiController.showHookInput(title, placeholder, prefill);
 	}
 
 	hideHookInput(): void {

@@ -113,8 +113,9 @@ import {
 	selectDiscoverableMCPToolNamesByServer,
 } from "../mcp/discoverable-tool-metadata";
 import { resolveMemoryBackend } from "../memory-backend";
+import { isReadOnlyBashCommand } from "../modes/ask-mode/bash-readonly";
 import type { AskModeState } from "../modes/ask-mode/state";
-import { wrapToolWithAskModeGuard } from "../modes/ask-mode/tool-guard";
+import { type AskModeValidator, wrapToolWithAskModeGuard } from "../modes/ask-mode/tool-guard";
 import type { DebugModeState } from "../modes/debug-mode/state";
 import { getCurrentThemeName, theme } from "../modes/theme/theme";
 import type { PlanModeState } from "../plan-mode/state";
@@ -472,6 +473,7 @@ export class AgentSession {
 	#scheduledHiddenNextTurnGeneration: number | undefined = undefined;
 	#planModeState: PlanModeState | undefined;
 	#askModeState: AskModeState | undefined;
+	#askModeValidators: Map<string, AskModeValidator>;
 	#debugModeState: DebugModeState | undefined;
 	#planReferenceSent = false;
 	#planReferencePath = "local://PLAN.md";
@@ -640,11 +642,35 @@ export class AgentSession {
 		this.#lastRediscoverEnabled = !!config.skillsSettings && !!this.#rediscoverSkills;
 		this.#modelRegistry = config.modelRegistry;
 		this.#validateRetryFallbackChains();
+		this.#askModeValidators = new Map([
+			[
+				"bash",
+				(params: unknown): { allowed: boolean; reason?: string } => {
+					if (!this.settings.get("askMode.allowReadonlyBash")) {
+						return {
+							allowed: false,
+							reason: "read-only bash is disabled (askMode.allowReadonlyBash)",
+						};
+					}
+					const command =
+						typeof params === "object" && params !== null && "command" in params
+							? String((params as Record<string, unknown>).command)
+							: "";
+					const extra = (this.settings.get("askMode.bashAllowlistExtra") as string[] | undefined) ?? [];
+					const check = isReadOnlyBashCommand(command, extra);
+					if (!check.allowed) {
+						logger.warn("Ask-mode bash blocked", { command, reason: check.reason });
+					}
+					return check;
+				},
+			],
+		]);
+
 		this.#toolRegistry = config.toolRegistry ?? new Map();
 		for (const [name, tool] of this.#toolRegistry) {
 			this.#toolRegistry.set(
 				name,
-				wrapToolWithAskModeGuard(tool, () => this.#askModeState),
+				wrapToolWithAskModeGuard(tool, () => this.#askModeState, this.#askModeValidators),
 			);
 		}
 		this.#transformContext = config.transformContext ?? (messages => messages);
@@ -2496,7 +2522,11 @@ export class AgentSession {
 			const extensionWrapped = (
 				this.#extensionRunner ? new ExtensionToolWrapper(wrapped, this.#extensionRunner) : wrapped
 			) as AgentTool;
-			const finalTool = wrapToolWithAskModeGuard(extensionWrapped, () => this.#askModeState);
+			const finalTool = wrapToolWithAskModeGuard(
+				extensionWrapped,
+				() => this.#askModeState,
+				this.#askModeValidators,
+			);
 			this.#toolRegistry.set(finalTool.name, finalTool);
 		}
 
@@ -2735,11 +2765,11 @@ export class AgentSession {
 	async disableDebugMode(): Promise<void> {
 		const state = this.#debugModeState;
 		if (!state?.enabled) return;
-
+		const ingestUrl = state.ingestUrl;
 		this.#debugModeState = undefined;
 		await this.sendCustomMessage({
 			customType: "debug-mode-off",
-			content: debugModeOffPrompt,
+			content: prompt.render(debugModeOffPrompt, { ingestUrl }),
 			display: false,
 		});
 	}

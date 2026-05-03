@@ -31,13 +31,13 @@ feature branch           upstream/main
 
 ## Last Sync Point
 
-**Upstream base:** `fe61806ef` (style(coding-agent/test): drop trailing blank line from splice-block test)
-**Date:** 2026-04-27
+**Upstream base:** `63de93da3` (chore: bump version to 14.6.2)
+**Date:** 2026-05-03
 **omp commits since:** 0
 
 To generate patches for your next sync:
 ```bash
-git format-patch fe61806ef..upstream/main
+git format-patch 63de93da3..upstream/main
 ```
 
 Update this section after each successful rebase.
@@ -73,6 +73,7 @@ Update this section after each successful rebase.
 | `fd3babf` | Config-driven escape hatch for non-Anthropic gateways (`anthropic-beta` header override + `Model.disableStrictTools`) | `packages/ai/src/types.ts`, `packages/ai/src/providers/anthropic.ts`, `packages/coding-agent/src/config/model-registry.ts`, `.omp/extensions/feature-checklist.ts` | code |
 | `1714fdf` | Accept `@mariozechner/*` aliases in extension and custom command loaders | `packages/coding-agent/src/extensibility/extensions/loader.ts`, `packages/coding-agent/src/extensibility/custom-commands/loader.ts` | code |
 | `ee79185` | Scope `extensions-discovery` test filter past plugin-installed extensions | `packages/coding-agent/test/utils/filter-user-extensions.ts` | bug fix |
+| `7c6e4c5` | Document fork-network missing-object push failure with self-healing loop | `.omp/skills/sync-upstream/SKILL.md` | tooling |
 
 > **Note:** Commit hashes change on every rebase. Update this table after each sync.
 

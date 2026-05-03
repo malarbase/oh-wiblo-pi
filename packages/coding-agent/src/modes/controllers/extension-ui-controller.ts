@@ -39,7 +39,7 @@ export class ExtensionUiController {
 		const uiContext: ExtensionUIContext = {
 			select: (title, options, dialogOptions) => this.showHookSelector(title, options, dialogOptions),
 			confirm: (title, message, _dialogOptions) => this.showHookConfirm(title, message),
-			input: (title, placeholder, dialogOptions) => this.showHookInput(title, placeholder, dialogOptions),
+			input: (title, placeholder, dialogOptions) => this.showHookInput(title, placeholder, undefined, dialogOptions),
 			notify: (message, type) => this.showHookNotify(message, type),
 			onTerminalInput: handler => this.addExtensionTerminalInputListener(handler),
 			setStatus: (key, text) => this.setHookStatus(key, text),
@@ -652,6 +652,7 @@ export class ExtensionUiController {
 	showHookInput(
 		title: string,
 		placeholder?: string,
+		prefill?: string,
 		dialogOptions?: ExtensionUIDialogOptions,
 	): Promise<string | undefined> {
 		const { promise, finish, attachAbort } = this.#createHookDialogState(
@@ -661,6 +662,7 @@ export class ExtensionUiController {
 		this.ctx.hookInput = new HookInputComponent(
 			title,
 			placeholder,
+			prefill,
 			value => {
 				this.hideHookInput();
 				finish(value);

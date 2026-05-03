@@ -686,6 +686,7 @@ export interface Model<TApi extends Api = any> {
 	 * `options.isOAuth = true` for the underlying provider call.
 	 */
 	isOAuth?: boolean;
+	/**
 	 * If true, suppress `strict: true` on tool definitions and skip strict-tool retry logic.
 	 * Set on Anthropic-API-compatible gateways (LiteLLM->Bedrock/Vertex) whose downstream
 	 * provider does not implement Anthropic's strict tool grammar — Bedrock currently hangs

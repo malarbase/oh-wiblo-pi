@@ -74,6 +74,20 @@
 - Fixed `search_commits` output to show shortened SHAs with commit message first lines
 - Fixed `search_repos` output formatting to return repository summaries including language, stars, forks, issues, visibility, and key status fields
 
+### Added
+
+- Added `plan.storage` setting (`session` | `project`, default `session`) to control where approved plans are saved. With `project`, plans land at `<cwd>/.omp/plans/<title>.md` and can be committed/shared.
+- Added `Save and exit` option to the plan-mode review selector — saves the finalized plan without clearing the session or starting execution. Shows a `/plan run <title>` hint after saving.
+- Added `/plan run <name> [--keep]` slash command to execute a saved plan in the current session. Without `--keep`, the session is cleared first (same behavior as `Approve and execute`). With `--keep`, the plan runs inline without clearing session history.
+- Added `/plan list` slash command to list saved plans from both project and session locations with timestamps.
+- Added `resolveSavedPlan` and `listSavedPlans` helpers in `plan-mode/storage.ts` for locating saved plans by bare stem, absolute path, or `local://` URL.
+- Added `/plan load <name> [iteration prompt]` to load a saved plan back into plan mode for continued iteration. The exit menu gains `Save and exit (overwrite <name>)` for in-place save and `Save as new...` for a separate copy.
+
+
+
+### Changed
+
+- `renameApprovedPlanFile` now accepts `overwrite?: boolean` to support the `/plan load` save-back path; default behavior (destination-exists guard) is unchanged.
 ## [14.6.2] - 2026-05-03
 
 ### Added

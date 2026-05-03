@@ -303,8 +303,6 @@ const ProviderConfigSchema = Type.Object({
 	discovery: Type.Optional(ProviderDiscoverySchema),
 	models: Type.Optional(Type.Array(ModelDefinitionSchema)),
 	modelOverrides: Type.Optional(Type.Record(Type.String(), ModelOverrideSchema)),
-	/** When true, disables strict tool schemas for this provider (for third-party Anthropic-compatible endpoints that reject the strict field). */
-	disableStrictTools: Type.Optional(Type.Boolean()),
 });
 
 const EquivalenceConfigSchema = Type.Object({
@@ -2171,7 +2169,6 @@ export class ModelRegistry {
 					providerConfig.authHeader,
 					providerCompat,
 					(providerConfig.auth as ProviderAuthMode | undefined) ?? undefined,
-					providerConfig.compat,
 					providerConfig.disableStrictTools,
 					modelDef as CustomModelDefinitionLike,
 					resolvedApiKey,

@@ -1044,13 +1044,6 @@ export function parseChunkUsage(
 		getOptionalNumberProperty(rawUsage, "cache_creation_input_tokens") ??
 		(promptTokenDetails ? getOptionalNumberProperty(promptTokenDetails, "cache_write_tokens") : undefined) ??
 		0;
-	// OpenRouter exposes cache writes via `prompt_tokens_details.cache_write_tokens`
-	// and INCLUDES them in `prompt_tokens`. Without subtracting, cache-write tokens
-	// leak into `input` (e.g. GLM/Anthropic via OpenRouter on a fresh cache).
-	// Ref: https://openrouter.ai/docs/guides/best-practices/prompt-caching
-	const cacheWriteTokens = promptTokenDetails
-		? (getOptionalNumberProperty(promptTokenDetails, "cache_write_tokens") ?? 0)
-		: 0;
 	const reasoningTokens =
 		(completionTokenDetails ? getOptionalNumberProperty(completionTokenDetails, "reasoning_tokens") : undefined) ?? 0;
 	const promptTokens = getOptionalNumberProperty(rawUsage, "prompt_tokens") ?? 0;

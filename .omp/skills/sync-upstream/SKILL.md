@@ -87,6 +87,8 @@ only graft in the specific owp-owned symbols listed above.
 | Session naming | `"session_name"` in `StatusLineSegmentId` | Added to the union |
 | Skill rediscovery | `skills.rediscoverOnNewSession` setting | Boolean setting definition |
 
+| Ask mode | `askMode.allowReadonlyBash` setting | Boolean; allows read-only bash commands in ask mode (default true) |
+| Ask mode | `askMode.bashAllowlistExtra` setting | String array; extra command tokens permitted in ask mode |
 ### model-registry.ts (packages/coding-agent/src/config/model-registry.ts)
 
 | Feature | Symbol | Description |

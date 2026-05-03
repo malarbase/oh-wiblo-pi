@@ -240,6 +240,9 @@ export interface InteractiveModeContext {
 	disableLoopMode(): void;
 	pauseLoop(): void;
 	handleExitPlanModeTool(details: ExitPlanModeDetails): Promise<void>;
+	handlePlanRunCommand(args: string): Promise<void>;
+	handlePlanListCommand(): Promise<void>;
+	handlePlanLoadCommand(args: string): Promise<void>;
 	handleModeCycleCommand(): Promise<void>;
 	handleAskModeCommand(): Promise<void>;
 	handleDebugModeCommand(): Promise<void>;
@@ -258,7 +261,7 @@ export interface InteractiveModeContext {
 		dialogOptions?: ExtensionUIDialogOptions,
 	): Promise<string | undefined>;
 	hideHookSelector(): void;
-	showHookInput(title: string, placeholder?: string): Promise<string | undefined>;
+	showHookInput(title: string, placeholder?: string, prefill?: string): Promise<string | undefined>;
 	hideHookInput(): void;
 	showHookEditor(
 		title: string,

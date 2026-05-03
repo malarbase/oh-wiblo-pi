@@ -97,4 +97,115 @@ describe("InteractiveMode plan review rendering", () => {
 		expect(mode.chatContainer.children.at(-2)).toBe(marker);
 		expect(firstPreview!.render(120).join("\n")).toContain("Second plan");
 	});
+	it("handleExitPlanModeTool selector includes 'Save and exit' in 4 options", async () => {
+		const planFilePath = "local://PLAN.md";
+		const resolvedPlanPath = resolveLocalUrlToPath(planFilePath, {
+			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
+			getSessionId: () => session.sessionManager.getSessionId(),
+		});
+		await Bun.write(resolvedPlanPath, "# Test plan\n");
+		vi.spyOn(mode, "showStatus").mockImplementation(() => {});
+		vi.spyOn(mode.sessionManager, "appendModeChange").mockImplementation(() => "");
+		await mode.handlePlanModeCommand();
+		vi.spyOn(session, "abort").mockResolvedValue(undefined);
+
+		let capturedOptions: string[] = [];
+		vi.spyOn(mode, "showHookSelector").mockImplementation(async (_title: string, options: string[]) => {
+			capturedOptions = [...options];
+			return "Stay in plan mode";
+		});
+
+		await mode.handleExitPlanModeTool({
+			planFilePath,
+			planExists: true,
+			title: "PLAN",
+			finalPlanFilePath: planFilePath,
+		});
+
+		expect(capturedOptions).toEqual(["Approve and execute", "Save and exit", "Refine plan", "Stay in plan mode"]);
+	});
+
+	it("Save and exit with valid title saves plan, exits plan mode, does NOT clear session", async () => {
+		const planFilePath = "local://PLAN.md";
+		const resolvedPlanPath = resolveLocalUrlToPath(planFilePath, {
+			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
+			getSessionId: () => session.sessionManager.getSessionId(),
+		});
+		await Bun.write(resolvedPlanPath, "# My plan\n");
+		vi.spyOn(mode, "showStatus").mockImplementation(() => {});
+		vi.spyOn(mode.sessionManager, "appendModeChange").mockImplementation(() => "");
+		await mode.handlePlanModeCommand();
+		vi.spyOn(session, "abort").mockResolvedValue(undefined);
+		vi.spyOn(mode, "showHookSelector").mockResolvedValue("Save and exit");
+		vi.spyOn(mode, "showHookInput").mockResolvedValue("MY_PLAN");
+		const clearSpy = vi.spyOn(mode, "handleClearCommand").mockResolvedValue(undefined);
+		const promptSpy = vi.spyOn(session, "prompt").mockResolvedValue(undefined);
+
+		await mode.handleExitPlanModeTool({
+			planFilePath,
+			planExists: true,
+			title: "PLAN",
+			finalPlanFilePath: planFilePath,
+		});
+
+		expect(mode.planModeEnabled).toBe(false);
+		expect(clearSpy).not.toHaveBeenCalled();
+		expect(promptSpy).not.toHaveBeenCalled();
+
+		const resolvedDestPath = resolveLocalUrlToPath("local://MY_PLAN.md", {
+			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
+			getSessionId: () => session.sessionManager.getSessionId(),
+		});
+		expect(await Bun.file(resolvedDestPath).exists()).toBe(true);
+	});
+
+	it("Save and exit with empty title (user cancels) does nothing", async () => {
+		const planFilePath = "local://PLAN.md";
+		const resolvedPlanPath = resolveLocalUrlToPath(planFilePath, {
+			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
+			getSessionId: () => session.sessionManager.getSessionId(),
+		});
+		await Bun.write(resolvedPlanPath, "# My plan\n");
+		vi.spyOn(mode, "showStatus").mockImplementation(() => {});
+		vi.spyOn(mode.sessionManager, "appendModeChange").mockImplementation(() => "");
+		await mode.handlePlanModeCommand();
+		vi.spyOn(session, "abort").mockResolvedValue(undefined);
+		vi.spyOn(mode, "showHookSelector").mockResolvedValue("Save and exit");
+		vi.spyOn(mode, "showHookInput").mockResolvedValue(undefined);
+
+		await mode.handleExitPlanModeTool({
+			planFilePath,
+			planExists: true,
+			title: "PLAN",
+			finalPlanFilePath: planFilePath,
+		});
+
+		expect(mode.planModeEnabled).toBe(true);
+	});
+
+	it("Save and exit with invalid title shows error, plan mode stays active", async () => {
+		const planFilePath = "local://PLAN.md";
+		const resolvedPlanPath = resolveLocalUrlToPath(planFilePath, {
+			getArtifactsDir: () => session.sessionManager.getArtifactsDir(),
+			getSessionId: () => session.sessionManager.getSessionId(),
+		});
+		await Bun.write(resolvedPlanPath, "# My plan\n");
+		vi.spyOn(mode, "showStatus").mockImplementation(() => {});
+		vi.spyOn(mode.sessionManager, "appendModeChange").mockImplementation(() => "");
+		await mode.handlePlanModeCommand();
+		vi.spyOn(session, "abort").mockResolvedValue(undefined);
+		vi.spyOn(mode, "showHookSelector").mockResolvedValue("Save and exit");
+		vi.spyOn(mode, "showHookInput").mockResolvedValue("../bad/path");
+		const showErrorSpy = vi.spyOn(mode, "showError").mockImplementation(() => {});
+
+		await mode.handleExitPlanModeTool({
+			planFilePath,
+			planExists: true,
+			title: "PLAN",
+			finalPlanFilePath: planFilePath,
+		});
+
+		expect(showErrorSpy).toHaveBeenCalled();
+		expect(mode.planModeEnabled).toBe(true);
+	});
 });

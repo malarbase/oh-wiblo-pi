@@ -2,6 +2,8 @@ import { getKeybindings } from "../keybindings";
 import type { Component } from "../tui";
 import { Ellipsis, padding, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "../utils";
 
+export type SettingLayerBadge = "override" | "project" | "global" | "default";
+
 export interface SettingItem {
 	/** Unique identifier for this setting */
 	id: string;
@@ -15,6 +17,8 @@ export interface SettingItem {
 	values?: string[];
 	/** If provided, Enter opens this submenu. Receives current value and done callback. */
 	submenu?: (currentValue: string, done: (selectedValue?: string) => void) => Component;
+	/** Optional layer providing the current value, used for the [O]/[P]/[G]/[D] badge */
+	layer?: SettingLayerBadge;
 }
 
 export interface SettingsListTheme {
@@ -23,6 +27,21 @@ export interface SettingsListTheme {
 	description: (text: string) => string;
 	cursor: string;
 	hint: (text: string) => string;
+	/** Optional badge renderer; receives layer letter and selected state */
+	layerBadge?: (layer: SettingLayerBadge, selected: boolean) => string;
+}
+
+function defaultLayerBadge(layer: SettingLayerBadge): string {
+	switch (layer) {
+		case "override":
+			return "[O] ";
+		case "project":
+			return "[P] ";
+		case "global":
+			return "[G] ";
+		default:
+			return "    ";
+	}
 }
 
 export class SettingsList implements Component {
@@ -59,6 +78,19 @@ export class SettingsList implements Component {
 		}
 	}
 
+	/** Update an item's layer badge */
+	updateLayer(id: string, layer: SettingLayerBadge): void {
+		const item = this.#items.find(i => i.id === id);
+		if (item) {
+			item.layer = layer;
+		}
+	}
+
+	/** Get the currently selected item, or null if none */
+	getSelectedItem(): SettingItem | null {
+		return this.#items[this.#selectedIndex] ?? null;
+	}
+
 	invalidate(): void {
 		this.#submenuComponent?.invalidate?.();
 	}
@@ -90,6 +122,10 @@ export class SettingsList implements Component {
 		// Calculate max label width for alignment
 		const maxLabelWidth = Math.min(30, Math.max(...this.#items.map(item => visibleWidth(item.label))));
 
+		// Determine whether any item carries a layer; if so reserve a 4-cell badge column
+		const hasAnyLayer = this.#items.some(item => item.layer !== undefined);
+		const badgeWidth = hasAnyLayer ? 4 : 0;
+
 		// Render visible items
 		for (let i = startIndex; i < endIndex; i++) {
 			const item = this.#items[i];
@@ -105,7 +141,7 @@ export class SettingsList implements Component {
 
 			// Calculate space for value
 			const separator = "  ";
-			const usedWidth = prefixWidth + maxLabelWidth + visibleWidth(separator);
+			const usedWidth = prefixWidth + maxLabelWidth + visibleWidth(separator) + badgeWidth;
 			const valueMaxWidth = width - usedWidth - 2;
 
 			const valueText = this.#theme.value(
@@ -113,7 +149,13 @@ export class SettingsList implements Component {
 				isSelected,
 			);
 
-			lines.push(truncateToWidth(prefix + labelText + separator + valueText, width));
+			let badge = "";
+			if (hasAnyLayer) {
+				const layer = item.layer ?? "default";
+				badge = this.#theme.layerBadge ? this.#theme.layerBadge(layer, isSelected) : defaultLayerBadge(layer);
+			}
+
+			lines.push(truncateToWidth(prefix + labelText + separator + badge + valueText, width));
 		}
 
 		// Add scroll indicator if needed

@@ -107,11 +107,33 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<BuiltinSlashCommandSpec> = [
 	},
 	{
 		name: "plan",
-		description: "Toggle plan mode (agent plans before executing)",
+		description: "Plan mode: toggle, save, list, or run a saved plan",
+		subcommands: [
+			{ name: "run", description: "Run a saved plan in this session", usage: "<name> [--keep]" },
+			{ name: "list", description: "List saved plans across project and session" },
+			{
+				name: "load",
+				description: "Load a saved plan into plan mode for further iteration",
+				usage: "<name> [iteration prompt]",
+			},
+		],
 		inlineHint: "[prompt]",
 		allowArgs: true,
 		handle: async (command, runtime) => {
-			await runtime.ctx.handlePlanModeCommand(command.args || undefined);
+			const args = command.args.trim();
+			const spaceIdx = args.indexOf(" ");
+			const sub = spaceIdx === -1 ? args : args.slice(0, spaceIdx);
+			const rest = spaceIdx === -1 ? "" : args.slice(spaceIdx + 1).trim();
+			if (sub === "run") {
+				await runtime.ctx.handlePlanRunCommand(rest);
+			} else if (sub === "list") {
+				await runtime.ctx.handlePlanListCommand();
+			} else if (sub === "load") {
+				await runtime.ctx.handlePlanLoadCommand(rest);
+			} else {
+				// No recognized subcommand — treat entire args as initial prompt for plan mode toggle
+				await runtime.ctx.handlePlanModeCommand(args || undefined);
+			}
 			runtime.ctx.editor.setText("");
 		},
 	},

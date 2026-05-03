@@ -171,4 +171,113 @@ describe("Settings", () => {
 			expect(settings.get("hindsight.bankId")).toBe("ada-cli");
 		});
 	});
+
+	describe("scope-aware writes", () => {
+		const projectSettingsPath = () => path.join(getProjectAgentDir(projectDir), "settings.json");
+
+		const readProjectSettings = async (): Promise<Record<string, unknown>> => {
+			const file = Bun.file(projectSettingsPath());
+			if (!(await file.exists())) return {};
+			const parsed = JSON.parse(await file.text());
+			if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+			return parsed as Record<string, unknown>;
+		};
+
+		it("writes to project settings.json when scope is project, leaving global config.yml untouched", async () => {
+			await writeSettings({ theme: { dark: "anthracite" } });
+			const settings = await Settings.init({ cwd: projectDir, agentDir });
+
+			settings.set("theme.dark", "dracula", { scope: "project" });
+			await settings.flush();
+
+			const project = await readProjectSettings();
+			expect(project).toEqual({ theme: { dark: "dracula" } });
+
+			const global = await readSettings();
+			expect(global).toEqual({ theme: { dark: "anthracite" } });
+
+			// Project beats global in merged view
+			expect(settings.get("theme.dark")).toBe("dracula");
+		});
+
+		it("reports the layer providing each value via getLayer", async () => {
+			await writeSettings({ theme: { dark: "anthracite" } });
+			const settings = await Settings.init({ cwd: projectDir, agentDir });
+
+			expect(settings.getLayer("theme.dark")).toBe("global");
+			expect(settings.getLayer("theme.light")).toBe("default");
+
+			settings.set("theme.light", "solarized", { scope: "project" });
+			expect(settings.getLayer("theme.light")).toBe("project");
+
+			settings.override("theme.dark", "override-theme");
+			expect(settings.getLayer("theme.dark")).toBe("override");
+		});
+
+		it("writes to both files in one flush when scopes are mixed", async () => {
+			const settings = await Settings.init({ cwd: projectDir, agentDir });
+
+			settings.set("theme.dark", "dracula", { scope: "global" });
+			settings.set("shellPath", "/bin/zsh", { scope: "project" });
+			await settings.flush();
+
+			const global = await readSettings();
+			expect(global).toEqual({ theme: { dark: "dracula" } });
+
+			const project = await readProjectSettings();
+			expect(project).toEqual({ shellPath: "/bin/zsh" });
+		});
+
+		it("clearProject removes the key, makes get fall back to global, and prunes empty parents", async () => {
+			await writeSettings({ theme: { dark: "anthracite" } });
+			const settings = await Settings.init({ cwd: projectDir, agentDir });
+
+			settings.set("theme.dark", "dracula", { scope: "project" });
+			await settings.flush();
+			expect(settings.get("theme.dark")).toBe("dracula");
+
+			settings.clearProject("theme.dark");
+			await settings.flush();
+
+			expect(settings.get("theme.dark")).toBe("anthracite");
+			expect(settings.getLayer("theme.dark")).toBe("global");
+
+			const project = await readProjectSettings();
+			expect(project).toEqual({});
+		});
+
+		it("preserves externally added project keys when saving partial change", async () => {
+			const settings = await Settings.init({ cwd: projectDir, agentDir });
+
+			// External edit (e.g., user modifying file or another process)
+			await Bun.write(projectSettingsPath(), `${JSON.stringify({ shellPath: "/bin/fish" }, null, 2)}\n`);
+
+			settings.set("theme.dark", "dracula", { scope: "project" });
+			await settings.flush();
+
+			const project = await readProjectSettings();
+			expect(project.shellPath).toBe("/bin/fish");
+			expect(project.theme).toEqual({ dark: "dracula" });
+		});
+
+		it("clearGlobal leaves project untouched and falls back accordingly", async () => {
+			await writeSettings({ theme: { dark: "anthracite" } });
+			const settings = await Settings.init({ cwd: projectDir, agentDir });
+			settings.set("theme.light", "solarized", { scope: "project" });
+			await settings.flush();
+
+			settings.clearGlobal("theme.dark");
+			await settings.flush();
+
+			const global = await readSettings();
+			expect(global).toEqual({});
+
+			const project = await readProjectSettings();
+			expect(project).toEqual({ theme: { light: "solarized" } });
+
+			// theme.dark falls back to default; theme.light still served by project
+			expect(settings.getLayer("theme.dark")).toBe("default");
+			expect(settings.getLayer("theme.light")).toBe("project");
+		});
+	});
 });

@@ -857,6 +857,19 @@ export const SETTINGS_SCHEMA = {
 		ui: { tab: "interaction", label: "Collapse Changelog", description: "Show condensed changelog after updates" },
 	},
 
+	"plan.storage": {
+		type: "enum",
+		values: ["session", "project"] as const,
+		default: "session",
+		ui: {
+			tab: "interaction",
+			label: "Approved Plan Storage",
+			description:
+				'Where approved plans (after exit_plan_mode or Save-and-exit) are saved. "session" keeps them under the session artifacts dir; "project" writes them to .omp/plans/ in the project tree so they can be committed/shared.',
+			submenu: true,
+		},
+	},
+
 	// Notifications
 	"completion.notify": {
 		type: "enum",
@@ -2386,6 +2399,28 @@ export const SETTINGS_SCHEMA = {
 			tab: "tools",
 			label: "Auto QA",
 			description: "Enable automated tool issue reporting (report_tool_issue) for all agents",
+		},
+	},
+
+	// Ask mode
+	"askMode.allowReadonlyBash": {
+		type: "boolean",
+		default: true,
+		ui: {
+			tab: "interaction",
+			label: "Ask Mode: Allow Readonly Bash",
+			description:
+				"Allow read-only bash commands (ls, git status, grep, etc.) in Ask mode. Mutating commands stay blocked.",
+		},
+	},
+
+	"askMode.bashAllowlistExtra": {
+		type: "array",
+		default: EMPTY_STRING_ARRAY,
+		ui: {
+			tab: "interaction",
+			label: "Ask Mode: Extra Bash Commands",
+			description: 'Additional command tokens permitted in Ask mode (e.g. ["kubectl", "docker"]). Use with care.',
 		},
 	},
 
