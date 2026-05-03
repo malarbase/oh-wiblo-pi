@@ -76,6 +76,7 @@ Update this section after each successful rebase.
 | `7c6e4c5` | Document fork-network missing-object push failure with self-healing loop | `.omp/skills/sync-upstream/SKILL.md` | tooling |
 | `793c13e` | Add /plan load subcommand for iterative plan editing | `src/plan-mode/`, `src/slash-commands/builtin-registry.ts`, `src/session/agent-session.ts`, `src/modes/ask-mode/bash-readonly.ts`, `src/modes/ask-mode/tool-guard.ts`, `src/config/settings-schema.ts`, `src/config/settings.ts`, `packages/tui/src/components/settings-list.ts` | code |
 | `ad6114b` | Promote install-binary to TS custom command | `.omp/commands/install-binary/` | tooling |
+| `0badafa` | Deduplicate slash command autocomplete across TS and markdown sources; fix feature-checklist extension to use committed-state check | `src/modes/interactive-mode.ts`, `.omp/extensions/feature-checklist.ts` | bug fix |
 > **Note:** Commit hashes change on every rebase. Update this table after each sync.
 
 ## Owned Symbols in Shared Files
