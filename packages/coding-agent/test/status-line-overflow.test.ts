@@ -42,8 +42,7 @@ function createCtx(overrides?: { pathMaxLength?: number; branch?: string | null 
 				stripWorkPrefix: false,
 			},
 		},
-		planMode: null,
-		loopMode: null,
+		agentMode: { mode: "none" as const, planPaused: false },
 		usageStats: {
 			input: 0,
 			output: 0,

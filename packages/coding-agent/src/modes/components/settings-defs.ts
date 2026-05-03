@@ -9,6 +9,8 @@
  */
 
 import { TERMINAL } from "@oh-my-pi/pi-tui";
+import { THINKING_EFFORTS } from "@oh-my-pi/pi-ai";
+import { getThinkingLevelMetadata } from "../../thinking";
 import { Settings } from "../../config/settings";
 import {
 	type AnyUiMetadata,
@@ -85,7 +87,6 @@ const CONDITIONS: Record<string, () => boolean> = {
 // Submenu Option Providers
 // ═══════════════════════════════════════════════════════════════════════════
 
-type OptionList = ReadonlyArray<{ value: string; label: string; description?: string }>;
 type OptionProvider = (() => OptionList) | OptionList;
 
 const OPTION_PROVIDERS: Partial<Record<SettingPath, OptionProvider>> = {
