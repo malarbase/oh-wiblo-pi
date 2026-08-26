@@ -6,6 +6,14 @@ export const acpHelp = {
 
 export const agentsHelp = { description: "Manage bundled task agents" } satisfies CommandMetadata;
 
+export const authBrokerHelp = {
+	description: "Manage the omp auth-broker (credential vault)",
+} satisfies CommandMetadata;
+
+export const authGatewayHelp = {
+	description: "Run an auth-gateway forward proxy backed by the configured broker",
+} satisfies CommandMetadata;
+
 export const benchHelp = {
 	description:
 		"Benchmark models: TTFT/prefill vs decode throughput with p50/p95, across chat, prefill, generation, and prompt-cache workloads",
@@ -117,4 +125,6 @@ export const usageHelp = {
 	description: "Show provider usage limits for every authenticated account",
 } satisfies CommandMetadata;
 
-
+export const worktreeHelp = {
+	description: "List or clear agent-managed git worktrees (~/.omp/wt)",
+} satisfies CommandMetadata;

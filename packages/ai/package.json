@@ -74,6 +74,14 @@
       "types": "./src/auth-broker/*.ts",
       "import": "./src/auth-broker/*.ts"
     },
+    "./auth-gateway": {
+      "types": "./src/auth-gateway/index.ts",
+      "import": "./src/auth-gateway/index.ts"
+    },
+    "./auth-gateway/*": {
+      "types": "./src/auth-gateway/*.ts",
+      "import": "./src/auth-gateway/*.ts"
+    },
     "./providers/*": {
       "types": "./src/providers/*.ts",
       "import": "./src/providers/*.ts"

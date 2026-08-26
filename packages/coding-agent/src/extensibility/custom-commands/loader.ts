@@ -14,7 +14,7 @@ import { getConfigDirs } from "../../config";
 import { execCommand } from "../../exec/exec";
 // Runtime self-reference: dereference this namespace only inside loader functions to keep the index.ts cycle safe.
 import * as PiCodingAgent from "../../index";
-import * as typebox from "../typebox";
+import * as typebox from "../legacy-typebox";
 import { GreenCommand } from "./bundled/ci-green";
 import { InstallBinaryCommand } from "./bundled/install-binary";
 import { ReviewCommand } from "./bundled/review";
@@ -197,7 +197,7 @@ export async function loadCustomCommands(options: LoadCustomCommandsOptions = {}
 		exec: (command: string, args: string[], execOptions) =>
 			execCommand(command, args, execOptions?.cwd ?? cwd, execOptions),
 		typebox,
-		arktype: type,
+		arktype,
 		zod: zodModule,
 		pi: PiCodingAgent,
 	};

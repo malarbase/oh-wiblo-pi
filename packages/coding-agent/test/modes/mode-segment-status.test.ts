@@ -43,6 +43,8 @@ describe("modeSegment rendering", () => {
 			contextTokens: 0,
 			contextWindow: 128000,
 			autoCompactEnabled: true,
+			compactionSpeculation: "idle",
+			speculationBlinkOn: false,
 			subagentCount: 0,
 			activeMs: 0,
 			git: { branch: null, status: null, pr: null },

@@ -257,7 +257,7 @@ export class StatusLineSegmentEditorComponent extends Container {
 		}
 	}
 
-	render(width: number): string[] {
+	override render(width: number): readonly string[] {
 		const lines: string[] = [];
 
 		// Title with live preview indicator

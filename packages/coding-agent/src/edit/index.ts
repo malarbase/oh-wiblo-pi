@@ -77,7 +77,14 @@ type TInput =
 
 type HashlineParams = typeof hashlineEditParamsSchema.infer;
 
-type EditParams = ReplaceParams | ReplaceBatchParams | PatchParams | HashlineParams | ApplyPatchParams | MimoEditParams | SloppyParams;
+type EditParams =
+	| ReplaceParams
+	| ReplaceBatchParams
+	| PatchParams
+	| HashlineParams
+	| ApplyPatchParams
+	| MimoEditParams
+	| SloppyParams;
 
 type EditModeDefinition = {
 	description: (session: ToolSession) => string;
@@ -830,32 +837,12 @@ export class EditTool implements AgentTool<TInput> {
 					params: EditParams,
 					signal: AbortSignal | undefined,
 					batchRequest: LspBatchRequest | undefined,
+					_onApplied: AppliedEditObserver | undefined,
 					_onUpdate?: (partialResult: AgentToolResult<EditToolDetails, TInput>) => void,
 				) => {
 					return executeMimoSingle({
 						session: tool.session,
 						params: params as MimoEditParams,
-						signal,
-						batchRequest,
-						allowFuzzy: tool.#allowFuzzy,
-						writethrough: tool.#writethrough,
-						beginDeferredDiagnosticsForPath: p => tool.#deferredDiagnostics.begin(p),
-					});
-				},
-			},
-			sloppy: {
-				description: () => `Apply sloppy edit patches to files. Accepts raw text with ${'§'}path${'§'} delimiters.`,
-				parameters: sloppyEditSchema,
-				execute: (
-					tool: EditTool,
-					params: EditParams,
-					signal: AbortSignal | undefined,
-					batchRequest: LspBatchRequest | undefined,
-					_onUpdate?: (partialResult: AgentToolResult<EditToolDetails, TInput>) => void,
-				) => {
-					return executeSloppy({
-						session: tool.session,
-						params: params as SloppyParams,
 						signal,
 						batchRequest,
 						allowFuzzy: tool.#allowFuzzy,

@@ -627,6 +627,24 @@ export class Settings {
 	}
 
 	/**
+	 * Clear a setting override from the global configuration.
+	 */
+	clearGlobal(path: SettingPath): void {
+		const prev = this.get(path);
+		const segments = SETTING_PATH_SEGMENTS[path];
+		deleteByPath(this.#global, segments);
+		this.#modified.add(path);
+		this.#rebuildMerged();
+		this.#queueSave();
+		const next = this.get(path);
+		const hook = SETTING_HOOKS[path];
+		if (hook) {
+			hook(next, prev);
+		}
+		this.#fireEffectiveSettingChanged(path, next, prev);
+	}
+
+	/**
 	 * Clear a setting override from the project configuration.
 	 */
 	clearProject(path: SettingPath): void {

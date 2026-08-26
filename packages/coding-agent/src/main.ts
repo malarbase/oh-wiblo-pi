@@ -52,6 +52,7 @@ import {
 	preloadPluginRoots,
 	resolveActiveProjectRegistryPath,
 } from "./discovery/helpers";
+import { injectOmpExtensionCliRoots } from "./discovery/omp-extension-roots";
 import { formatExtensionLoadNotifications } from "./extensibility/extensions/load-errors";
 import { loadExtensions } from "./extensibility/extensions/loader";
 import { ExtensionRunner } from "./extensibility/extensions/runner";
@@ -1398,7 +1399,7 @@ export async function runRootCommand(
 			// extension discovery is disabled.
 			const cliExtensions = [...(parsedArgs.extensions ?? []), ...(parsedArgs.hooks ?? [])];
 			injectOmpExtensionCliRoots(cliExtensions, home, getProjectDir(), {
-				mode: parsedArgs.noExtensions ? "explicit-only" : "merge",
+				mode: parsedArgs.noExtensions ? "explicit-only" : "all",
 				replace: true,
 			});
 		}

@@ -3683,7 +3683,7 @@ export class InteractiveMode implements InteractiveModeContext {
 				const oldLocalRoot = this.#resolveLocalRoot();
 				await this.handleClearCommand();
 				const newLocalRoot = this.#resolveLocalRoot();
-				await this.#copyLocalArtifactsForFreshSession(oldLocalRoot, newLocalRoot);
+				await copyLocalArtifacts(oldLocalRoot, newLocalRoot);
 				// OWP-FORK: use writePlanToDisk to handle both local:// and absolute paths
 				// (project storage at .omp/plans/). Upstream only handles local://.
 				await writePlanToDisk(planContent, targetPlanPath, {
@@ -4552,7 +4552,8 @@ export class InteractiveMode implements InteractiveModeContext {
 
 	async #replaceGoalFromObjective(
 		objective: string,
-		input?: Pick<SubmittedUserInput, "images" | "imageLinks">,
+		// OWP-FORK: no steer injection — mode context lives in the system prompt.
+		_input?: Pick<SubmittedUserInput, "images" | "imageLinks">,
 	): Promise<boolean> {
 		const state = await this.session.goalRuntime.replaceGoal({ objective });
 		this.session.setGoalModeState(state);
@@ -4744,6 +4745,10 @@ export class InteractiveMode implements InteractiveModeContext {
 				} else {
 					await this.#savePlanAndQuit(latestPlanContent, details.title, annotationStateKey);
 				}
+			} catch (error) {
+				this.showError(`Failed to save plan: ${error instanceof Error ? error.message : String(error)}`);
+			}
+			return;
 		}
 
 		if (choice === "Approve and execute" || choice === "Approve and compact context" || choice === keepContextLabel) {

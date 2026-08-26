@@ -6,7 +6,7 @@
  * local SQLite credential store.
  */
 
-
+import { AuthBrokerError, MissingApiKeyError } from "@oh-my-pi/pi-ai/error";
 import { getAgentDir } from "@oh-my-pi/pi-utils";
 import { AuthStorage } from "./auth-storage";
 

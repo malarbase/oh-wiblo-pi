@@ -181,6 +181,26 @@ export class EventController {
 	#prevHideThinking = false;
 	#handlers: AgentSessionEventHandlers;
 	#terminalProgressActive = false;
+	// Coalescing window for `message_update` events at the subscription boundary.
+	// `message_update` carries the CUMULATIVE assistant message (every update
+	// re-lists all content blocks), so when a burst of deltas arrives faster than
+	// this window only the latest snapshot needs to rebuild streaming state — the
+	// intermediate rebuilds are redundant work. The TUI already caps the paint
+	// rate via its own render cadence; this caps the per-token handler work that
+	// feeds it. Speech stays intact: `#vocalizeDelta` runs at ARRIVAL for every
+	// delta before the snapshot is coalesced away.
+	#pendingMessageUpdate: Extract<AgentSessionEvent, { type: "message_update" }> | undefined = undefined;
+	#messageUpdateTimer: NodeJS.Timeout | undefined = undefined;
+	/** Tail of the serialized dispatch chain; see #runSerialized. */
+	#dispatchTail: Promise<void> = Promise.resolve();
+	/** Whether a chained run is currently in flight (awaiting its own awaits). */
+	#dispatchInFlight = false;
+	// Deltas already fed to speech at arrival by the coalescer. `#handleMessageUpdate`
+	// also vocalizes so the direct `handleEvent` path (tests, session focus replay)
+	// keeps working — the WeakSet makes the coalesced path speak each delta exactly
+	// once instead of twice.
+	#vocalizedMessageUpdates = new WeakSet<object>();
+	static readonly #MESSAGE_UPDATE_COALESCE_MS = 33;
 
 	constructor(private ctx: InteractiveModeContext) {
 		// Enhanced speech (`speech.enhanced`) rewrites blocks through the
@@ -500,7 +520,23 @@ export class EventController {
 
 	subscribeToAgent(): void {
 		this.ctx.unsubscribe = this.ctx.session.subscribe(async (event: AgentSessionEvent) => {
-			await this.handleEvent(event);
+			// Coalesce the cumulative `message_update` deltas of a streaming turn
+			// into at most one handler run per window. `#handleMessageUpdate` is
+			// synchronous, so without this every token re-runs the whole
+			// streaming rebuild (splitAssistantMessageToolTimeline, reveal
+			// setTarget, per-block tool-call reconciliation) even though the TUI
+			// paints at most ~30fps — at 40-100 tps the handler work then
+			// dominates the CPU profile of an idle-looking streaming session
+			// (issue #7443). Only the latest snapshot is meaningful; non-update
+			// events flush the pending snapshot first so ordering is preserved.
+			if (event.type === "message_update") {
+				this.#enqueueMessageUpdate(event);
+				return;
+			}
+			await this.#runSerialized(async () => {
+				await this.#flushPendingMessageUpdate();
+				await this.handleEvent(event);
+			});
 		});
 	}
 

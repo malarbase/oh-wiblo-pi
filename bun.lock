@@ -75,6 +75,7 @@
       "name": "@oh-my-pi/pi-coding-agent",
       "version": "18.0.6",
       "bin": {
+        "owp": "src/cli.ts",
         "omp": "src/cli.ts",
       },
       "dependencies": {

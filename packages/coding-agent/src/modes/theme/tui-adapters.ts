@@ -5,7 +5,14 @@ import {
 	supportsLanguage as nativeSupportsLanguage,
 	warmHighlighter as nativeWarmHighlighter,
 } from "@oh-my-pi/pi-natives";
-import type { EditorTheme, MarkdownTheme, SelectListTheme, SettingsListTheme, SymbolTheme } from "@oh-my-pi/pi-tui";
+import type {
+	EditorTheme,
+	MarkdownTheme,
+	SelectListTheme,
+	SettingLayerBadge,
+	SettingsListTheme,
+	SymbolTheme,
+} from "@oh-my-pi/pi-tui";
 import chalk from "@oh-my-pi/pi-utils/chalk";
 import { LRUCache } from "@oh-my-pi/pi-utils/lru";
 import { resolveMermaidAscii } from "./mermaid-cache";
@@ -311,6 +318,18 @@ export function getSettingsListTheme(): SettingsListTheme {
 			heading: (text: string) => text,
 			section: (text: string) => text,
 			hovered: (text: string) => text,
+			layerBadge: (layer: SettingLayerBadge) => {
+				switch (layer) {
+					case "override":
+						return "[O] ";
+					case "project":
+						return "[P] ";
+					case "global":
+						return "[G] ";
+					default:
+						return "    ";
+				}
+			},
 		};
 	}
 	return {
@@ -328,5 +347,17 @@ export function getSettingsListTheme(): SettingsListTheme {
 		section: (text: string, active: boolean) =>
 			active ? theme.fg("accent", theme.bold(text)) : theme.fg("muted", text),
 		hovered: (text: string) => theme.bg("selectedBg", text),
+		layerBadge: (layer: SettingLayerBadge) => {
+			switch (layer) {
+				case "override":
+					return theme.fg("warning", "[O] ");
+				case "project":
+					return theme.fg("accent", "[P] ");
+				case "global":
+					return theme.fg("dim", "[G] ");
+				default:
+					return "    ";
+			}
+		},
 	};
 }

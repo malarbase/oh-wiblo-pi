@@ -110,7 +110,7 @@ export class InMemoryFilesystem extends Filesystem {
 		return { text: content };
 	}
 
-	async exists(path: string): Promise<boolean> {
+	override async exists(path: string): Promise<boolean> {
 		return this.#files.has(path);
 	}
 
@@ -157,11 +157,11 @@ export class NodeFilesystem extends Filesystem {
 		return { text: content };
 	}
 
-	canonicalPath(path: string): string {
+	override canonicalPath(path: string): string {
 		return pathModule.resolve(path);
 	}
 
-	async exists(path: string): Promise<boolean> {
+	override async exists(path: string): Promise<boolean> {
 		return Bun.file(path).exists();
 	}
 }

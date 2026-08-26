@@ -242,7 +242,11 @@ async function executeSearch(
 				captchaBehavior,
 				captchaTimeout,
 				onUpdate: options.onUpdate
-					? (message: string) => options.onUpdate!({ response: { provider: "none", sources: [] }, error: message })
+					? (message: string) =>
+							options.onUpdate!({
+								content: [{ type: "text" as const, text: message }],
+								details: { response: { provider: "none" as const, sources: [] }, error: message },
+							})
 					: undefined,
 			});
 

@@ -27,6 +27,16 @@ export const commands: CommandEntry[] = [
 		help: commandHelp.acpHelp,
 	},
 	{
+		name: "auth-broker",
+		load: () => import("./commands/auth-broker").then(m => m.default),
+		help: commandHelp.authBrokerHelp,
+	},
+	{
+		name: "auth-gateway",
+		load: () => import("./commands/auth-gateway").then(m => m.default),
+		help: commandHelp.authGatewayHelp,
+	},
+	{
 		name: "agents",
 		load: () => import("./commands/agents").then(m => m.default),
 		help: commandHelp.agentsHelp,
@@ -201,6 +211,12 @@ export const commands: CommandEntry[] = [
 		name: "ttsr",
 		load: () => import("./commands/ttsr").then(m => m.default),
 		help: commandHelp.ttsrHelp,
+	},
+	{
+		name: "worktree",
+		load: () => import("./commands/worktree").then(m => m.default),
+		aliases: ["wt"],
+		help: commandHelp.worktreeHelp,
 	},
 	{
 		name: "search",
