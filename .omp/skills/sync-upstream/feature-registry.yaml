@@ -1,0 +1,705 @@
+# OWP Feature Registry — Single source of truth for fork-owned files and divergences.
+# Both SKILL.md and sync.ts consume this file.
+# Add new features here, then regenerate SKILL.md with:
+#   bun .omp/skills/sync-upstream/generate-skill-md.ts
+#
+# Optional per-feature field: obsoleted_fixes
+#   - pre_rebase_hash:      string (the hash before rebase)
+#   - description:          string (what the fix did)
+#   - upstream_obsoleted_in: string (upstream commit hash where it became obsolete)
+# Use this to suppress false-positive dropped-commit warnings when upstream
+# independently applied the same fix.
+
+features:
+  - name: "Identity"
+    description: "README fork marker"
+    owned_paths:
+      - "README.md"
+
+  - name: "Ask mode"
+    owned_paths:
+      - "packages/coding-agent/src/modes/ask-mode/"
+      - "packages/coding-agent/src/session/agent-session.ts"
+      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
+      - "packages/coding-agent/src/prompts/system/ask-mode-context.md"
+
+  - name: "Debug mode"
+    owned_paths:
+      - "packages/coding-agent/src/modes/debug-mode/"
+      - "packages/coding-agent/src/prompts/system/debug-mode-context.md"
+
+  - name: "Local discovery + two-level scan"
+    owned_paths:
+      - "packages/coding-agent/src/discovery/pi.ts"
+      - "packages/coding-agent/src/discovery/helpers.ts"
+
+  - name: "Skill grouping"
+    owned_paths:
+      - "packages/coding-agent/src/modes/components/extensions/extension-list.ts"
+      - "packages/coding-agent/src/modes/components/extensions/state-manager.ts"
+      - "packages/coding-agent/src/modes/components/extensions/types.ts"
+      - "packages/coding-agent/src/capability/skill.ts"
+
+  - name: "baseUrl resolution"
+    owned_paths:
+      - "packages/coding-agent/src/config/model-registry.ts"
+
+  - name: "openai-compatible discovery"
+    owned_paths:
+      - "packages/coding-agent/src/config/model-registry.ts"
+
+  - name: "disableStrictTools escape hatch"
+    owned_paths:
+      - "packages/ai/src/types.ts"
+      - "packages/ai/src/providers/anthropic.ts"
+      - "packages/coding-agent/src/config/model-registry.ts"
+
+  - name: "Google search provider"
+    owned_paths:
+      - "packages/coding-agent/src/web/search/providers/google.ts"
+      - "packages/coding-agent/src/web/search/providers/google-ai.ts"
+      - "packages/coding-agent/src/config/settings-schema.ts"
+
+  - name: "SerpAPI search provider"
+    owned_paths:
+      - "packages/coding-agent/src/web/search/providers/serpapi.ts"
+      - "packages/coding-agent/src/web/search/types.ts"
+      - "packages/coding-agent/src/web/search/provider.ts"
+
+  - name: "Plan mode /plan load"
+    owned_paths:
+      - "packages/coding-agent/src/plan-mode/"
+      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
+      - "packages/coding-agent/src/modes/ask-mode/bash-readonly.ts"
+      - "packages/coding-agent/src/modes/ask-mode/tool-guard.ts"
+
+  - name: "Plan storage project path fix"
+    description: "Forward finalPlanFilePath in approve/save paths so plan.storage=project saves to .omp/plans/"
+    owned_paths:
+      - "packages/coding-agent/src/modes/interactive-mode.ts"
+
+  - name: "Provider onboarding wizard"
+    owned_paths:
+      - "packages/coding-agent/src/modes/components/provider-onboarding-wizard.ts"
+      - "packages/coding-agent/src/modes/components/settings-defs.ts"
+
+  - name: "Install-binary custom command"
+    owned_paths:
+      - ".omp/commands/install-binary/"
+
+  - name: "@mariozechner/* loader aliases"
+    owned_paths:
+      - "packages/coding-agent/src/extensibility/extensions/loader.ts"
+      - "packages/coding-agent/src/extensibility/custom-commands/loader.ts"
+
+  - name: "History reorganization tooling"
+    description: "reorganize-history skill and slash command"
+    owned_paths:
+      - ".omp/skills/reorganize-history/"
+      - ".omp/commands/reorganize-fork.md"
+
+  - name: "Test filter scope fix"
+    owned_paths:
+      - "packages/coding-agent/test/utils/filter-user-extensions.ts"
+    obsoleted_fixes: []
+  - name: "Unified agent mode cycle (alt+m)"
+    owned_paths:
+      - "packages/coding-agent/src/modes/components/status-line/"
+      - "packages/coding-agent/src/config/settings-schema.ts"
+
+  - name: "Session directory event + jiti loader + authHeader fix"
+    owned_paths:
+      - "packages/coding-agent/src/sdk.ts"
+      - "packages/coding-agent/src/session/"
+      - "packages/coding-agent/src/capability/"
+      - "packages/coding-agent/src/extensibility/extensions/loader.ts"
+
+  - name: "Cache write token tracking + bin/owp switcher"
+    owned_paths:
+      - "packages/ai/src/providers/openai-completions.ts"
+      - "bin/owp"
+      - "docs/cache-token-tracking.md"
+
+  - name: "Use jiti with virtualModules in custom command loader"
+    owned_paths:
+      - "packages/coding-agent/src/extensibility/custom-commands/loader.ts"
+
+  - name: "Fix isBunBinary in compiled binary"
+    owned_paths:
+      - "packages/coding-agent/src/config.ts"
+    obsoleted_fixes: []
+  - name: "Build dist/owp as primary output"
+    owned_paths:
+      - "packages/coding-agent/scripts/build-binary.ts"
+
+  - name: "Fix plan-mode approval UI + omp bin entry + ETXTBSY fix"
+    owned_paths:
+      - "packages/coding-agent/src/modes/controllers/event-controller.ts"
+      - "packages/coding-agent/package.json"
+      - ".omp/commands/install-binary/index.ts"
+      - "packages/coding-agent/test/tools/bash-interceptor.test.ts"
+
+  - name: "Google search provider + hashline recovery + mode fixes"
+    owned_paths:
+      - ".omp/extensions/pi-peon/"
+      - ".omp/skills/owp-developer/"
+      - "packages/hashline/"
+      - "packages/coding-agent/src/modes/interactive-mode.ts"
+      - "packages/coding-agent/src/web/search/"
+      - "packages/coding-agent/test/core/hashline.test.ts"
+
+  - name: "Upstream-deleted module stubs"
+    description: "Minimal stubs for upstream-deleted modules required by OWP features"
+    owned_paths:
+      - "packages/coding-agent/src/edit/file-read-cache.ts"
+      - "packages/coding-agent/src/edit/file-snapshot-store.ts"
+      - "packages/coding-agent/src/edit/hashline/"
+      - "packages/coding-agent/src/hashline-compat.ts"
+      - "packages/coding-agent/src/tools/approval.ts"
+      - "packages/coding-agent/src/tools/exit-plan-mode.ts"
+      - "packages/coding-agent/src/tools/output-schema-validator.ts"
+      - "packages/utils/src/install-id.ts"
+      - "packages/utils/src/sanitize-text.ts"
+
+  - name: "sync-upstream skill and script"
+    owned_paths:
+      - ".omp/skills/sync-upstream/"
+
+  - name: "feature-checklist extension"
+    owned_paths:
+      - ".omp/extensions/feature-checklist.ts"
+
+  - name: "Cast node Blob to Web Blob for tsgo"
+    owned_paths:
+      - "packages/utils/src/streams.ts"
+
+  - name: "mise.toml + native rebuild docs"
+    owned_paths:
+      - "mise.toml"
+      - ".omp/commands/sync-upstream.md"
+
+  - name: "Bazel build config (hermetic PATH, crate annotations)"
+    owned_paths:
+      - ".bazelrc"
+      - "MODULE.bazel"
+      - "MODULE.bazel.lock"
+
+  - name: "Add .gitnexus, .claude/, CLAUDE.md to .gitignore"
+    owned_paths:
+      - ".gitignore"
+
+  - name: "Deduplicate slash command autocomplete"
+    owned_paths:
+      - "packages/coding-agent/src/modes/interactive-mode.ts"
+
+  - name: "Add serpapi, gemini, codex to settings-defs"
+    owned_paths:
+      - "packages/coding-agent/src/modes/components/settings-defs.ts"
+
+  - name: "Add /refresh-models slash command"
+    owned_paths:
+      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
+
+  - name: "Archive skill-group-toggle openspec spec"
+    owned_paths:
+      - "openspec/specs/skill-group-toggle/spec.md"
+
+  - name: "Rediscover skills on /new after ECC toggles"
+    owned_paths:
+      - "packages/coding-agent/src/sdk.ts"
+      - "packages/coding-agent/src/capability/skill.ts"
+
+  - name: "Work around zlob/zig build failure on macOS 26"
+    owned_paths:
+      - "crates/pi-natives/"
+
+  - name: "OWP workspace and plans"
+    owned_paths:
+      - ".omp/settings.json"
+      - ".omp/plans/"
+      - ".omp/rules/"
+      - ".omp/extensions/"
+
+  - name: "OWP skills"
+    owned_paths:
+      - ".omp/skills/tmux-debug/"
+      - ".omp/skills/google-ai-research/"
+      - ".omp/skills/system-prompts/"
+      - ".omp/skills/semantic-compression/"
+      - ".omp/skills/owp-developer/"
+      - ".omp/skills/skill-installer/"
+      - ".omp/skills/onboard-provider/"
+
+  - name: "OWP commands"
+    owned_paths:
+      - ".omp/commands/fix-issues.md"
+      - ".omp/commands/review-prs.md"
+      - ".omp/commands/release.md"
+      - ".omp/commands/triage.md"
+      - ".omp/commands/sync-upstream.md"
+      - ".omp/commands/install-binary.md"
+
+  - name: "OWP documentation"
+    owned_paths:
+      - "docs/maintaining-owp-fork.md"
+      - "docs/plan-mode-resolve-bug.md"
+      - "docs/debug-mode-lifecycle.md"
+      - "docs/web-native-feasibility.md"
+      - "docs/ask_session.md"
+      - "docs/debug_session.md"
+      - "docs/render-mermaid.md"
+      - "docs/non-compaction-retry-policy.md"
+      - "docs/notebook-tool-runtime.md"
+      - "docs/resolve-tool-runtime.md"
+      - "docs/ERRATA-GPT5-HARMONY.md"
+
+  - name: "OWP spec docs"
+    owned_paths:
+      - "openspec/config.yaml"
+      - "openspec/specs/ask-mode/"
+      - "openspec/specs/debug-mode/"
+      - "openspec/specs/dual-mode-extension-loader/"
+      - "openspec/specs/install-binary-command/"
+      - "openspec/specs/mode-cycle-keybinding/"
+      - "openspec/specs/session-directory-event/"
+      - "openspec/specs/skill-rediscovery/"
+      - "openspec/specs/rpc-ask-debug/"
+      - "openspec/changes/"
+
+  - name: "OWP AI package"
+    owned_paths:
+      - "packages/ai/"
+
+  - name: "OWP agent package"
+    owned_paths:
+      - "packages/agent/"
+
+  - name: "OWP coding-agent package"
+    owned_paths:
+      - "packages/coding-agent/"
+
+  - name: "OWP natives package"
+    owned_paths:
+      - "packages/natives/"
+
+  - name: "OWP stats package"
+    owned_paths:
+      - "packages/stats/"
+
+  - name: "OWP TUI package"
+    owned_paths:
+      - "packages/tui/"
+
+  - name: "OWP utils package"
+    owned_paths:
+      - "packages/utils/"
+
+  - name: "OWP pi-utils package"
+    owned_paths:
+      - "packages/pi-utils/"
+
+  - name: "OWP catalog package"
+    owned_paths:
+      - "packages/catalog/"
+
+  - name: "OWP swarm-extension package"
+    owned_paths:
+      - "packages/swarm-extension/"
+
+  - name: "OWP Rust crates"
+    owned_paths:
+      - "crates/pi-ast/"
+      - "crates/pi-iso/"
+      - "crates/pi-natives/"
+      - "crates/pi-shell/"
+
+  - name: "OWP scripts"
+    owned_paths:
+      - "scripts/"
+
+  - name: "OWP Python RPC"
+    owned_paths:
+      - "python/omp-rpc/"
+
+  - name: "OWP documentation"
+    owned_paths:
+      - "docs/"
+
+  - name: "OWP GitHub config"
+    owned_paths:
+      - ".github/"
+
+  - name: "OWP Claude workspace"
+    owned_paths:
+      - ".claude/"
+
+  - name: "OWP agent themes"
+    owned_paths:
+      - "agent/themes/"
+
+  - name: "OWP plans"
+    owned_paths:
+      - "plans/"
+
+  - name: "OWP root config and assets"
+    owned_paths:
+      - "package.json"
+      - "bunfig.toml"
+      - "turbo.json"
+      - "Cargo.toml"
+      - "biome.json"
+      - ".gitattributes"
+      - ".prettierignore"
+      - ".prettierrc"
+      - "rust-toolchain.toml"
+      - "rustfmt.toml"
+      - "rust-analyzer.toml"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "Dockerfile.dockerignore"
+      - "LICENSE"
+      - "AGENTS.md"
+      - "STAGES.md"
+      - "REPORT-ISSUE-601.md"
+      - "PLAN_FIX_689.md"
+      - "PLAN_FIX_689_PHASE2.md"
+      - "pi-mono.code-workspace"
+      - "oh-my-pi-session-title-api"
+      - ".fallowrc.jsonc"
+      - "tsconfig.json"
+      - "tsconfig.base.json"
+      - "tsconfig.tools.json"
+      - "packages/tsconfig.workspace.json"
+      - "assets/"
+      - "types/"
+
+# Intentional divergences — files that upstream owns and we always take upstream for.
+divergences:
+  - path: "packages/*/CHANGELOG.md"
+    reason: "Upstream owns release notes; owp never modifies changelog files."
+    resolution: "prefer_upstream"
+
+  - path: "bun.lock"
+    reason: "Lockfile is authoritative upstream; run bun install if deps differ."
+    resolution: "prefer_upstream"
+
+  - path: "Cargo.lock"
+    reason: "Rust lockfile tracks upstream's Cargo.toml changes."
+    resolution: "prefer_upstream"
+
+  - path: "MODULE.bazel.lock"
+    reason: "Generated Bazel lockfile; regenerate after merges."
+    resolution: "prefer_upstream"
+
+  - path: "packages/natives/native/index.js"
+    reason: "Built native artifact; regenerated via mise exec -- bun --cwd=packages/natives run build."
+    resolution: "prefer_upstream"
+
+  - path: "crates/brush-core-vendored/"
+    reason: "Vendored upstream Rust crate."
+    resolution: "prefer_upstream"
+
+  - path: "crates/brush-builtins-vendored/"
+    reason: "Vendored upstream Rust crate."
+    resolution: "prefer_upstream"
+
+  - path: "packages/react-edit-benchmark/"
+    reason: "Upstream benchmark tooling."
+    resolution: "prefer_upstream"
+
+  - path: "packages/typescript-edit-benchmark/"
+    reason: "Upstream benchmark tooling."
+    resolution: "prefer_upstream"
+
+  - path: "packages/omp-extension-swarm/"
+    reason: "Upstream extension package."
+    resolution: "prefer_upstream"
+
+  - path: "packages/omp-stats/"
+    reason: "Upstream stats dashboard package."
+    resolution: "prefer_upstream"
+
+  - path: "packages/git-tool/"
+    reason: "Upstream git tooling package."
+    resolution: "prefer_upstream"
+
+  - path: ".turbo/"
+    reason: "Generated Turbo cache artifacts; should not be tracked."
+    resolution: "prefer_upstream"
+
+  - path: "Dockerfile.robomp"
+    reason: "Fork removes upstream robomp Docker builder."
+    resolution: "prefer_ours"
+
+  - path: "Dockerfile.robomp.dockerignore"
+    reason: "Fork removes upstream robomp Docker builder context."
+    resolution: "prefer_ours"
+
+  - path: "python/robomp/"
+    reason: "Fork removes upstream robomp GitHub triage bot."
+    resolution: "prefer_ours"
+
+  - path: "packages/hashline/"
+    reason: "OWP maintains hashline as a workspace package after upstream deleted it. Vendored copy moved from coding-agent/src/hashline/ to packages/hashline/."
+    resolution: "prefer_ours"
+
+# Intentional deletions — upstream files absent from owp on purpose.
+removals:
+  - path: "python/robomp/"
+    reason: "fork does not ship robomp"
+  # Seeded from triage: deleting commit 9c659a2ec "chore(owp): remove upstream-only components".
+  # Deletions from 606f850d6 (docs sync commit, 43 files) stay unregistered — auto-restored.
+  - path: "packages/coding-agent/test/"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/utils/test/"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "Dockerfile.robomp*"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "Dockerfile.dockerignore"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/agent/test/compaction-error-status.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/agent/test/compaction-telemetry.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/agent/test/compaction-thinking-level.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/agent/test/yield.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/hashline/README.md"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/hashline/tsconfig.publish.json"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/hashline/bench/recovery-session-chain.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/hashline/test/format-v2.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/hashline/test/recovery-session-chain.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/hashline/test/snapshots.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/coding-agent/examples/sdk/12-redis-sessions.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/coding-agent/examples/sdk/13-sql-sessions.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/catalog/test/google-vertex-discovery.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/catalog/test/wafer.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+
+# Owned symbols inside shared files. During rebase, take upstream structure, graft these symbols.
+owned_symbols:
+  - file: "packages/coding-agent/src/sdk.ts"
+    feature: "Skill rediscovery"
+    symbols:
+      - name: "makeSkillDiscoverer()"
+        location: "Top of createAgentSession, before provider preferences"
+        description: "Factory returning async fn that re-discovers skills"
+      - name: "skillsOverride"
+        location: "rebuildSystemPrompt signature (3rd param)"
+        description: "Optional Skill[] override for /new"
+      - name: "skillsOverride ?? skills"
+        location: "buildSystemPromptInternal call inside rebuildSystemPrompt"
+        description: "Passes override if provided"
+      - name: "disabledExtensions"
+        location: "skillsSettings object in rebuildSystemPrompt"
+        description: "{ ...settings.getGroup('skills'), disabledExtensions: ... }"
+      - name: "let sessionManager"
+        location: "Near top of createAgentSession"
+        description: "let (not const) to allow override by session_directory handlers"
+      - name: "systemPrompt: options.systemPrompt"
+        location: "buildSystemPromptInternal call when typeof options.systemPrompt === 'string'"
+        description: "Only in the string-typed branch"
+
+  - file: "packages/coding-agent/src/config/settings-schema.ts"
+    feature: "Unified mode / Session naming / Google AI search / Skill rediscovery"
+    symbols:
+      - name: '"agent_mode"'
+        description: "Replaces upstream's 'plan_mode' in StatusLineSegmentId"
+      - name: '"session_name"'
+        description: "Added to StatusLineSegmentId union"
+      - name: "skills.rediscoverOnNewSession"
+        description: "Boolean setting definition"
+      - name: '"google"'
+        description: "New provider id in SearchProviderId union and isSearchProviderId()"
+      - name: '"google"'
+        description: "In providers.webSearch enum values and UI options"
+
+  - file: "packages/coding-agent/src/config/model-registry.ts"
+    feature: "baseUrl resolution / openai-compatible / disableStrictTools / provider onboarding"
+    symbols:
+      - name: "import { resolveConfigValue }"
+        description: "Import from ./resolve-config-value"
+      - name: "#customProviderBaseUrls"
+        description: "Map<string, string> for raw baseUrl configs"
+      - name: "#resolvedCommandBaseUrls"
+        description: "Map<string, string> for resolved values"
+      - name: "#resolvedCommandApiKeys"
+        description: "Map<string, string> for resolved API keys"
+      - name: "resolveApiKeyConfigAsync"
+        description: "Async version using resolveConfigValue"
+      - name: "resolveApiKeyConfigSync"
+        description: "Sync version using Bun.spawnSync"
+      - name: "#resolveCommandApiKeys"
+        description: "Async method on ModelRegistry"
+      - name: "#resolveCommandBaseUrls"
+        description: "Async method on ModelRegistry"
+      - name: "#rewriteProviderBaseUrl"
+        description: "Rewrites baseUrl on cached models"
+      - name: "#eagerResolveCommandApiKeys"
+        description: "Sync eager resolution in constructor"
+      - name: "#eagerResolveCommandBaseUrls"
+        description: "Sync eager resolution in constructor"
+
+      - name: '"openai-compatible"'
+        description: "Added to Type.Union in ProviderDiscoverySchema"
+      - name: "#discoverOpenAICompatibleModels"
+        description: "Full discovery method"
+      - name: 'case "openai-compatible"'
+        description: "Switch case in #discoverModelsByProviderType"
+      - name: "LiteLLMModelInfo"
+        description: "Type for LiteLLM model info fields"
+      - name: "#fetchLiteLLMModelInfo"
+        description: "Fetches LiteLLM's /v1/model/info"
+      - name: "disableStrictTools"
+        description: "Field in ProviderConfigSchema"
+      - name: "disableStrictTools?"
+        description: "Field in CustomModelOverlay"
+      - name: "providerDisableStrictTools"
+        description: "Param in buildCustomModelOverlay()"
+      - name: "disableStrictTools"
+        description: "In finalizeCustomModel()"
+      - name: "return keyConfig"
+        description: "In fallbackResolver — returns literal API keys"
+
+  - file: "packages/coding-agent/src/modes/components/status-line/presets.ts"
+    feature: "Unified mode / Session naming"
+    symbols:
+      - name: '"agent_mode"'
+        description: "Replaces 'plan_mode' in leftSegments of all 7 presets"
+      - name: '"session_name"'
+        description: "Added to rightSegments of all 7 presets"
+
+  - file: "packages/coding-agent/src/modes/components/status-line-segment-editor.ts"
+    feature: "Unified mode / Session naming"
+    symbols:
+      - name: "agent_mode"
+        description: "{ label: 'Mode', short: 'active mode (plan/ask/debug)' }"
+      - name: "session_name"
+        description: "{ label: 'Session Name', short: 'named session' }"
+
+  - file: "packages/coding-agent/src/modes/components/status-line/segments.ts"
+    feature: "Unified mode / Session naming"
+    symbols:
+      - name: "agentModeSegment"
+        description: "Renderer implementation"
+      - name: "sessionNameSegment"
+        description: "Renderer implementation"
+
+  - file: "packages/ai/src/types.ts"
+    feature: "disableStrictTools escape hatch"
+    symbols:
+      - name: "disableStrictTools?"
+        description: "Optional boolean field on Model<TApi>"
+
+  - file: "packages/ai/src/providers/anthropic.ts"
+    feature: "disableStrictTools escape hatch"
+    symbols:
+      - name: "userBetaOverride"
+        description: "Reads Anthropic-Beta from modelHeaders; overrides defaults"
+      - name: "betaHeaderEntry"
+        description: "Header entry built from beta override"
+      - name: "model.disableStrictTools === true"
+        description: "Adds to the disableStrictTools condition alongside github-copilot guard"
+
+  - file: "packages/agent/src/types.ts"
+    feature: "Upstream-deleted module stubs"
+    symbols:
+      - name: "ToolApproval"
+        description: "Stub type alias after upstream deletion"
+      - name: "ToolTier"
+        description: "Stub type alias after upstream deletion"
+      - name: "EventLoopKeepalive"
+        description: "Stub type alias after upstream deletion"
+
+  - file: "packages/agent/src/agent-loop.ts"
+    feature: "Upstream-deleted module stubs"
+    symbols:
+      - name: "instrumentedCompleteSimple"
+        description: "Stub function after upstream deletion"
+
+  - file: "packages/utils/src/dirs.ts"
+    feature: "Upstream-deleted module stubs"
+    symbols:
+      - name: "hashPath"
+        description: "Restored after upstream deletion"
+
+  - file: "packages/coding-agent/src/capability/skill.ts"
+    feature: "Skill grouping"
+    symbols:
+      - name: "author, repo, tags, group"
+        description: "Skill interface metadata fields for grouping and group-toggle operations"
+
+  - file: "packages/coding-agent/src/discovery/helpers.ts"
+    feature: "Skill grouping"
+    symbols:
+      - name: "scanSkillsFromDir metadata parsing"
+        description: "Parses author, repo, tags, and group from skill frontmatter into Skill objects"
+
+  - file: "packages/coding-agent/src/modes/components/extensions/types.ts"
+    feature: "Skill grouping"
+    symbols:
+      - name: "Extension metadata fields"
+        description: "Author, repo, tags, and group properties on Extension interface"
+
+  - file: "packages/coding-agent/src/modes/components/extensions/state-manager.ts"
+    feature: "Skill grouping"
+    symbols:
+      - name: "toggleGroup"
+        description: "Bulk toggles skill extensions by tag, directory group, repo, or author"
+      - name: "isSkillDisabledByGroup"
+        description: "Checks if a skill extension matches any synthetic group disabled keys"
+      - name: "toggleExtensionState"
+        description: "Toggles single extension state and clears synthetic group keys when re-enabling skills"
+      - name: "createExtensionSettingsAdapter"
+        description: "Adapts Settings instance to ExtensionSettingsManager interface for group toggling"
+
+  - file: "packages/coding-agent/src/modes/components/extensions/extension-dashboard.ts"
+    feature: "Skill grouping"
+    symbols:
+      - name: "g keybinding & EXT_FOOTER hint"
+        description: "Keyboard shortcut g to toggle skill grouping and footer keybindings display"
+
+  - file: "packages/coding-agent/src/modes/components/extensions/extension-list.ts"
+    feature: "Skill grouping"
+    symbols:
+      - name: "Skill group badge rendering"
+        description: "Displays skill group tag in item row preview"
+
+  - file: "packages/coding-agent/src/modes/components/extensions/inspector-panel.ts"
+    feature: "Skill grouping"
+    symbols:
+      - name: "Grouping & Metadata panel"
+        description: "Renders Group, Author, Repo, and Tags in extension detail inspector"
+
+  - file: "packages/coding-agent/src/modes/theme/theme.ts"
+    feature: "TUI Settings Provenance"
+    symbols:
+      - name: "layerBadge"
+        description: "Badge renderer formatting [O], [P], and [G] layer indicators"
+
+  - file: "packages/coding-agent/src/modes/components/settings-selector.ts"
+    feature: "TUI Settings Provenance"
+    symbols:
+      - name: "#scope"
+        description: "Target scope state ('global' | 'project') for setting mutations"
+      - name: "defToItem layer mapping"
+        description: "Attaches provenance layer from settings.getLayer to SettingItem"
+      - name: "s and c keybindings"
+        description: "Scope toggle and clear override key handling in handleInput"
+
+  - file: "packages/tui/src/components/settings-list.ts"
+    feature: "TUI Settings Provenance"
+    symbols:
+      - name: "layerBadge rendering"
+        description: "Renders item row layer badges using theme hook in #renderItemRow"
+
