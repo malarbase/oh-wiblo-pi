@@ -1,13 +1,6 @@
 /** Centralized error/warning text for the hashline parser, applier, and patcher. */
 
-import {
-	formatNumberedLine,
-	HL_FILE_HASH_SEP,
-	HL_FILE_PREFIX,
-	HL_FILE_SUFFIX,
-	HL_PAYLOAD_REPLACE,
-	HL_RANGE_SEP,
-} from "./format";
+import { formatNumberedLine, HL_FILE_HASH_SEP, HL_FILE_PREFIX, HL_FILE_SUFFIX, HL_RANGE_SEP } from "./format";
 import type { BlockSpan } from "./types";
 
 /** Lines of context shown either side of a hash mismatch. */
@@ -125,34 +118,6 @@ export const BARE_BODY_AUTO_PIPED_WARNING =
 
 /** Top-level read-output rows recovered as single-line replacements. */
 export const SNAPSHOT_ROWS_AUTO_PUT_WARNING = `Recovered top-level \`N:TEXT\` snapshot row(s) as single-line \`PUT N${HL_RANGE_SEP}N:\` replacements. Use explicit \`PUT\` headers for reliable edits.`;
-/**
- * Two or more top-level `N:TEXT` read-output rows named the same source line.
- * Each recovered row lowers to a single-line `PUT N.=N:`, so the coalescer would
- * keep only the last and silently drop the others — reject and teach the format
- * instead.
- */
-export function repeatedSnapshotRowMessage(line: number): string {
-	return (
-		`two or more pasted \`${line}:TEXT\` read-output rows name line ${line}. ` +
-		`Such rows are recovered as single-line \`PUT ${line}${HL_RANGE_SEP}${line}:\` replacements, so repeating a ` +
-		`number would keep only the last row and drop the rest. Write the hunk explicitly: one ` +
-		`\`PUT ${line}${HL_RANGE_SEP}M:\` header covering exactly the lines that change, followed by \`+TEXT\` body ` +
-		`rows holding their complete final content.`
-	);
-}
-/**
- * A `+` body row whose text is itself a valid hunk header — the op was written
- * with the payload prefix, so it is inserted into the file as literal text
- * instead of executing. Warned rather than rejected: a literal `CUT …` line is
- * legitimate content in documentation and test fixtures.
- */
-export function literalOpRowWarning(line: number, text: string): string {
-	return (
-		`line ${line}: body row \`${HL_PAYLOAD_REPLACE}${text}\` is itself a valid hunk header, so it was inserted ` +
-		`into the file as literal text rather than executed. Ops are never \`${HL_PAYLOAD_REPLACE}\`-prefixed — drop ` +
-		`the \`${HL_PAYLOAD_REPLACE}\` to run it, and re-issue if this line landed in the file by mistake.`
-	);
-}
 /** Bare range header recovered as an implicit replacement hunk. */
 export const BARE_RANGE_AUTO_PUT_WARNING = `Recovered a bare \`N${HL_RANGE_SEP}M:\` header as \`PUT N${HL_RANGE_SEP}M:\`. Prefix replacement ranges with \`PUT\`.`;
 
@@ -304,18 +269,6 @@ export function ambiguousBoundaryEchoMessage(
 }
 
 /**
- * A syntax-essential selected edge can be retained on either side of the
- * payload, but indentation does not establish which placement was intended.
- */
-export function ambiguousBoundaryPlacementMessage(startLine: number, endLine: number): string {
-	return (
-		`\`PUT ${startLine}${HL_RANGE_SEP}${endLine}:\` rejected: a selected boundary row is required for the file to parse, ` +
-		`but the body indentation does not establish whether it belongs before or after that row. ` +
-		`Re-read the region and re-issue with a range that excludes every unchanged boundary row.`
-	);
-}
-
-/**
  * Exact-text boundary rows were removed because the remaining payload covers
  * the selected range and the same rows already survive immediately outside it.
  */
@@ -402,22 +355,9 @@ export const COLONLESS_SPAN_PUT = `Colonless \`PUT\` is clipboard-backed, and sp
 /** Anonymous paste ran with an empty anonymous register. */
 export const EMPTY_PASTE = `Nothing to paste: no unlabeled \`CUT\` precedes this \`PUT\` in this call, and the anonymous register never carries across calls. Put \`CUT N${HL_RANGE_SEP}M\` / \`CUT N*\` above it, or use named registers (\`CUT … @name\` → \`PUT … @name\`) for cross-call moves.`;
 
-/** Named paste read a register that holds nothing; a gap paste applies as empty. */
-export function emptyRegisterPasteWarning(name: string, known: readonly string[]): string {
-	const base = `\`@${name}\` was empty — no \`CUT … @${name}\` precedes this op in this call and no persisted register has that name — so nothing was pasted.`;
-	return known.length === 0 ? base : `${base} Available registers: ${known.map(k => `\`@${k}\``).join(", ")}.`;
-}
-
-/**
- * Named paste over a *span* read a register that holds nothing. Pasting empty
- * would delete the span, which the author never asked for — almost always a
- * mistyped or never-captured register name — so the edit is rejected instead.
- */
-export function emptyRegisterSpanPasteMessage(name: string, known: readonly string[]): string {
-	const base =
-		`\`@${name}\` is empty — no \`CUT … @${name}\` precedes this op in this call and no persisted register ` +
-		`has that name — so pasting it over a range would delete those lines and write nothing back. ` +
-		`Capture the register first (\`CUT … @${name}\`), or use \`CUT\` if deleting the range is what you meant.`;
+/** Named paste read a register that holds nothing. */
+export function unknownRegisterMessage(name: string, known: readonly string[]): string {
+	const base = `\`@${name}\` is empty: no \`CUT … @${name}\` precedes this op in this call and no persisted register has that name.`;
 	return known.length === 0 ? base : `${base} Available registers: ${known.map(k => `\`@${k}\``).join(", ")}.`;
 }
 
@@ -633,15 +573,51 @@ const BLOCK_OP_FORMS: Record<BlockOp, { form: (line: number) => string; plain: (
  * one line, so reject and point at it.
  */
 export function blockSingleLineMessage(line: number, op: BlockOp, enclosingBlock?: BlockSpan): string {
-	const forms = BLOCK_OP_FORMS[op];
-	const plainForm = forms.plain(line);
-	let message =
-		`\`${forms.form(line)}\` resolved a single-line block — line ${line} is a bare statement, not the opening line ` +
-		`of a multi-line construct. For only this statement use \`${plainForm}\`.`;
+	const forms: Record<BlockOp, { form: (l: number) => string; plain: (l: number) => string }> = {
+		replace: { form: (l: number) => `PUT ${l}*`, plain: (l: number) => `PUT ${l}:` },
+		insert_after: { form: (l: number) => `PUT >${l}*`, plain: (l: number) => `PUT >${l}:` },
+		cut: { form: (l: number) => `CUT ${l}*`, plain: (l: number) => `CUT ${l}:` },
+		paste_after: { form: (l: number) => `PUT >${l}`, plain: (l: number) => `PUT >${l}` },
+	};
+	const entry = forms[op];
+	let msg = `\`${entry.form(line)}\` targets a single line (${line}); use the plain form (e.g. \`${entry.plain(line)}\`) for single-line edits.`;
 	if (enclosingBlock) {
-		message +=
+		msg +=
 			` The nearest enclosing multi-line block begins at line ${enclosingBlock.start} ` +
-			`and ends at line ${enclosingBlock.end}; use \`${forms.form(enclosingBlock.start)}\` to target it.`;
+			`and ends at line ${enclosingBlock.end}; use \`${entry.form(enclosingBlock.start)}\` to target it.`;
 	}
-	return message;
+	return msg;
+}
+
+export function ambiguousLeadingCloserSpareMessage(startLine: number, endLine: number, count: number): string {
+	const closers = count === 1 ? `line ${startLine}` : `lines ${startLine}-${startLine + count - 1}`;
+	return (
+		`\`PUT ${startLine}${HL_RANGE_SEP}${endLine}:\` rejected: the range starts by deleting the closing-delimiter ` +
+		`${closers} but the body never restates it, and the body's indentation claims a depth inside the block that ` +
+		`closer terminates — whether the new content belongs before or after the closer is ambiguous. ` +
+		`Re-issue with explicit anchor lines or a block op to disambiguate.`
+	);
+}
+
+export function midBlockRangeWarning(startLine: number, endLine: number, orphaned: number): string {
+	return (
+		`\`PUT ${startLine}${HL_RANGE_SEP}${endLine}:\` deleted ${orphaned} opening delimiter(s) the body never ` +
+		`reopens. If this file is brace-structured code, the matching closing line(s) below the range are now ` +
+		`orphaned — the range likely ended mid-block. If the body was the construct's complete new content, ` +
+		`re-issue with a block op on the construct's opening line (\`PUT N*:\`) so the closing line resolves ` +
+		`automatically.`
+	);
+}
+
+export function emptyRegisterPasteWarning(name: string, known: readonly string[]): string {
+	const base = `\`@${name}\` was empty — no \`CUT … @${name}\` precedes this op in this call and no persisted register has that name — so nothing was pasted.`;
+	return known.length === 0 ? base : `${base} Available registers: ${known.map(k => `\`@${k}\``).join(", ")}.`;
+}
+
+export function emptyRegisterSpanPasteMessage(name: string, known: readonly string[]): string {
+	const base =
+		`\`@${name}\` is empty — no \`CUT … @${name}\` precedes this op in this call and no persisted register ` +
+		`has that name — so pasting it over a range would delete those lines and write nothing back. ` +
+		`Capture the register first (\`CUT … @${name}\`), or use \`CUT\` if deleting the range is what you meant.`;
+	return known.length === 0 ? base : `${base} Available registers: ${known.map(k => `\`@${k}\``).join(", ")}.`;
 }

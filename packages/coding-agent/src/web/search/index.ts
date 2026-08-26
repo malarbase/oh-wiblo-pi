@@ -132,6 +132,7 @@ interface ExecuteSearchOptions {
 	modelRegistry?: ModelRegistry;
 	sessionId?: string;
 	signal?: AbortSignal;
+	onUpdate?: AgentToolUpdateCallback<SearchRenderDetails>;
 }
 
 /** Execute web search */
@@ -180,6 +181,26 @@ async function executeSearch(
 		// Preserve the default for one-shot callers that do not initialize Settings.
 	}
 
+	let captchaBehavior: "error" | "wait" = "wait";
+	try {
+		const configuredBehavior = settings.get("providers.webSearchCaptchaBehavior");
+		if (configuredBehavior === "error" || configuredBehavior === "wait") {
+			captchaBehavior = configuredBehavior;
+		}
+	} catch {
+		// Default to "wait"
+	}
+
+	let captchaTimeout = 90;
+	try {
+		const configuredTimeout = settings.get("providers.webSearchCaptchaTimeout");
+		if (Number.isFinite(configuredTimeout) && configuredTimeout >= 10) {
+			captchaTimeout = Math.min(Math.max(configuredTimeout, 10), 300);
+		}
+	} catch {
+		// Default to 90 seconds
+	}
+
 	const failures: Array<{ provider: Pick<SearchProvider, "id" | "label">; error: unknown }> = [];
 	let availableProviderCount = 0;
 	let lastProvider: Pick<SearchProvider, "id" | "label"> | undefined;
@@ -218,6 +239,11 @@ async function executeSearch(
 				sessionId,
 				antigravityEndpointMode,
 				geminiModel,
+				captchaBehavior,
+				captchaTimeout,
+				onUpdate: options.onUpdate
+					? (message: string) => options.onUpdate!({ response: { provider: "none", sources: [] }, error: message })
+					: undefined,
 			});
 
 			// Lenient constraint pass over whatever the provider returned: enforce
@@ -253,6 +279,13 @@ async function executeSearch(
 			// failure and the loop falls through to the next provider (or to the
 			// summary error), masking the cancellation.
 			throwIfAborted(signal);
+			// When the user explicitly selected a provider, surface the failure
+			// immediately instead of silently falling through to the next
+			// provider. The user chose this provider for a reason and deserves
+			// to know it failed rather than seeing results from a different one.
+			if (candidate.explicit) {
+				throw error instanceof Error ? error : new SearchProviderError(provider?.id ?? candidate.id, String(error));
+			}
 			failures.push({ provider: provider ?? providerMeta, error });
 		}
 	}
@@ -336,7 +369,7 @@ export class WebSearchTool implements AgentTool<typeof webSearchSchema, SearchRe
 		_toolCallId: string,
 		params: SearchToolParams,
 		signal?: AbortSignal,
-		_onUpdate?: AgentToolUpdateCallback<SearchRenderDetails>,
+		onUpdate?: AgentToolUpdateCallback<SearchRenderDetails>,
 		_context?: AgentToolContext,
 	): Promise<AgentToolResult<SearchRenderDetails>> {
 		const authStorage = this.#session.authStorage ?? (await discoverAuthStorage());
@@ -346,6 +379,7 @@ export class WebSearchTool implements AgentTool<typeof webSearchSchema, SearchRe
 			modelRegistry: this.#session.modelRegistry,
 			sessionId,
 			signal,
+			onUpdate,
 		});
 	}
 }
@@ -358,13 +392,7 @@ export const webSearchCustomTool: CustomTool<typeof webSearchSchema, SearchRende
 	parameters: webSearchSchema,
 
 	approval: "read",
-	async execute(
-		toolCallId: string,
-		params: SearchToolParams,
-		_onUpdate,
-		ctx: CustomToolContext,
-		signal?: AbortSignal,
-	) {
+	async execute(toolCallId: string, params: SearchToolParams, onUpdate, ctx: CustomToolContext, signal?: AbortSignal) {
 		const authStorage = ctx.modelRegistry?.authStorage ?? (await discoverAuthStorage());
 		const sessionId = ctx.sessionManager.getSessionId();
 		return executeSearch(toolCallId, params, {
@@ -372,6 +400,7 @@ export const webSearchCustomTool: CustomTool<typeof webSearchSchema, SearchRende
 			modelRegistry: ctx.modelRegistry,
 			sessionId,
 			signal,
+			onUpdate,
 		});
 	},
 
