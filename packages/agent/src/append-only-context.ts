@@ -15,6 +15,7 @@
  */
 
 import type { Context, Message, Tool } from "@oh-my-pi/pi-ai";
+import type { Dialect } from "@oh-my-pi/pi-ai/dialect";
 import { normalizeTools } from "./agent-loop";
 import { messageEstimateVersion } from "./compaction/message-cache";
 import type { AgentContext, AgentMessage } from "./types";
@@ -34,6 +35,7 @@ export interface StablePrefixSnapshot {
 export interface BuildOptions {
 	/** Inject the `i` intent field into tool schemas (must match agent-loop's normalizeTools). */
 	intentTracing: boolean;
+	exampleDialect?: Dialect;
 	/** Strip tool descriptions from the provider-bound specs (must match normalizeTools). */
 	pruneToolDescriptions?: boolean;
 }
@@ -364,6 +366,7 @@ function computeFingerprint(systemPrompt: string[], tools: Tool[], options: Buil
 			cw: t.customWireName,
 		})),
 		i: options.intentTracing,
+		ex: options.exampleDialect,
 		pd: options.pruneToolDescriptions,
 	});
 	let hash = 0;
