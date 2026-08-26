@@ -48,6 +48,7 @@ export const SEARCH_PROVIDER_OPTIONS = [
 		description: "Uses Firecrawl API when FIRECRAWL_API_KEY is set; falls back to keyless mode",
 	},
 	{ value: "brave", label: "Brave", description: "Requires BRAVE_API_KEY" },
+	{ value: "serpapi", label: "SerpAPI", description: "Requires SERPAPI_API_KEY" },
 	{
 		value: "kimi",
 		label: "Kimi",
@@ -76,6 +77,11 @@ export const SEARCH_PROVIDER_OPTIONS = [
 		value: "google",
 		label: "Google",
 		description: "Credential-free browser-backed fallback; slower and may be bot-challenged",
+	},
+	{
+		value: "google-ai",
+		label: "Google AI",
+		description: "Credential-free browser-backed scrape of Google AI Overviews; extracts synthesized AI answer",
 	},
 	{
 		value: "mojeek",
@@ -183,6 +189,11 @@ export class SearchProviderError extends Error {
 		public readonly provider: SearchProviderId,
 		message: string,
 		public readonly status?: number,
+		/**
+		 * When true, the fallback chain should stop — the browser is
+		 * still open for the user to solve a CAPTCHA manually.
+		 */
+		public readonly captcha = false,
 	) {
 		super(message);
 		this.name = "SearchProviderError";

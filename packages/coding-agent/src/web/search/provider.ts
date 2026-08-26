@@ -7,7 +7,6 @@
 //
 // Provider modules are loaded lazily; display metadata lives in types.ts so UI
 // listings can share it without importing provider implementations.
-
 import type { AuthStorage } from "@oh-my-pi/pi-ai";
 import type { SearchProvider } from "./providers/base";
 import { SEARCH_PROVIDER_LABELS, SEARCH_PROVIDER_ORDER, SearchProviderError, type SearchProviderId } from "./types";
@@ -119,6 +118,11 @@ const PROVIDER_META: Record<SearchProviderId, ProviderMeta> = {
 		label: SEARCH_PROVIDER_LABELS.google,
 		load: async () => new (await import("./providers/google")).GoogleProvider(),
 	},
+	"google-ai": {
+		id: "google-ai",
+		label: SEARCH_PROVIDER_LABELS["google-ai"],
+		load: async () => new (await import("./providers/google-ai")).GoogleAIProvider(),
+	},
 	ecosia: {
 		id: "ecosia",
 		label: SEARCH_PROVIDER_LABELS.ecosia,
@@ -133,6 +137,11 @@ const PROVIDER_META: Record<SearchProviderId, ProviderMeta> = {
 		id: "mojeek",
 		label: SEARCH_PROVIDER_LABELS.mojeek,
 		load: async () => new (await import("./providers/mojeek")).MojeekProvider(),
+	},
+	serpapi: {
+		id: "serpapi",
+		label: SEARCH_PROVIDER_LABELS.serpapi,
+		load: async () => new (await import("./providers/serpapi")).SerpApiProvider(),
 	},
 	public: {
 		id: "public",
@@ -267,6 +276,5 @@ export async function resolveProviderChain(
 			: await provider.isAvailable(authStorage);
 		if (available) providers.push(provider);
 	}
-
 	return providers;
 }
