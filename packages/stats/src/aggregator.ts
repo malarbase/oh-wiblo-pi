@@ -438,8 +438,8 @@ export async function getDashboardStats(range?: string | null): Promise<Dashboar
 		byFolder: getStatsByFolder(cutoff ?? undefined),
 		byAgentType: getStatsByAgentType(cutoff ?? undefined),
 		timeSeries: getTimeSeries(timeSeriesHours, cutoff, timeSeriesBucketMs),
-		modelSeries: getModelTimeSeries(modelSeriesDays, cutoff, modelSeriesBucketMs),
-		modelPerformanceSeries: getModelPerformanceSeries(modelPerformanceDays, cutoff, modelPerformanceBucketMs),
+		modelSeries: getModelTimeSeries(modelSeriesDays, cutoff),
+		modelPerformanceSeries: getModelPerformanceSeries(modelPerformanceDays, cutoff),
 		costSeries: getCostTimeSeries(costSeriesDays, cutoff),
 	};
 }
@@ -466,8 +466,8 @@ export async function getModelDashboardStats(
 
 	return {
 		byModel: getStatsByModel(cutoff ?? undefined),
-		modelSeries: getModelTimeSeries(modelSeriesDays, cutoff, modelSeriesBucketMs),
-		modelPerformanceSeries: getModelPerformanceSeries(modelPerformanceDays, cutoff, modelPerformanceBucketMs),
+		modelSeries: getModelTimeSeries(modelSeriesDays, cutoff),
+		modelPerformanceSeries: getModelPerformanceSeries(modelPerformanceDays, cutoff),
 	};
 }
 

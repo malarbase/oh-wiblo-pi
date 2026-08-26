@@ -845,11 +845,7 @@ export function getTimeSeries(hours = 24, cutoff?: number | null, bucketMs = 60 
 /**
  * Get daily model usage time series data for the last N days.
  */
-export function getModelTimeSeries(
-	days = 14,
-	cutoff?: number | null,
-	bucketMs = 24 * 60 * 60 * 1000,
-): ModelTimeSeriesPoint[] {
+export function getModelTimeSeries(days = 14, cutoff?: number | null): ModelTimeSeriesPoint[] {
 	if (!db) return [];
 
 	const hasCutoff = cutoff !== null;
@@ -857,7 +853,7 @@ export function getModelTimeSeries(
 
 	const stmt = db.prepare(`
 		SELECT
-			(timestamp / ?) * ? as bucket,
+			(timestamp / 86400000) * 86400000 as bucket,
 			model,
 			provider,
 			COUNT(*) as requests
@@ -867,8 +863,7 @@ export function getModelTimeSeries(
 		ORDER BY bucket ASC
 	`);
 
-	const rowsRaw = hasCutoff ? stmt.all(bucketMs, bucketMs, seriesCutoff) : stmt.all(bucketMs, bucketMs);
-	const rows = rowsRaw as Array<{ bucket: number; model: string; provider: string; requests: number }>;
+	const rows = hasCutoff ? (stmt.all(seriesCutoff) as any[]) : (stmt.all() as any[]);
 	return rows.map(row => ({
 		timestamp: row.bucket,
 		model: row.model,
@@ -1024,11 +1019,7 @@ export function getProviderTimeSeries(
 /**
  * Get daily model performance time series data for the last N days.
  */
-export function getModelPerformanceSeries(
-	days = 14,
-	cutoff?: number | null,
-	bucketMs = 24 * 60 * 60 * 1000,
-): ModelPerformancePoint[] {
+export function getModelPerformanceSeries(days = 14, cutoff?: number | null): ModelPerformancePoint[] {
 	if (!db) return [];
 
 	const hasCutoff = cutoff !== null;
@@ -1036,7 +1027,7 @@ export function getModelPerformanceSeries(
 
 	const stmt = db.prepare(`
 		SELECT
-			(timestamp / ?) * ? as bucket,
+			(timestamp / 86400000) * 86400000 as bucket,
 			model,
 			provider,
 			COUNT(*) as requests,
@@ -1048,15 +1039,7 @@ export function getModelPerformanceSeries(
 		ORDER BY bucket ASC
 	`);
 
-	const rowsRaw = hasCutoff ? stmt.all(bucketMs, bucketMs, seriesCutoff) : stmt.all(bucketMs, bucketMs);
-	const rows = rowsRaw as Array<{
-		bucket: number;
-		model: string;
-		provider: string;
-		requests: number;
-		avg_ttft: number | null;
-		avg_tokens_per_second: number | null;
-	}>;
+	const rows = hasCutoff ? (stmt.all(seriesCutoff) as any[]) : (stmt.all() as any[]);
 	return rows.map(row => ({
 		timestamp: row.bucket,
 		model: row.model,
