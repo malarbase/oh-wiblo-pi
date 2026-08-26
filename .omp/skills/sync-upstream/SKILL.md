@@ -409,6 +409,7 @@ These omp files exist but owp intentionally doesn't override them. Always take u
 - `Dockerfile.robomp` — Fork removes upstream robomp Docker builder.
 - `Dockerfile.robomp.dockerignore` — Fork removes upstream robomp Docker builder context.
 - `python/robomp/` — Fork removes upstream robomp GitHub triage bot.
+- `packages/hashline/` — Fork tracks upstream hashline verbatim (75829839db re-synced src after the recovery work was absorbed upstream); only release-version bumps differ.
 
 > **WARNING:** The divergence list exists because these files are considered upstream-owned. If you add an owp feature that modifies one of these files, the feature will be silently lost on the next sync (the decision tree will "prefer upstream"). You must either:
 > 1. Move the feature out of these files, or

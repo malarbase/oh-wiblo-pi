@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `.omp/skills/sync-upstream/generate-skill-md.ts` — do not edit it by hand; run the script instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 63 fork commits on top of `upstream/main`.
+Total: 64 fork commits on top of `upstream/main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -115,6 +115,7 @@ Total: 63 fork commits on top of `upstream/main`.
 | `3598580763` | docs(owp): update Last Sync Point to eab72e88e4 (18.0.4) | `docs/maintaining-owp-fork.md` | docs only |
 | `152a3a491b` | fix(owp): repair v18 rebase seams found by typecheck and runtime smoke | `bun.lock`, `packages/ai/package.json`, `packages/coding-agent/src/cli-commands.ts`, `packages/coding-agent/src/cli/command-help.ts`, `packages/coding-agent/src/config/settings.ts`, … (18 more) | code |
 | `75829839db` | chore(owp): track upstream packages/hashline; restore purged cli wiring | `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md`, `packages/hashline/README.md`, `packages/hashline/bench/recovery-session-chain.ts`, … (15 more) | chore |
+| `ad8daf044f` | docs(owp): refresh Fork Features table after runtime-fix commits | `docs/maintaining-owp-fork.md` | docs only |
 
 > **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `bun .omp/skills/sync-upstream/generate-skill-md.ts`, never by hand.
 <!-- GENERATED:fork-commits:end -->

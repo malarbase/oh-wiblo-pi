@@ -438,6 +438,10 @@ divergences:
     reason: "Fork removes upstream robomp GitHub triage bot."
     resolution: "prefer_ours"
 
+  - path: "packages/hashline/"
+    reason: "Fork tracks upstream hashline verbatim (75829839db re-synced src after the recovery work was absorbed upstream); only release-version bumps differ."
+    resolution: "prefer_upstream"
+
 # Intentional deletions — upstream files absent from owp on purpose.
 removals:
   - path: "python/robomp/"
