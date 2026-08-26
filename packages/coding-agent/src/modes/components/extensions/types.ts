@@ -65,6 +65,14 @@ export interface Extension {
 	 * {@link snapshotMcpRuntime}, not stuffed into this bag.
 	 */
 	raw: unknown;
+	/** Author of the skill (from metadata.author) */
+	author?: string;
+	/** Repository URL (from metadata.repo) */
+	repo?: string;
+	/** Tags associated with the skill (from metadata.tags) */
+	tags?: string[];
+	/** Directory-based group (fallback when metadata absent) */
+	group?: string;
 }
 
 /**

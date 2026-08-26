@@ -1,7 +1,3 @@
-/**
- * State manager for the Extension Control Center.
- * Handles data loading, tree building, filtering, and toggle persistence.
- */
 import * as path from "node:path";
 import { fuzzyMatch } from "@oh-my-pi/pi-tui";
 import { getMCPConfigPath, logger } from "@oh-my-pi/pi-utils";
@@ -47,6 +43,19 @@ export interface ExtensionSettingsManager {
 }
 
 /**
+ * Adapt a Settings instance or object with get/set methods into ExtensionSettingsManager.
+ */
+export function createExtensionSettingsAdapter(settings: {
+	get(key: "disabledExtensions"): unknown;
+	set(key: "disabledExtensions", value: unknown): void;
+}): ExtensionSettingsManager {
+	return {
+		getDisabledExtensions: () => (settings.get("disabledExtensions") as string[]) ?? [],
+		setDisabledExtensions: (ids: string[]) => settings.set("disabledExtensions", ids),
+	};
+}
+
+/**
  * Load all extensions from all capabilities.
  */
 export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): Promise<Extension[]> {
@@ -65,7 +74,15 @@ export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): P
 	): void {
 		for (const item of items) {
 			const id = makeExtensionId(kind, item.name);
-			const isDisabled = disabledExtensions.has(id);
+			const skillMeta = item as Partial<Skill>;
+			const author = skillMeta.author;
+			const repo = skillMeta.repo;
+			const tags = skillMeta.tags;
+			const group = skillMeta.group;
+
+			const isDisabled =
+				disabledExtensions.has(id) ||
+				isSkillDisabledByGroup({ kind, author, repo, tags, group } as Extension, disabledExtensions);
 			const isShadowed = (item as { _shadowed?: boolean })._shadowed;
 			const providerEnabled = isProviderEnabled(item._source.provider);
 
@@ -99,6 +116,10 @@ export async function loadAllExtensions(cwd?: string, disabledIds?: string[]): P
 				disabledReason,
 				shadowedBy: opts?.getShadowedBy?.(item),
 				raw: item,
+				author,
+				repo,
+				tags,
+				group,
 			});
 		}
 	}
@@ -539,6 +560,30 @@ export function filterByProvider(extensions: Extension[], providerId: string): E
 
 export { isShadowedExtension } from "./types";
 
+export function isSkillDisabledByGroup(ext: Partial<Extension>, disabled: Set<string>): boolean {
+	if (ext.kind !== "skill") return false;
+	if (
+		ext.group &&
+		(disabled.has(`skill-dir:${ext.group}`) ||
+			disabled.has(`skill-repo:${ext.group}`) ||
+			disabled.has(`skill-author:${ext.group}`))
+	) {
+		return true;
+	}
+	if (ext.repo && disabled.has(`skill-repo:${ext.repo}`)) {
+		return true;
+	}
+	if (ext.author && (disabled.has(`skill-author:${ext.author}`) || disabled.has(`skill-repo:${ext.author}`))) {
+		return true;
+	}
+	if (ext.tags) {
+		for (const tag of ext.tags) {
+			if (disabled.has(`skill-tag:${tag}`)) return true;
+		}
+	}
+	return false;
+}
+
 /**
  * Apply setting-backed item disable overrides to an existing dashboard state.
  * This gives the UI immediate feedback while the full capability refresh runs.
@@ -546,7 +591,8 @@ export { isShadowedExtension } from "./types";
 export function applyDisabledExtensionsToState(state: DashboardState, disabledIds: string[]): DashboardState {
 	const disabled = new Set(disabledIds);
 	const updateExtension = (ext: Extension): Extension => {
-		if (disabled.has(ext.id)) {
+		const isDisabled = disabled.has(ext.id) || isSkillDisabledByGroup(ext, disabled);
+		if (isDisabled) {
 			if (ext.state === "disabled" && ext.disabledReason === "item-disabled") return ext;
 			return { ...ext, state: "disabled", disabledReason: "item-disabled" };
 		}
@@ -573,6 +619,86 @@ export function applyDisabledExtensionsToState(state: DashboardState, disabledId
 		searchFiltered: state.searchFiltered.map(updateExtension),
 		selected: state.selected ? updateExtension(state.selected) : null,
 	};
+}
+
+/**
+ * Toggle extension state and update settings.
+ */
+export function toggleExtensionState(
+	state: DashboardState,
+	extension: Extension,
+	settings: ExtensionSettingsManager,
+): DashboardState {
+	const newDisabled = new Set(settings.getDisabledExtensions());
+	const isDisabled = newDisabled.has(extension.id) || isSkillDisabledByGroup(extension, newDisabled);
+
+	if (isDisabled) {
+		newDisabled.delete(extension.id);
+		// When re-enabling a skill, clear synthetic group keys that apply to it
+		if (extension.kind === "skill") {
+			if (extension.group) {
+				newDisabled.delete(`skill-dir:${extension.group}`);
+				newDisabled.delete(`skill-repo:${extension.group}`);
+				newDisabled.delete(`skill-author:${extension.group}`);
+			}
+			if (extension.repo) {
+				newDisabled.delete(`skill-repo:${extension.repo}`);
+			}
+			if (extension.author) {
+				newDisabled.delete(`skill-author:${extension.author}`);
+			}
+			if (extension.tags) {
+				for (const tag of extension.tags) {
+					newDisabled.delete(`skill-tag:${tag}`);
+				}
+			}
+		}
+	} else {
+		newDisabled.add(extension.id);
+	}
+
+	const disabledList = Array.from(newDisabled);
+	settings.setDisabledExtensions(disabledList);
+	return applyDisabledExtensionsToState(state, disabledList);
+}
+
+/**
+ * Bulk toggle a group of skills (by tag, dir, repo, or author).
+ */
+export function toggleGroup(
+	state: DashboardState,
+	groupKind: "tag" | "dir" | "repo" | "author",
+	groupName: string,
+	settings: ExtensionSettingsManager,
+): DashboardState {
+	const newDisabled = new Set(settings.getDisabledExtensions());
+	const syntheticKey = `skill-${groupKind}:${groupName}`;
+	const isGroupDisabled = newDisabled.has(syntheticKey);
+
+	const matchingSkills = state.extensions.filter(ext => {
+		if (ext.kind !== "skill") return false;
+		if (groupKind === "tag") return ext.tags?.includes(groupName);
+		if (groupKind === "dir") return ext.group === groupName;
+		if (groupKind === "repo") return ext.repo === groupName || ext.author === groupName || ext.group === groupName;
+		if (groupKind === "author") return ext.author === groupName || ext.group === groupName;
+		return false;
+	});
+
+	if (isGroupDisabled) {
+		newDisabled.delete(syntheticKey);
+		for (const skill of matchingSkills) {
+			newDisabled.delete(skill.id);
+		}
+	} else {
+		newDisabled.add(syntheticKey);
+		for (const skill of matchingSkills) {
+			newDisabled.add(skill.id);
+		}
+	}
+
+	const disabledList = Array.from(newDisabled);
+	settings.setDisabledExtensions(disabledList);
+	return applyDisabledExtensionsToState(state, disabledList);
 }
 
 /**
