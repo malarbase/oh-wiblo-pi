@@ -4,8 +4,6 @@
 import type * as fs1 from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { type } from "@oh-my-pi/omptype";
-import * as zod from "@oh-my-pi/omptype/zod";
 import type { ThinkingLevel } from "@oh-my-pi/pi-agent-core";
 import type {
 	ImageContent,
@@ -16,6 +14,16 @@ import type {
 	TextContent,
 	TSchema,
 } from "@oh-my-pi/pi-ai";
+import * as _bundledPiAi from "@oh-my-pi/pi-ai";
+import * as _bundledPiCodingAgent from "@oh-my-pi/pi-coding-agent";
+import * as _bundledPiNatives from "@oh-my-pi/pi-natives";
+
+void _bundledPiAi;
+void _bundledPiCodingAgent;
+void _bundledPiNatives;
+
+import { type } from "@oh-my-pi/omptype";
+import * as zodModule from "@oh-my-pi/omptype/zod";
 import { isBuiltinComposerStyle, type KeyId } from "@oh-my-pi/pi-tui";
 import { hasFsCode, isEacces, isEnoent, logger } from "@oh-my-pi/pi-utils";
 import { type ExtensionModule, extensionModuleCapability } from "../../capability/extension-module";
@@ -30,9 +38,9 @@ import * as PiCodingAgent from "../../index";
 import type { CustomMessagePayload } from "../../session/messages";
 import type { FileDeleteFallbackHandler, FileWriteFallbackHandler } from "../../tools/file-write-fallback";
 import { EventBus } from "../../utils/event-bus";
-import * as TypeBox from "../legacy-typebox";
 import { installLegacyPiSpecifierShim, loadLegacyPiModule } from "../plugins/legacy-pi-compat";
 import { getAllPluginExtensionPaths } from "../plugins/loader";
+import * as TypeBox from "../typebox";
 
 import { resolvePath, withHostGuard } from "../utils";
 import type {
@@ -48,7 +56,6 @@ import type {
 	ProviderConfig,
 	RegisteredCommand,
 	ToolDefinition,
-	ToolInfo,
 } from "./types";
 
 installLegacyPiSpecifierShim();
@@ -75,15 +82,6 @@ export class ExtensionRuntime implements IExtensionRuntime {
 	flagValues = new Map<string, boolean | string>();
 	pendingProviderRegistrations: Array<{ name: string; config: ProviderConfig; sourceId: string }> = [];
 
-	registerProvider(name: string, config: ProviderConfig, sourceId: string): void {
-		this.pendingProviderRegistrations.push({ name, config, sourceId });
-	}
-
-	unregisterProvider(name: string): void {
-		const remaining = this.pendingProviderRegistrations.filter(registration => registration.name !== name);
-		this.pendingProviderRegistrations.splice(0, this.pendingProviderRegistrations.length, ...remaining);
-	}
-
 	sendMessage(): void {
 		throw new ExtensionRuntimeNotInitializedError();
 	}
@@ -104,7 +102,7 @@ export class ExtensionRuntime implements IExtensionRuntime {
 		throw new ExtensionRuntimeNotInitializedError();
 	}
 
-	getAllTools(): ToolInfo[] {
+	getAllTools(): string[] {
 		throw new ExtensionRuntimeNotInitializedError();
 	}
 
@@ -154,7 +152,7 @@ class ConcreteExtensionAPI implements ExtensionAPI, IExtensionRuntime {
 	readonly logger = logger;
 	readonly typebox = TypeBox;
 	readonly arktype = type;
-	readonly zod = zod;
+	readonly zod = zodModule;
 	readonly flagValues = new Map<string, boolean | string>();
 	readonly pendingProviderRegistrations: Array<{
 		name: string;
@@ -281,7 +279,7 @@ class ConcreteExtensionAPI implements ExtensionAPI, IExtensionRuntime {
 		return this.runtime.getActiveTools();
 	}
 
-	getAllTools(): ToolInfo[] {
+	getAllTools(): string[] {
 		return this.runtime.getAllTools();
 	}
 
@@ -325,11 +323,7 @@ class ConcreteExtensionAPI implements ExtensionAPI, IExtensionRuntime {
 	}
 
 	registerProvider(name: string, config: ProviderConfig): void {
-		this.runtime.registerProvider(name, config, this.extension.path);
-	}
-
-	unregisterProvider(name: string): void {
-		this.runtime.unregisterProvider(name, this.extension.path);
+		this.runtime.pendingProviderRegistrations.push({ name, config, sourceId: this.extension.path });
 	}
 }
 
@@ -354,37 +348,12 @@ function createExtension(extensionPath: string, resolvedPath: string): Extension
 	};
 }
 
-/**
- * Runs an extension factory with provider registration rollback on failure.
- * Restores the complete registration queue when the factory throws because an
- * extension may unregister entries queued by an earlier extension.
- */
-async function runExtensionFactory(
-	factory: ExtensionFactory,
-	api: ExtensionAPI,
+async function loadExtension(
+	extensionPath: string,
+	cwd: string,
+	eventBus: EventBus,
 	runtime: IExtensionRuntime,
-): Promise<void> {
-	const providerRegistrationCheckpoint = [...runtime.pendingProviderRegistrations];
-
-	try {
-		await factory(api);
-	} catch (error) {
-		runtime.pendingProviderRegistrations.splice(
-			0,
-			runtime.pendingProviderRegistrations.length,
-			...providerRegistrationCheckpoint,
-		);
-		throw error;
-	}
-}
-
-interface ImportedExtensionModule {
-	factory: ExtensionFactory | null;
-	resolvedPath: string;
-	error: string | null;
-}
-
-async function importExtensionModule(extensionPath: string, cwd: string): Promise<ImportedExtensionModule> {
+): Promise<{ extension: Extension | null; error: string | null }> {
 	const resolvedPath = resolvePath(extensionPath, cwd);
 	try {
 		const module = (await withHostGuard(() => loadLegacyPiModule(resolvedPath))) as LoadedExtensionModule;
@@ -392,34 +361,16 @@ async function importExtensionModule(extensionPath: string, cwd: string): Promis
 
 		if (typeof factory !== "function") {
 			return {
-				factory: null,
-				resolvedPath,
+				extension: null,
 				error: `Extension does not export a valid factory function: ${extensionPath}`,
 			};
 		}
 
-		return { factory, resolvedPath, error: null };
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		return { factory: null, resolvedPath, error: `Failed to load extension: ${message}` };
-	}
-}
-
-async function bindExtension(
-	extensionPath: string,
-	imported: ImportedExtensionModule,
-	cwd: string,
-	eventBus: EventBus,
-	runtime: IExtensionRuntime,
-): Promise<{ extension: Extension | null; error: string | null }> {
-	const factory = imported.factory;
-	if (imported.error !== null || factory === null) {
-		return { extension: null, error: imported.error };
-	}
-	try {
-		const extension = createExtension(extensionPath, imported.resolvedPath);
+		const extension = createExtension(extensionPath, resolvedPath);
 		const api = new ConcreteExtensionAPI(PiCodingAgent, extension, runtime, cwd, eventBus);
-		await withHostGuard(() => runExtensionFactory(factory, api, runtime));
+		await withHostGuard(async () => {
+			await factory(api);
+		});
 
 		return { extension, error: null };
 	} catch (err) {
@@ -440,17 +391,12 @@ export async function loadExtensionFromFactory(
 ): Promise<Extension> {
 	const extension = createExtension(name, name);
 	const api = new ConcreteExtensionAPI(PiCodingAgent, extension, runtime, cwd, eventBus);
-	await runExtensionFactory(factory, api, runtime);
+	await factory(api);
 	return extension;
 }
 
 /**
  * Load extensions from paths.
- *
- * Module import (the dominant cold-start cost — file I/O plus module
- * evaluation) runs concurrently across extensions; factory binding then runs
- * sequentially in the original path order, so registration semantics
- * (last-wins collisions, shared runtime flag defaults) stay deterministic.
  */
 export async function loadExtensions(paths: string[], cwd: string, eventBus?: EventBus): Promise<LoadExtensionsResult> {
 	const extensions: Extension[] = [];
@@ -458,11 +404,8 @@ export async function loadExtensions(paths: string[], cwd: string, eventBus?: Ev
 	const resolvedEventBus = eventBus ?? new EventBus();
 	const runtime = new ExtensionRuntime();
 
-	const imported = await Promise.all(paths.map(extPath => importExtensionModule(extPath, cwd)));
-
-	for (let i = 0; i < paths.length; i++) {
-		const extPath = paths[i]!;
-		const { extension, error } = await bindExtension(extPath, imported[i]!, cwd, resolvedEventBus, runtime);
+	for (const extPath of paths) {
+		const { extension, error } = await loadExtension(extPath, cwd, resolvedEventBus, runtime);
 
 		if (error) {
 			errors.push({ path: extPath, error });

@@ -7,15 +7,16 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { type } from "@oh-my-pi/omptype";
-import * as zod from "@oh-my-pi/omptype/zod";
+import * as zodModule from "@oh-my-pi/omptype/zod";
 import { getAgentDir, getProjectDir, isEnoent, logger } from "@oh-my-pi/pi-utils";
 import { getConfigDirs } from "../../config";
 
 import { execCommand } from "../../exec/exec";
 // Runtime self-reference: dereference this namespace only inside loader functions to keep the index.ts cycle safe.
 import * as PiCodingAgent from "../../index";
-import * as typebox from "../legacy-typebox";
+import * as typebox from "../typebox";
 import { GreenCommand } from "./bundled/ci-green";
+import { InstallBinaryCommand } from "./bundled/install-binary";
 import { ReviewCommand } from "./bundled/review";
 import type {
 	CustomCommand,
@@ -167,6 +168,12 @@ function loadBundledCommands(sharedApi: CustomCommandAPI): LoadedCustomCommand[]
 		command: new ReviewCommand(sharedApi),
 		source: "bundled",
 	});
+	bundled.push({
+		path: "bundled:install-binary",
+		resolvedPath: "bundled:install-binary",
+		command: new InstallBinaryCommand(sharedApi),
+		source: "bundled",
+	});
 
 	return bundled;
 }
@@ -190,8 +197,8 @@ export async function loadCustomCommands(options: LoadCustomCommandsOptions = {}
 		exec: (command: string, args: string[], execOptions) =>
 			execCommand(command, args, execOptions?.cwd ?? cwd, execOptions),
 		typebox,
-		arktype,
-		zod,
+		arktype: type,
+		zod: zodModule,
 		pi: PiCodingAgent,
 	};
 
