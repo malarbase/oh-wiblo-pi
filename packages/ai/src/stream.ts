@@ -36,7 +36,7 @@ import type { GoogleVertexOptions } from "./providers/google-vertex";
 import { isKimiModel, streamKimi } from "./providers/kimi";
 import type { OllamaChatOptions } from "./providers/ollama";
 import type { OpenAICompletionsOptions } from "./providers/openai-completions";
-import { streamPiNative } from "./providers/pi-native-client";
+// pi-native-client removed — not used by fork
 // Heavy provider stream functions are imported lazily via register-builtins,
 // which wraps each provider module in a dynamic import. This keeps the
 // AWS SDK, google-auth-library, @google/genai, and
@@ -1583,22 +1583,7 @@ function streamSimpleRequest<TApi extends Api>(
 	// the gateway bearer instead. Comes BEFORE the custom-API check so
 	// extension-registered APIs can't accidentally override a configured
 	// pi-native transport.
-	if (model.transport === "pi-native") {
-		return withThinkingLoopGuard(model, requestOptions, opts =>
-			withProviderInFlightLimit(model, opts, () => {
-				const nativeOptions =
-					model.api === "bedrock-converse-stream"
-						? {
-								...(opts ?? {}),
-								guardrailIdentifier: model.guardrailIdentifier ?? opts?.guardrailIdentifier,
-								guardrailVersion: model.guardrailVersion ?? opts?.guardrailVersion,
-								guardrailTrace: model.guardrailTrace ?? opts?.guardrailTrace,
-							}
-						: opts;
-				return streamPiNative(model, context, nativeOptions);
-			}),
-		);
-	}
+	// pi-native transport removed — not used by fork
 
 	// Check custom API registry (extension-provided APIs)
 	const customApiProvider = getCustomApi(model.api);
