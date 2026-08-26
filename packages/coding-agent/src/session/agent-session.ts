@@ -155,6 +155,7 @@ import type { IrcMessage } from "../irc/bus";
 import type { DaemonCompletionNotification } from "../launch/protocol";
 import { shutdownMnemopiEmbedClient } from "../mnemopi/embed-client";
 import { getMnemopiSessionState, type MnemopiSessionState, setMnemopiSessionState } from "../mnemopi/state";
+import type { AskModeState } from "../modes/ask-mode/state";
 import { containsOrchestrate, renderOrchestrateNotice } from "../modes/orchestrate";
 import { theme } from "../modes/theme/theme";
 import { parseTurnBudget } from "../modes/turn-budget";
@@ -163,9 +164,12 @@ import { computeNonMessageTokens } from "../modes/utils/context-usage";
 import { containsWorkflow, renderWorkflowNotice } from "../modes/workflow";
 import { type PlanApprovalDetails, resolveApprovedPlan } from "../plan-mode/approved-plan";
 import { listPlanFiles, readPlanFile } from "../plan-mode/plan-files";
+import { createPlanApprovalResolveHandler } from "../plan-mode/resolve-handler";
 import type { PlanModeState } from "../plan-mode/state";
+import { getFinalPlanPath } from "../plan-mode/storage";
 import goalModeContextPrompt from "../prompts/goals/goal-mode-context.md" with { type: "text" };
 import goalTodoContextPrompt from "../prompts/goals/goal-todo-context.md" with { type: "text" };
+import askModeContextPrompt from "../prompts/system/ask-mode-context.md" with { type: "text" };
 import autoContinuePrompt from "../prompts/system/auto-continue.md" with { type: "text" };
 import checkpointActiveNoticeTemplate from "../prompts/system/checkpoint-active-notice.md" with { type: "text" };
 import interruptedThinkingTemplate from "../prompts/system/interrupted-thinking.md" with { type: "text" };
@@ -517,6 +521,8 @@ export class AgentSession {
 	/** Session-scoped `/vision` override; undefined = follow persisted `inspect_image.mode`. */
 	#inspectImageModeOverride: InspectImageMode | undefined;
 	#vibeModeState: VibeModeState | undefined;
+	#askModeState: AskModeState | undefined;
+	#debugModeState: { enabled: boolean } | undefined;
 	#goalModeState: GoalModeState | undefined;
 	#goalRuntime: GoalRuntime;
 	readonly #advisors: SessionAdvisors;
@@ -965,15 +971,24 @@ export class AgentSession {
 		if (!state?.enabled) {
 			throw new ToolError("Plan mode is not active.");
 		}
-		const { planFilePath, title: resolvedTitle } = await resolveApprovedPlan({
+		const {
+			planFilePath,
+			title: resolvedTitle,
+			fileName,
+		} = await resolveApprovedPlan({
 			suppliedTitle: title,
 			statePlanFilePath: state.planFilePath,
 			readPlan: url => this.#readPlanFile(url),
 			listPlanFiles: () => this.#listPlanFiles(),
 		});
+		const storage = (this.settings.get("plan.storage") ?? "session") as "session" | "project";
+		const finalPlanFilePath =
+			storage === "project"
+				? getFinalPlanPath(storage, { cwd: this.sessionManager.getCwd() }, fileName)
+				: `local://${fileName}`;
 		return {
 			content: [{ type: "text", text: "Plan ready for review." }],
-			details: { planFilePath, title: resolvedTitle, planExists: true },
+			details: { planFilePath, finalPlanFilePath, title: resolvedTitle, planExists: true },
 		};
 	}
 
@@ -1759,6 +1774,19 @@ export class AgentSession {
 	/** Peek the in-flight directive's invocation handler for the preview-resolution dispatch. */
 	peekQueueInvoker(): ((input: unknown) => Promise<unknown> | unknown) | undefined {
 		return this.#toolChoiceQueue.peekInFlightInvoker();
+	}
+
+	/** Standing (long-lived) handler the `resolve` tool falls back to when no
+	 *  queue invoker is in flight. Used by plan mode so the agent can submit
+	 *  approval via `resolve` without forcing the tool choice every turn. */
+	#standingResolveHandler: ((input: unknown) => Promise<unknown> | unknown) | undefined;
+
+	peekStandingResolveHandler(): ((input: unknown) => Promise<unknown> | unknown) | undefined {
+		return this.#standingResolveHandler;
+	}
+
+	setStandingResolveHandler(handler: ((input: unknown) => Promise<unknown> | unknown) | null): void {
+		this.#standingResolveHandler = handler ?? undefined;
 	}
 
 	/** Plan-proposal handler consulted by `xd://propose` while plan mode is active. */
@@ -5070,13 +5098,32 @@ export class AgentSession {
 		if (state?.enabled) {
 			this.#planReferenceSent = false;
 			this.#planReferencePath = state.planFilePath;
+			const sessionLike = {
+				getPlanModeState: () => this.#planModeState,
+				getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
+				getSessionId: () => this.sessionManager.getSessionId(),
+				getCwd: () => this.sessionManager.getCwd(),
+				getSettings: () => this.settings,
+			};
+			this.setStandingResolveHandler(createPlanApprovalResolveHandler(sessionLike));
+			this.setPlanProposalHandler(title => this.preparePlanForReview(title));
 		} else {
 			this.#planModeReminderCount = 0;
 			this.#planModeReminderAwaitingProgress = false;
 			// Drop any unconsumed forced decision so a post-plan execution turn
 			// does not inherit a stale `required` tool choice.
 			this.#toolChoiceQueue.removeByLabel("plan-mode-decision");
+			this.setStandingResolveHandler(null);
+			this.setPlanProposalHandler(null);
 		}
+	}
+
+	getAskModeState(): AskModeState | undefined {
+		return this.#askModeState;
+	}
+
+	setAskModeState(state: AskModeState | undefined): void {
+		this.#askModeState = state;
 	}
 
 	getGoalModeState(): GoalModeState | undefined {
@@ -5204,7 +5251,8 @@ export class AgentSession {
 	}
 
 	/**
-	 * Inject the plan mode context message into the conversation history.
+	 * @deprecated Mode context is now injected via the system prompt.
+	 * Kept for extension compatibility. Core mode transitions no longer call this.
 	 */
 	async sendPlanModeContext(options?: { deliverAs?: "steer" | "followUp" | "nextTurn" }): Promise<void> {
 		const message = await this.#buildPlanModeMessage();
@@ -5220,6 +5268,10 @@ export class AgentSession {
 		);
 	}
 
+	/**
+	 * @deprecated Mode context is now injected via the system prompt.
+	 * Kept for extension compatibility. Core mode transitions no longer call this.
+	 */
 	async sendGoalModeContext(options?: { deliverAs?: "steer" | "followUp" | "nextTurn" }): Promise<void> {
 		const message = this.#buildGoalModeMessage();
 		if (!message) return;
@@ -6670,12 +6722,19 @@ export class AgentSession {
 
 	/** Number of pending displayable messages (includes steering, follow-up, and next-turn messages).
 	 *  Reflects actual queued work (advisor cards included) — feeds hasPendingMessages()/RPC and the
-	 *  empty-submit abort gate. The user-restorable subset is surfaced by getQueuedMessages()/clearQueue(). */
+	 *  empty-submit abort gate. The user-restorable subset is surfaced by getQueuedMessages()/clearQueue().
+	 *
+	 *  NOTE: `#pendingNextTurnMessages` is filtered by `isDisplayableQueuedMessage` to exclude
+	 *  non-displayable system messages (e.g. `todo-error-reminder` queued via `deliverAs:"nextTurn"`).
+	 *  Without this filter, those invisible reminders inflated the count and caused extensions
+	 *  (like plan-report) to bail early in `agent_end` handlers via `hasPendingMessages()`.
+	 *  If upstream changes this getter, keep the filter — it prevents system bookkeeping from
+	 *  masquerading as real queued work. */
 	get queuedMessageCount(): number {
 		return (
 			this.agent.peekSteeringQueue().filter(isDisplayableQueuedMessage).length +
 			this.agent.peekFollowUpQueue().filter(isDisplayableQueuedMessage).length +
-			this.#pendingNextTurnMessages.length
+			this.#pendingNextTurnMessages.filter(isDisplayableQueuedMessage).length
 		);
 	}
 
@@ -7296,29 +7355,37 @@ export class AgentSession {
 
 	/**
 	 * Set steering mode.
-	 * Saves to settings.
+	 * Saves to settings only when the effective value differs, preventing
+	 * onChange callbacks from re-populating the global layer immediately
+	 * after a clear operation.
 	 */
 	setSteeringMode(mode: "all" | "one-at-a-time"): void {
 		this.agent.setSteeringMode(mode);
-		this.settings.set("steeringMode", mode);
+		if (this.settings.get("steeringMode") !== mode) {
+			this.settings.set("steeringMode", mode);
+		}
 	}
 
 	/**
 	 * Set follow-up mode.
-	 * Saves to settings.
+	 * Saves to settings only when the effective value differs.
 	 */
 	setFollowUpMode(mode: "all" | "one-at-a-time"): void {
 		this.agent.setFollowUpMode(mode);
-		this.settings.set("followUpMode", mode);
+		if (this.settings.get("followUpMode") !== mode) {
+			this.settings.set("followUpMode", mode);
+		}
 	}
 
 	/**
 	 * Set interrupt mode.
-	 * Saves to settings.
+	 * Saves to settings only when the effective value differs.
 	 */
 	setInterruptMode(mode: "immediate" | "wait"): void {
 		this.agent.setInterruptMode(mode);
-		this.settings.set("interruptMode", mode);
+		if (this.settings.get("interruptMode") !== mode) {
+			this.settings.set("interruptMode", mode);
+		}
 	}
 
 	/**
@@ -9827,5 +9894,33 @@ export class AgentSession {
 	 */
 	get extensionRunner(): ExtensionRunner | undefined {
 		return this.#extensionRunner;
+	}
+
+	enableAskMode(): void {
+		this.#askModeState = { enabled: true };
+	}
+
+	enableDebugMode(): void {
+		this.#debugModeState = { enabled: true };
+	}
+
+	async disableDebugMode(): Promise<void> {
+		this.#debugModeState = undefined;
+	}
+
+	/**
+	 * @deprecated Mode context is now injected via the system prompt.
+	 * Kept for extension compatibility. Core mode transitions no longer call this.
+	 */
+	async sendAskModeContext(): Promise<void> {
+		await this.sendCustomMessage({
+			customType: "ask-mode-context",
+			content: askModeContextPrompt,
+			display: false,
+		});
+	}
+
+	async disableAskMode(): Promise<void> {
+		this.#askModeState = undefined;
 	}
 }
