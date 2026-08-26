@@ -3,8 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>A coding agent with the IDE wired in.</strong>
-  <strong><a href="https://omp.sh">omp.sh</a></strong>
+  <strong>oh-wiblo-pi — a personal AI coding agent for the terminal</strong>
 </p>
 
 <p align="center">
@@ -19,10 +18,27 @@
 </p>
 
 <p align="center">
-  Fork of <a href="https://github.com/badlogic/pi-mono">Pi</a> by <a href="https://github.com/mariozechner">@mariozechner</a> 
+  Personal fork of <a href="https://github.com/can1357/oh-my-pi">oh-my-pi</a> by <a href="https://github.com/can1357">@can1357</a>,
+  which is itself a fork of <a href="https://github.com/badlogic/pi-mono">badlogic/pi-mono</a> by <a href="https://github.com/mariozechner">@mariozechner</a>
 </p>
 
-The most capable agent surface that ships. Continuously tuned by real-world use — complete out of the box, open all the way down.
+---
+
+## oh-wiblo-pi
+
+**oh-wiblo-pi** is a personal, opinionated fork of [oh-my-pi](https://github.com/can1357/oh-my-pi) — a powerful AI coding agent for the terminal. All credit for the underlying agent, tooling, and architecture goes to [can1357](https://github.com/can1357) and the original [pi-mono](https://github.com/badlogic/pi-mono) project.
+
+This fork layers on personal customizations and workflow improvements suited to my day-to-day development, including:
+
+- **Personal skill library**: curated set of agent skills (brag doc tracking, Linear project updates, Google Workspace, OpenSpec workflows) available out of the box
+- **Opinionated defaults**: pre-configured model roles, compaction settings, and display preferences tuned for daily coding sessions
+- **Extended config discovery**: additional config paths and skill directories specific to my toolchain (`~/.agents/`, `~/.claude/`, `~/.codex/`)
+
+Everything upstream from oh-my-pi is preserved. This is purely additive — a personal overlay on top of an excellent foundation.
+
+---
+
+## Table of Contents
 
 **60+** providers · **31** built-in tools · **14** lsp ops · **28** dap ops · **~80k** lines of Rust core.
 
@@ -579,9 +595,9 @@ Ask omp to write the piece you're missing, then `/reload-plugins`. Keep it local
 
 ## Philosophy
 
-omp is a fork of [pi-mono](https://github.com/badlogic/pi-mono) by [Mario Zechner](https://github.com/mariozechner), extended with a batteries-included coding workflow.
+oh-wiblo-pi is a personal fork of [oh-my-pi](https://github.com/can1357/oh-my-pi) by [Can Bölük](https://github.com/can1357), which is itself a fork of [pi-mono](https://github.com/badlogic/pi-mono) by [Mario Zechner](https://github.com/mariozechner). oh-my-pi extended pi-mono with a batteries-included coding workflow; oh-wiblo-pi layers personal configuration, curated skills, and workflow integrations on top.
 
-Key ideas:
+Key ideas (inherited from oh-my-pi):
 
 - Keep interactive terminal-first UX for real coding work
 - Include practical built-ins (tools, sessions, branching, subagents, extensibility)
