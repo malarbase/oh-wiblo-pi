@@ -91,8 +91,23 @@ import {
 	type McpConnectionFailure,
 	type McpConnectionStatusEvent,
 } from "../mcp/startup-events";
-import { humanizePlanTitle, type PlanApprovalDetails, resolvePlanTitle } from "../plan-mode/approved-plan";
+import {
+	humanizePlanTitle,
+	type PlanApprovalDetails,
+	renameApprovedPlanFile,
+	resolvePlanTitle,
+} from "../plan-mode/approved-plan";
 import { resolvePlanModelTransition } from "../plan-mode/model-transition";
+import type { PlanModeLoadedFrom } from "../plan-mode/state";
+import {
+	getFinalPlanPath,
+	listSavedPlans,
+	type PlanStorage,
+	type PlanStorageContext,
+	resolveSavedPlan,
+	type SavedPlan,
+	writePlanToDisk,
+} from "../plan-mode/storage";
 import guidedGoalInterviewPrompt from "../prompts/goals/guided-goal-interview.md" with { type: "text" };
 import planFilenamePrompt from "../prompts/system/plan-filename.md" with { type: "text" };
 import planModeApprovedPrompt from "../prompts/system/plan-mode-approved.md" with { type: "text" };
@@ -605,11 +620,17 @@ export class InteractiveMode implements InteractiveModeContext {
 	toolOutputExpanded = false;
 	hideToolActivity = false;
 	todoExpanded = false;
+	askModeEnabled = false;
+	debugModeEnabled = false;
 	planModeEnabled = false;
 	planModePaused = false;
 	goalModeEnabled = false;
 	goalModePaused = false;
 	vibeModeEnabled = false;
+	#activeMode: "none" | "ask" | "plan" | "debug" | "goal" = "none";
+	get activeMode(): "none" | "ask" | "plan" | "debug" | "goal" {
+		return this.#activeMode;
+	}
 	planModePlanFilePath: string | undefined = undefined;
 	loopModeEnabled = false;
 	loopModePaused = false;
@@ -3030,7 +3051,8 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 		if (sessionContext.mode === "plan") {
 			const planFilePath = sessionContext.modeData?.planFilePath as string | undefined;
-			await this.#enterPlanMode({ planFilePath, preserveRestoredModel: true });
+			const loadedFrom = sessionContext.modeData?.loadedFrom as PlanModeLoadedFrom | undefined;
+			await this.#enterPlanMode({ planFilePath, loadedFrom, preserveRestoredModel: true });
 		} else if (sessionContext.mode === "plan_paused") {
 			this.planModePaused = true;
 			this.#planModeHasEntered = true;
@@ -3042,6 +3064,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		planFilePath?: string;
 		workflow?: "parallel" | "iterative";
 		preserveRestoredModel?: boolean;
+		loadedFrom?: PlanModeLoadedFrom;
 	}): Promise<void> {
 		if (this.planModeEnabled) {
 			return;
@@ -3091,6 +3114,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			planFilePath,
 			workflow: options?.workflow ?? "parallel",
 			reentry: this.#planModeHasEntered,
+			loadedFrom: options?.loadedFrom,
 		});
 		try {
 			await this.session.setActiveToolsByName(uniquePlanTools);
@@ -3100,9 +3124,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			throw error;
 		}
 		this.session.setPlanProposalHandler?.(title => this.session.preparePlanForReview(title));
-		if (this.session.isStreaming) {
-			await this.session.sendPlanModeContext({ deliverAs: "steer" });
-		}
+		// Mode context is now in the system prompt, no need for steer injection
 		this.#planModeHasEntered = true;
 		// Session loading already restored the model recorded in the journal.
 		// Reapplying today's plan role here would replace a CLI/session-specific
@@ -3111,7 +3133,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			await this.#applyPlanModeModel();
 		}
 		this.#updatePlanModeStatus();
-		this.sessionManager.appendModeChange("plan", { planFilePath });
+		this.sessionManager.appendModeChange("plan", { planFilePath, loadedFrom: options?.loadedFrom });
 		this.showStatus(`Plan mode enabled. Plan file: ${planFilePath}`);
 	}
 
@@ -3273,9 +3295,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.goalModeEnabled = true;
 		this.#resetGoalContinuationSuppression();
 		this.#updateGoalModeStatus();
-		if (this.session.isStreaming) {
-			await this.session.sendGoalModeContext({ deliverAs: "steer" });
-		}
+		// Mode context is now in the system prompt, no need for steer injection
 		if (!options.silent) {
 			this.showStatus(options.resume ? "Goal mode resumed." : "Goal mode enabled.");
 		}
@@ -3632,6 +3652,7 @@ export class InteractiveMode implements InteractiveModeContext {
 		planContent: string,
 		options: {
 			planFilePath: string;
+			finalPlanFilePath?: string;
 			title: string;
 			preserveContext?: boolean;
 			compactBeforeExecute?: boolean;
@@ -3658,16 +3679,17 @@ export class InteractiveMode implements InteractiveModeContext {
 			});
 
 			if (!options.preserveContext) {
+				const targetPlanPath = options.finalPlanFilePath ?? options.planFilePath;
 				const oldLocalRoot = this.#resolveLocalRoot();
 				await this.handleClearCommand();
 				const newLocalRoot = this.#resolveLocalRoot();
-				await copyLocalArtifacts(oldLocalRoot, newLocalRoot);
-				const newLocalPath = resolveLocalUrlToPath(options.planFilePath, {
+				await this.#copyLocalArtifactsForFreshSession(oldLocalRoot, newLocalRoot);
+				// OWP-FORK: use writePlanToDisk to handle both local:// and absolute paths
+				// (project storage at .omp/plans/). Upstream only handles local://.
+				await writePlanToDisk(planContent, targetPlanPath, {
 					getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
 					getSessionId: () => this.sessionManager.getSessionId(),
 				});
-				await fs.mkdir(path.dirname(newLocalPath), { recursive: true });
-				await fs.writeFile(newLocalPath, planContent);
 			} else if (options.compactBeforeExecute) {
 				// Distill the plan-mode transcript before the execution turn is queued so
 				// the plan-approved synthetic prompt lands as a fresh cache anchor.
@@ -3862,7 +3884,6 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 		return false;
 	}
-
 	/**
 	 * `/vibe` toggle. Entering installs the ephemeral vibe tools, strips the
 	 * active toolset down to `read`, optional parent-owned `todo`, plus those
@@ -3909,6 +3930,273 @@ export class InteractiveMode implements InteractiveModeContext {
 			return true;
 		}
 		return false;
+	}
+
+	async #resolveSavedPlanFromArgs(name: string | undefined, pickerTitle: string): Promise<SavedPlan | null> {
+		const ctx: PlanStorageContext = {
+			cwd: this.sessionManager.getCwd(),
+			getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
+			getSessionId: () => this.sessionManager.getSessionId(),
+		};
+		if (!name) {
+			const plans = await listSavedPlans(ctx);
+			if (plans.length === 0) {
+				this.showWarning("No saved plans found.");
+				return null;
+			}
+			const items = plans.map(p => `${p.name} (${p.location})`);
+			const choice = await this.showHookSelector(pickerTitle, items);
+			if (!choice) return null;
+			return plans[items.indexOf(choice)] ?? null;
+		}
+		const resolved = await resolveSavedPlan(name, ctx);
+		if (!resolved) {
+			this.showError(`Plan not found: ${name}`);
+		}
+		return resolved;
+	}
+
+	async handlePlanRunCommand(filePath?: string): Promise<void> {
+		if (this.goalModeEnabled || this.goalModePaused) {
+			this.showWarning("Exit goal mode first.");
+			return;
+		}
+		if (this.planModeEnabled) {
+			this.showWarning("Exit plan mode before running a plan.");
+			return;
+		}
+		if (!this.session.settings.get("plan.enabled")) {
+			this.showWarning("Plan mode is disabled. Enable it in settings (plan.enabled).");
+			return;
+		}
+
+		let preserveContext = false;
+		let nameToResolve = filePath?.trim() || undefined;
+		if (nameToResolve) {
+			const keepIdx = nameToResolve.indexOf("--keep");
+			if (keepIdx >= 0) {
+				preserveContext = true;
+				nameToResolve = nameToResolve.slice(0, keepIdx).trim() || undefined;
+			}
+		}
+
+		const target = await this.#resolveSavedPlanFromArgs(nameToResolve, "Select a plan to run");
+		if (!target) return;
+
+		try {
+			const planContent = await Bun.file(target.absolutePath).text();
+			const planFileName = path.basename(target.absolutePath);
+			const stem = planFileName.endsWith(".md") ? planFileName.slice(0, -3) : planFileName;
+
+			await this.#enterPlanMode({ planFilePath: target.url });
+			const planFilePath = this.planModePlanFilePath || target.url;
+
+			await this.#approvePlan(planContent, {
+				planFilePath,
+				finalPlanFilePath: target.url,
+				title: stem,
+				preserveContext,
+			});
+		} catch (err) {
+			this.showError(`Failed to run plan: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+
+	async handlePlanListCommand(): Promise<void> {
+		const plans = await listSavedPlans({
+			cwd: this.sessionManager.getCwd(),
+			getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
+			getSessionId: () => this.sessionManager.getSessionId(),
+		});
+		if (plans.length === 0) {
+			this.showStatus("No approved plans found.");
+			return;
+		}
+		const lines = plans.map((p, i) => `${i + 1}. ${p.name} (${p.location}) — ${p.absolutePath}`);
+		this.showStatus(lines.join("\n"));
+	}
+
+	async handlePlanLoadCommand(args: string): Promise<void> {
+		if (this.planModeEnabled) {
+			this.showWarning("Already in plan mode. Exit first (/plan) before loading a saved plan.");
+			return;
+		}
+		if (this.goalModeEnabled || this.goalModePaused) {
+			this.showWarning("Exit goal mode first.");
+			return;
+		}
+		if (!this.session.settings.get("plan.enabled")) {
+			this.showWarning("Plan mode is disabled. Enable it in settings (plan.enabled).");
+			return;
+		}
+
+		const trimmed = args.trim();
+		const spaceIdx = trimmed.indexOf(" ");
+		const name = spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx);
+		const iterationPrompt = spaceIdx === -1 ? undefined : trimmed.slice(spaceIdx + 1).trim() || undefined;
+
+		const target = await this.#resolveSavedPlanFromArgs(name || undefined, "Load saved plan");
+		if (!target) return;
+
+		try {
+			const planContent = await Bun.file(target.absolutePath).text();
+			// Derive draft path from the plan's original name so the
+			// plan-report extension generates correctly-named done/report
+			// files (e.g. vcluster-dns-fix.done.md instead of PLAN.done.md).
+			const draftPath = `local://${target.name}.md`;
+			const resolvedDraft = this.#resolvePlanFilePath(draftPath);
+			await Bun.write(resolvedDraft, planContent);
+			this.showStatus(`Loaded plan "${target.name}" into ${draftPath}.`);
+			await this.#enterPlanMode({
+				planFilePath: draftPath,
+				loadedFrom: {
+					name: target.name,
+					absolutePath: target.absolutePath,
+					location: target.location,
+					url: target.url,
+				},
+			});
+			if (iterationPrompt && this.onInputCallback) {
+				this.onInputCallback(this.startPendingSubmission({ text: iterationPrompt }));
+			}
+		} catch (err) {
+			this.showError(`Failed to load plan: ${err instanceof Error ? err.message : String(err)}`);
+		}
+	}
+	async handleSwitchModeTool(details: { targetMode: string; reason?: string }): Promise<void> {
+		const target = details.targetMode;
+		const reason = details.reason?.trim();
+		const message = reason
+			? `The agent requests switching to ${target} mode: ${reason}`
+			: `The agent requests switching to ${target} mode.`;
+		const confirmed = await this.showHookConfirm(`Switch to ${target} mode?`, message);
+		if (!confirmed) {
+			this.showStatus("Mode switch cancelled.");
+			return;
+		}
+		const modeMap: Record<string, "none" | "ask" | "plan" | "debug" | "goal"> = {
+			agent: "none",
+			ask: "ask",
+			plan: "plan",
+			debug: "debug",
+			goal: "goal",
+		};
+		const next = modeMap[target];
+		if (next === undefined) {
+			this.showStatus(`Unknown mode: ${target}`);
+			return;
+		}
+		await this.#setActiveMode(next);
+		this.showStatus(`${target} mode enabled`);
+	}
+	/**
+	 * Atomic mode transition: exits current mode, enters next mode,
+	 * updates status, records transition, and rebuilds system prompt.
+	 * Single point of truth for all mode transitions.
+	 */
+	async #setActiveMode(
+		next: "none" | "ask" | "plan" | "debug" | "goal",
+		options?: { silent?: boolean },
+	): Promise<void> {
+		// 1. Exit current mode
+		switch (this.#activeMode) {
+			case "ask":
+				await this.session.disableAskMode();
+				this.askModeEnabled = false;
+				this.statusLine.setAskModeStatus(undefined);
+				break;
+			case "plan":
+				await this.#exitPlanMode({ silent: true, paused: false });
+				this.statusLine.setPlanModeStatus(undefined);
+				break;
+			case "debug":
+				await this.session.disableDebugMode();
+				this.debugModeEnabled = false;
+				this.statusLine.setDebugModeStatus(undefined);
+				break;
+			case "goal":
+				await this.#exitGoalMode({ silent: true });
+				this.goalModeEnabled = false;
+				this.goalModePaused = false;
+				break;
+		}
+		// 2. Set authoritative field
+		this.#activeMode = next;
+		// 3. Enter next mode
+		switch (next) {
+			case "ask":
+				this.session.enableAskMode();
+				this.askModeEnabled = true;
+				this.statusLine.setAskModeStatus({ enabled: true });
+				break;
+			case "plan":
+				await this.#enterPlanMode();
+				this.planModeEnabled = true;
+				break;
+			case "debug":
+				await this.session.enableDebugMode();
+				this.debugModeEnabled = true;
+				this.statusLine.setDebugModeStatus({ enabled: true });
+				break;
+			case "goal":
+				await this.#enterGoalMode({ silent: true });
+				this.goalModeEnabled = true;
+				break;
+		}
+		// 4. Update status bar
+		this.statusLine.invalidate();
+		this.updateEditorBorderColor();
+		this.ui.requestRender();
+		// 5. Record transition
+		if (!options?.silent) {
+			this.sessionManager.appendModeChange(next);
+		}
+		// 6. Rebuild system prompt (includes mode context)
+		await this.session.refreshBaseSystemPrompt();
+	}
+	async handleAskModeCommand(): Promise<void> {
+		if (this.askModeEnabled) {
+			this.showStatus("Ask mode is already active.");
+			return;
+		}
+		await this.#setActiveMode("ask");
+		this.showStatus("Ask mode enabled");
+		await this.session.sendAskModeContext();
+	}
+
+	async handleDebugModeCommand(): Promise<void> {
+		if (this.debugModeEnabled) {
+			this.showStatus("Debug mode is already active.");
+			return;
+		}
+		await this.#setActiveMode("debug");
+		this.showStatus("Debug mode enabled");
+	}
+
+	async cycleAgentMode(): Promise<void> {
+		// Cycle: goal→agent, plan→agent, debug→plan, ask→debug, none→ask
+		switch (this.#activeMode) {
+			case "goal":
+				await this.#setActiveMode("none");
+				this.showStatus("Agent mode enabled");
+				break;
+			case "plan":
+				await this.#setActiveMode("none");
+				this.showStatus("Agent mode enabled");
+				break;
+			case "debug":
+				await this.#setActiveMode("plan");
+				break;
+			case "ask":
+				await this.#setActiveMode("debug");
+				this.showStatus("Debug mode enabled");
+				break;
+			default:
+				await this.#setActiveMode("ask");
+				this.showStatus("Ask mode enabled");
+				await this.session.sendAskModeContext();
+				break;
+		}
 	}
 
 	async #enterVibeMode(options?: { persistModeChange?: boolean; previousTools?: string[] }): Promise<void> {
@@ -4272,19 +4560,9 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.goalModePaused = false;
 		this.#resetGoalContinuationSuppression();
 		this.#updateGoalModeStatus();
-		if (this.session.isStreaming) {
-			await this.session.sendGoalModeContext({ deliverAs: "steer" });
-			const images = input?.images?.length ? input.images : undefined;
-			await this.withLocalSubmission(
-				objective,
-				() => this.session.prompt(objective, { streamingBehavior: "steer", images }),
-				{ imageCount: images?.length ?? 0 },
-			);
-			return true;
-		}
+		// Mode context is now in the system prompt, no need for steer injection
 		if (this.onInputCallback) {
-			this.onInputCallback(this.startPendingSubmission({ text: objective, ...input }, { preserveDraft: true }));
-			return true;
+			this.onInputCallback(this.startPendingSubmission({ text: objective }));
 		}
 		return false;
 	}
@@ -4328,8 +4606,13 @@ export class InteractiveMode implements InteractiveModeContext {
 			this.showWarning(noPlan);
 			return;
 		}
-		const { title } = resolvePlanTitle({ planContent, planFilePath });
-		await this.handlePlanApproval({ planFilePath, title, planExists: true });
+		const { title, fileName } = resolvePlanTitle({ planContent, planFilePath });
+		// OWP-FORK: compute finalPlanFilePath for project storage so approved plans
+		// land in .omp/plans/ when plan.storage = "project".
+		const storage = (this.session.settings.get("plan.storage") ?? "session") as PlanStorage;
+		const finalPlanFilePath =
+			storage === "project" ? getFinalPlanPath(storage, { cwd: this.sessionManager.getCwd() }, fileName) : undefined;
+		await this.handlePlanApproval({ planFilePath, finalPlanFilePath, title, planExists: true });
 	}
 
 	async handlePlanApproval(details: PlanApprovalDetails): Promise<void> {
@@ -4440,15 +4723,27 @@ export class InteractiveMode implements InteractiveModeContext {
 			closePlanReview();
 			try {
 				const latestPlanContent = editedContent ?? (await this.#readPlanFile(planFilePath));
-				if (latestPlanContent === null) {
+				if (editedContent !== undefined) {
+					await Bun.write(this.#resolvePlanFilePath(planFilePath), editedContent);
+				}
+				if (!latestPlanContent) {
 					this.showError(`Plan file not found at ${planFilePath}`);
 					return;
 				}
-				await this.#savePlanAndQuit(latestPlanContent, details.title, annotationStateKey);
-			} catch (error) {
-				this.showError(`Failed to save plan: ${error instanceof Error ? error.message : String(error)}`);
-			}
-			return;
+				const targetPlanPath = details.finalPlanFilePath ?? planFilePath;
+				if (targetPlanPath !== planFilePath) {
+					await renameApprovedPlanFile({
+						planFilePath,
+						finalPlanFilePath: targetPlanPath,
+						getArtifactsDir: () => this.sessionManager.getArtifactsDir(),
+						getSessionId: () => this.sessionManager.getSessionId(),
+						overwrite: true,
+					});
+					await this.#exitPlanMode({ silent: true, paused: false });
+					this.showStatus(`Plan saved to ${targetPlanPath}. Exited plan mode.`);
+				} else {
+					await this.#savePlanAndQuit(latestPlanContent, details.title, annotationStateKey);
+				}
 		}
 
 		if (choice === "Approve and execute" || choice === "Approve and compact context" || choice === keepContextLabel) {
@@ -4493,8 +4788,11 @@ export class InteractiveMode implements InteractiveModeContext {
 						: -1;
 				const executionModel =
 					slider && cycle && selectedTierIndex !== restoredIndex ? cycle.models[selectedTierIndex] : undefined;
+				// OWP-FORK: forward finalPlanFilePath so approved plans land in
+				// .omp/plans/ when plan.storage = "project" (upstream only handles local://).
 				const executionDispatched = await this.#approvePlan(latestPlanContent, {
 					planFilePath,
+					finalPlanFilePath: details.finalPlanFilePath,
 					title: details.title,
 					preserveContext: choice !== "Approve and execute",
 					compactBeforeExecute: choice === "Approve and compact context",
