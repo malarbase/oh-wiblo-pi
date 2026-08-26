@@ -1,0 +1,9 @@
+{
+	"name": "plan-report",
+	"version": "0.1.0",
+	"description": "Auto-generates summary report after plan implementation",
+	"type": "module",
+	"pi": {
+		"extensions": ["./plan-report.ts"]
+	}
+}
