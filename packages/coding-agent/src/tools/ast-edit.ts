@@ -10,6 +10,7 @@ import { $envpos, prompt, untilAborted } from "@oh-my-pi/pi-utils";
 import { canonicalSnapshotKey, getFileSnapshotStore } from "../edit/file-snapshot-store";
 import { normalizeToLF } from "../edit/normalize";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
+import { enforceAskModeGuard } from "../modes/ask-mode/ask-mode-guard";
 import type { Theme } from "../modes/theme/theme";
 import astEditDescription from "../prompts/tools/ast-edit.md" with { type: "text" };
 import {
@@ -264,6 +265,8 @@ export class AstEditTool implements AgentTool<typeof astEditSchema, AstEditToolD
 		_onUpdate?: AgentToolUpdateCallback<AstEditToolDetails>,
 		_context?: AgentToolContext,
 	): Promise<AgentToolResult<AstEditToolDetails>> {
+		const askBlock = enforceAskModeGuard(this.session, "ast_edit", params);
+		if (askBlock) return askBlock;
 		return untilAborted(signal, async () => {
 			const ops = params.ops.map((entry, index) => {
 				if (entry.pat.length === 0) {

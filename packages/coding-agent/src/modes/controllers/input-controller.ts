@@ -529,6 +529,10 @@ export class InputController {
 		for (const key of planModeKeys) {
 			this.ctx.editor.setCustomKeyHandler(key, () => void this.ctx.handlePlanModeCommand());
 		}
+		const cycleModeKeys = this.ctx.keybindings.getKeys("app.mode.cycle");
+		for (const key of cycleModeKeys) {
+			this.ctx.editor.setCustomKeyHandler(key, () => void this.ctx.cycleAgentMode());
+		}
 
 		for (const key of this.ctx.keybindings.getKeys("app.session.new")) {
 			this.ctx.editor.setCustomKeyHandler(key, () => this.ctx.handleClearCommand());

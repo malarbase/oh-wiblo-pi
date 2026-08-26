@@ -129,7 +129,7 @@ describe("createTools", () => {
 		const tools = await createTools(session, ["read", "lsp", "write"]);
 		const names = tools.map(t => t.name);
 
-		expect(names).toEqual(["read", "write"]);
+		expect(names).toEqual(["read", "write", "switch_mode"]);
 	});
 
 	it("excludes lsp tool when disabled", async () => {
@@ -145,7 +145,7 @@ describe("createTools", () => {
 		const tools = await createTools(session, ["read", "write"]);
 		const names = tools.map(t => t.name);
 
-		expect(names).toEqual(["read", "write"]);
+		expect(names).toEqual(["read", "write", "switch_mode"]);
 	});
 
 	it("creates xd:// presentation state without remounting explicitly requested built-ins", async () => {
@@ -154,7 +154,7 @@ describe("createTools", () => {
 
 		expect(session.xdev).toBeDefined();
 		expect(session.xdev?.mountedNames.size).toBe(0);
-		expect(tools.map(tool => tool.name)).toEqual(["read", "lsp", "write"]);
+		expect(tools.map(tool => tool.name)).toEqual(["read", "lsp", "write", "switch_mode"]);
 	});
 
 	it("skips xd:// state entirely when the session grants no write tool", async () => {
@@ -165,7 +165,7 @@ describe("createTools", () => {
 		const tools = await createTools(session, ["read", "lsp"]);
 
 		expect(session.xdev).toBeUndefined();
-		expect(tools.map(tool => tool.name)).toEqual(["read", "lsp"]);
+		expect(tools.map(tool => tool.name)).toEqual(["read", "lsp", "switch_mode"]);
 	});
 
 	it("lowercases requested tool subset", async () => {
@@ -173,7 +173,7 @@ describe("createTools", () => {
 		const tools = await createTools(session, ["Read", "Write"]);
 		const names = tools.map(t => t.name);
 
-		expect(names).toEqual(["read", "write"]);
+		expect(names).toEqual(["read", "write", "switch_mode"]);
 	});
 
 	it("includes hidden tools when explicitly requested", async () => {
@@ -181,7 +181,7 @@ describe("createTools", () => {
 		const tools = await createTools(session, ["yield"]);
 		const names = tools.map(t => t.name);
 
-		expect(names).toEqual(["yield"]);
+		expect(names).toEqual(["yield", "switch_mode"]);
 	});
 
 	it("includes yield tool when required", async () => {
@@ -233,7 +233,7 @@ describe("createTools", () => {
 			}),
 			["ask", "read"],
 		);
-		expect(requested.map(t => t.name)).toEqual(["read"]);
+		expect(requested.map(t => t.name)).toEqual(["read", "switch_mode"]);
 	});
 
 	it("includes ask tool when ask.enabled is true and hasUI is true", async () => {
@@ -273,7 +273,7 @@ describe("createTools", () => {
 		expect(names).not.toContain("inspect_image");
 
 		const requestedTools = await createTools(createTestSession({ settings: session.settings }), ["bash", "read"]);
-		expect(requestedTools.map(t => t.name)).toEqual(["read"]);
+		expect(requestedTools.map(t => t.name)).toEqual(["read", "switch_mode"]);
 	});
 
 	it("auto-includes goal when goal mode is active", async () => {
@@ -286,7 +286,7 @@ describe("createTools", () => {
 		const tools = await createTools(session, ["read"]);
 		const names = tools.map(t => t.name);
 
-		expect(names).toEqual(["read", "goal"]);
+		expect(names).toEqual(["read", "goal", "switch_mode"]);
 	});
 
 	it("does not widen a restricted explicit tool list for an active goal", async () => {
@@ -423,7 +423,7 @@ describe("createTools", () => {
 		expect(names).toContain("rewind");
 	});
 
-	it("HIDDEN_TOOLS contains yield, goal, and think", () => {
-		expect(Object.keys(HIDDEN_TOOLS).sort()).toEqual(["goal", "think", "yield"]);
+	it("HIDDEN_TOOLS contains expected hidden tools", () => {
+		expect(Object.keys(HIDDEN_TOOLS).sort()).toEqual(["ask_followup_question", "goal", "switch_mode", "yield"]);
 	});
 });

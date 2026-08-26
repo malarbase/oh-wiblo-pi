@@ -8,6 +8,7 @@
 import { type } from "@oh-my-pi/omptype";
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import type { FileDiagnosticsResult, WritethroughCallback, WritethroughDeferredHandle } from "../../lsp";
+import { enforceAskModeGuard } from "../../modes/ask-mode/ask-mode-guard";
 import type { ToolSession } from "../../tools";
 import { routeWriteThroughBridge } from "../../tools/acp-bridge";
 import { invalidateFsScanAfterWrite } from "../../tools/fs-cache-invalidation";
@@ -1136,6 +1137,8 @@ export async function executeReplace(
 	} = options;
 	const { old_string, new_string, replace_all } = params;
 
+	const askBlock = enforceAskModeGuard(session, "edit", { path, ...params });
+	if (askBlock) return askBlock;
 	enforcePlanModeWrite(session, path);
 
 	if (old_string.length === 0) {

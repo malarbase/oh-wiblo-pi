@@ -104,4 +104,46 @@ describe("HookInputComponent timeout", () => {
 
 		component.dispose();
 	});
+
+	describe("HookInputComponent default value prefill", () => {
+		it("prefills the input with the provided defaultValue", () => {
+			const onSubmit = vi.fn();
+			const onCancel = vi.fn();
+			const component = new HookInputComponent("Plan title", "my_plan", onSubmit, onCancel);
+
+			// Submitting without typing anything yields the prefilled value, not empty —
+			// this is the contract the plan-mode "Save and exit" autopopulate relies on.
+			component.handleInput("\n");
+			expect(onSubmit).toHaveBeenCalledTimes(1);
+			expect(onSubmit).toHaveBeenCalledWith("my_plan");
+			expect(onCancel).not.toHaveBeenCalled();
+
+			component.dispose();
+		});
+
+		it("leaves the input empty when defaultValue is undefined", () => {
+			const onSubmit = vi.fn();
+			const onCancel = vi.fn();
+			const component = new HookInputComponent("Prompt", undefined, onSubmit, onCancel);
+
+			component.handleInput("\n");
+			expect(onSubmit).toHaveBeenCalledWith("");
+			component.dispose();
+		});
+
+		it("lets the operator type over the prefilled value", () => {
+			const onSubmit = vi.fn();
+			const onCancel = vi.fn();
+			const component = new HookInputComponent("Prompt", "suggested", onSubmit, onCancel);
+
+			// Clear (delete to line start) then type a new value
+			component.handleInput("\x15"); // Ctrl+U: delete to line start
+			component.handleInput("o");
+			component.handleInput("k");
+			component.handleInput("\n");
+
+			expect(onSubmit).toHaveBeenCalledWith("ok");
+			component.dispose();
+		});
+	});
 });

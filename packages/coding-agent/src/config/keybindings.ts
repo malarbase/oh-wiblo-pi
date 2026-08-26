@@ -53,6 +53,7 @@ interface AppKeybindings {
 	"app.tree.foldOrUp": true;
 	"app.tree.unfoldOrDown": true;
 	"app.plan.toggle": true;
+	"app.mode.cycle": true;
 	"app.history.search": true;
 	"app.stt.toggle": true;
 	"app.live.toggle": true;
@@ -223,6 +224,10 @@ export const KEYBINDINGS = {
 		defaultKeys: "alt+shift+p",
 		description: "Toggle plan mode",
 	},
+	"app.mode.cycle": {
+		defaultKeys: "alt+k",
+		description: "Cycle agent mode (ask -> debug -> plan -> agent)",
+	},
 	"app.history.search": {
 		defaultKeys: "ctrl+r",
 		description: "Search history",
@@ -253,6 +258,7 @@ const KEYBINDING_NAME_MIGRATIONS = {
 	selectModel: "app.model.select",
 	selectModelTemporary: "app.model.selectTemporary",
 	togglePlanMode: "app.plan.toggle",
+	cycleAgentMode: "app.mode.cycle",
 	historySearch: "app.history.search",
 	expandTools: "app.tools.expand",
 	toggleThinking: "app.thinking.toggle",

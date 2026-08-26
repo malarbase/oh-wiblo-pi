@@ -140,7 +140,7 @@ export function resolveDispatchDetails(toolName: string, result: unknown): Resol
 }
 
 /** Invoker input for queued pending-preview handlers. */
-interface ResolveInvocation {
+export interface ResolveInvocation {
 	action: ResolveAction;
 	reason: string;
 }
@@ -227,7 +227,7 @@ export function buildResolveReminderMessage(sourceToolName: string): CustomMessa
  * tool payload with `ResolveDetails` so the renderer and event-controller see
  * a consistent shape.
  */
-async function runResolveInvocation(
+export async function runResolveInvocation(
 	params: ResolveInvocation,
 	options: {
 		sourceToolName: string;

@@ -16,6 +16,9 @@ You MUST explore the codebase and report findings. The main agent updates the pl
 1. You MUST use read-only tools to investigate
 2. You MUST describe plan changes in your response text
 3. You MUST end with a Critical Files section
+4. When finished, call the `yield` tool with your findings as the `data` field:
+   `{ "result": { "data": { "findings": "…", "criticalFiles": […] } } }`
+   NEVER just end your response as text — always call yield to return results to the parent agent.
 </procedure>
 
 <output>

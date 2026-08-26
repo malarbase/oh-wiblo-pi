@@ -9,6 +9,7 @@ import { createLspWritethrough, flushLspWritethroughBatch, type WritethroughCall
 import { DeferredDiagnostics } from "../lsp/deferred-diagnostics";
 import { getDiagnosticsLedger } from "../lsp/diagnostics-ledger";
 import applyPatchDescription from "../prompts/tools/apply-patch.md" with { type: "text" };
+import mimoDescription from "../prompts/tools/mimo.md" with { type: "text" };
 import patchDescription from "../prompts/tools/patch.md" with { type: "text" };
 import replaceDescription from "../prompts/tools/replace.md" with { type: "text" };
 import type { ToolSession } from "../tools";
@@ -26,6 +27,7 @@ import {
 import { executeHashlineSingle, hashlineEditParamsSchema } from "./hashline";
 import { type ApplyPatchParams, applyPatchSchema, expandApplyPatchToEntries } from "./modes/apply-patch";
 import applyPatchGrammar from "./modes/apply-patch.lark" with { type: "text" };
+import { executeMimoSingle, type MimoEditParams, mimoEditSchema } from "./modes/mimo";
 import { executePatchSingle, type PatchEditEntry, type PatchParams, patchEditSchema } from "./modes/patch";
 import { executeReplace, type ReplaceBatchParams, type ReplaceParams, replaceEditSchema } from "./modes/replace";
 import { type EditToolDetails, type EditToolPerFileResult, getLspBatchRequest, type LspBatchRequest } from "./renderer";
@@ -55,6 +57,7 @@ export * from "./diff";
 export * from "./file-snapshot-store";
 export * from "./hashline";
 export * from "./modes/apply-patch";
+export * from "./modes/mimo";
 export * from "./modes/patch";
 export * from "./modes/replace";
 export * from "./normalize";
@@ -69,11 +72,12 @@ type TInput =
 	| typeof patchEditSchema
 	| typeof hashlineEditParamsSchema
 	| typeof applyPatchSchema
+	| typeof mimoEditSchema
 	| typeof sloppyEditSchema;
 
 type HashlineParams = typeof hashlineEditParamsSchema.infer;
 
-type EditParams = ReplaceParams | ReplaceBatchParams | PatchParams | HashlineParams | ApplyPatchParams | SloppyParams;
+type EditParams = ReplaceParams | ReplaceBatchParams | PatchParams | HashlineParams | ApplyPatchParams | MimoEditParams | SloppyParams;
 
 type EditModeDefinition = {
 	description: (session: ToolSession) => string;
@@ -816,6 +820,48 @@ export class EditTool implements AgentTool<TInput> {
 							}),
 					);
 					return executeSinglePathEntries(targetPath, runs, batchRequest, onUpdate, tool.session.cwd, signal);
+				},
+			},
+			mimo: {
+				description: () => prompt.render(mimoDescription),
+				parameters: mimoEditSchema,
+				execute: (
+					tool: EditTool,
+					params: EditParams,
+					signal: AbortSignal | undefined,
+					batchRequest: LspBatchRequest | undefined,
+					_onUpdate?: (partialResult: AgentToolResult<EditToolDetails, TInput>) => void,
+				) => {
+					return executeMimoSingle({
+						session: tool.session,
+						params: params as MimoEditParams,
+						signal,
+						batchRequest,
+						allowFuzzy: tool.#allowFuzzy,
+						writethrough: tool.#writethrough,
+						beginDeferredDiagnosticsForPath: p => tool.#deferredDiagnostics.begin(p),
+					});
+				},
+			},
+			sloppy: {
+				description: () => `Apply sloppy edit patches to files. Accepts raw text with ${'§'}path${'§'} delimiters.`,
+				parameters: sloppyEditSchema,
+				execute: (
+					tool: EditTool,
+					params: EditParams,
+					signal: AbortSignal | undefined,
+					batchRequest: LspBatchRequest | undefined,
+					_onUpdate?: (partialResult: AgentToolResult<EditToolDetails, TInput>) => void,
+				) => {
+					return executeSloppy({
+						session: tool.session,
+						params: params as SloppyParams,
+						signal,
+						batchRequest,
+						allowFuzzy: tool.#allowFuzzy,
+						writethrough: tool.#writethrough,
+						beginDeferredDiagnosticsForPath: p => tool.#deferredDiagnostics.begin(p),
+					});
 				},
 			},
 		};

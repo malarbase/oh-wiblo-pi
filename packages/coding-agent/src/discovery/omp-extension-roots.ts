@@ -15,7 +15,6 @@
  * @see ./omp-plugins.ts
  * @see ./builtin.ts `loadExtensionModules`
  */
-import { AsyncLocalStorage } from "node:async_hooks";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { getAgentDir, isEnoent, logger, tryParseJson } from "@oh-my-pi/pi-utils";
@@ -37,48 +36,10 @@ export interface OmpExtensionRoot {
 
 interface InjectedRoot {
 	path: string;
-	/** Relative CLI spelling, rebound against the active project on discovery. */
-	relativePath?: string;
 	level: "user" | "project";
 }
 
-export type OmpExtensionRootMode = "merge" | "explicit-only";
-
-interface InvocationRootScope {
-	/** Raw SDK spellings, resolved against the LoadContext that performs discovery. */
-	paths: readonly string[];
-	mode: OmpExtensionRootMode;
-}
-
-const invocationRootScope = new AsyncLocalStorage<InvocationRootScope>();
-
 let injectedCliRoots: InjectedRoot[] = [];
-let injectedCliRootMode: OmpExtensionRootMode = "merge";
-
-export interface InjectOmpExtensionCliRootOptions {
-	/**
-	 * `explicit-only` exposes only roots named by this CLI invocation. Use it
-	 * with `--no-extensions` so configured and installed packages cannot
-	 * contribute sibling capabilities through the `omp-plugins` provider.
-	 */
-	mode?: OmpExtensionRootMode;
-	/** Replace roots from an earlier invocation instead of extending them. */
-	replace?: boolean;
-}
-
-/**
- * Run one SDK invocation with its own extension-package roots. Async resources
- * started inside `callback` retain this scope, including discovery deliberately
- * deferred until the end of session startup. Raw relative paths are resolved by
- * {@link listOmpExtensionRoots} against that invocation's active cwd.
- */
-export function withOmpExtensionRootScope<T>(
-	paths: readonly string[],
-	mode: OmpExtensionRootMode,
-	callback: () => T,
-): T {
-	return invocationRootScope.run({ paths: [...paths], mode }, callback);
-}
 
 /**
  * Register CLI-provided extension package paths (e.g. from `--extension`/`-e`)
@@ -93,23 +54,21 @@ export function injectOmpExtensionCliRoots(
 	paths: readonly string[],
 	home: string,
 	cwd: string,
-	options: InjectOmpExtensionCliRootOptions = {},
+	options?: { mode?: "explicit-only" | "all"; replace?: boolean },
 ): void {
-	if (options.mode) injectedCliRootMode = options.mode;
-	if (options.replace) injectedCliRoots = [];
+	if (options?.replace) {
+		injectedCliRoots = [];
+	}
 	if (paths.length === 0) return;
 	const expanded = paths.map(raw => {
 		const tilde = expandTilde(raw, home);
-		return {
-			path: path.isAbsolute(tilde) ? tilde : path.resolve(cwd, tilde),
-			relativePath: path.isAbsolute(tilde) ? undefined : tilde,
-		};
+		return path.isAbsolute(tilde) ? tilde : path.resolve(cwd, tilde);
 	});
 	const merged = new Map<string, InjectedRoot>();
 	for (const root of injectedCliRoots) merged.set(root.path, root);
-	for (const { path: resolved, relativePath } of expanded) {
+	for (const resolved of expanded) {
 		// CLI scope mirrors how `--extension` is treated elsewhere — user-level overrides win.
-		if (!merged.has(resolved)) merged.set(resolved, { path: resolved, relativePath, level: "user" });
+		if (!merged.has(resolved)) merged.set(resolved, { path: resolved, level: "user" });
 	}
 	injectedCliRoots = [...merged.values()];
 }
@@ -117,7 +76,6 @@ export function injectOmpExtensionCliRoots(
 /** Drop every CLI-injected root. Tests use this between cases. */
 export function clearOmpExtensionCliRoots(): void {
 	injectedCliRoots = [];
-	injectedCliRootMode = "merge";
 }
 
 /** Inspect currently-injected CLI roots (read-only). Exposed for diagnostics + tests. */
@@ -171,8 +129,7 @@ async function isDirectory(p: string): Promise<boolean> {
  * Sources, in order of precedence (later entries with the same absolute path
  * are dropped):
  *
- * 1. Invocation-scoped SDK roots, when present; otherwise CLI roots injected
- *    via {@link injectOmpExtensionCliRoots}
+ * 1. CLI roots injected via {@link injectOmpExtensionCliRoots}
  * 2. Project `<cwd>/.omp/settings.json#extensions`
  * 3. User `~/.omp/agent/settings.json#extensions`
  * 4. Enabled npm/link plugins installed under `<plugins>/node_modules/` (for
@@ -185,29 +142,21 @@ async function isDirectory(p: string): Promise<boolean> {
  * other sources still surface.
  */
 export async function listOmpExtensionRoots(ctx: LoadContext): Promise<OmpExtensionRoot[]> {
-	const scopedRoots = invocationRootScope.getStore();
-	const rootMode = scopedRoots?.mode ?? injectedCliRootMode;
-	let candidates: InjectedRoot[] = scopedRoots
-		? scopedRoots.paths.map(raw => ({ path: resolveAgainst(raw, ctx), level: "user" }))
-		: injectedCliRoots.map(root =>
-				root.relativePath ? { ...root, path: path.resolve(ctx.cwd, root.relativePath) } : root,
-			);
-	if (rootMode === "merge") {
-		const { project, user } = scopeDirs(ctx);
-		const [projectExtensions, userExtensions, installedPlugins] = await Promise.all([
-			readSettingsExtensions(path.join(project, "settings.json")),
-			readSettingsExtensions(path.join(user, "settings.json")),
-			listInstalledPluginRoots(ctx),
-		]);
-		candidates = [
-			...candidates,
-			...projectExtensions.map((raw): InjectedRoot => ({ path: resolveAgainst(raw, ctx), level: "project" })),
-			...userExtensions.map((raw): InjectedRoot => ({ path: resolveAgainst(raw, ctx), level: "user" })),
-			...installedPlugins,
-		];
-	}
+	const { project, user } = scopeDirs(ctx);
+	const [projectExtensions, userExtensions, installedPlugins] = await Promise.all([
+		readSettingsExtensions(path.join(project, "settings.json")),
+		readSettingsExtensions(path.join(user, "settings.json")),
+		listInstalledPluginRoots(ctx),
+	]);
 
-	// First-seen-wins dedup preserves invocation/CLI > project-settings > user-settings > installed precedence.
+	const candidates: InjectedRoot[] = [
+		...injectedCliRoots,
+		...projectExtensions.map((raw): InjectedRoot => ({ path: resolveAgainst(raw, ctx), level: "project" })),
+		...userExtensions.map((raw): InjectedRoot => ({ path: resolveAgainst(raw, ctx), level: "user" })),
+		...installedPlugins,
+	];
+
+	// First-seen-wins dedup preserves CLI > project-settings > user-settings > installed precedence.
 	const seen = new Set<string>();
 	const unique: InjectedRoot[] = [];
 	for (const candidate of candidates) {

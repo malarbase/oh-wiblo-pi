@@ -139,6 +139,7 @@ afterEach(async () => {
 });
 
 describe("OmfgController", () => {
+
 	it("guards empty complaints and missing models before model calls", async () => {
 		const runEphemeralTurn = vi.fn<RunEphemeralTurn>(async () => ({
 			replyText: "n/a",

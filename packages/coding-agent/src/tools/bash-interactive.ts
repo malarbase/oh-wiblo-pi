@@ -405,12 +405,12 @@ export async function runInteractiveBashPty(
 							// pagers, and TUIs behave like a normal terminal.
 							env: {
 								TERM: "xterm-256color",
+								...(resolvedShell ? { SHELL: resolvedShell } : {}),
 								...options.env,
 							},
 							signal: options.signal,
 							cols,
 							rows,
-							shell: resolvedShell,
 						},
 						(err, chunk) => {
 							if (finished || err || !chunk) return;

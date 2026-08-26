@@ -754,7 +754,15 @@ class DaemonBroker {
 			const argv = [record.spec.application, ...record.spec.args];
 			const command = `exec ${argv.map(quoteShellArg).join(" ")}`;
 			const shell = procmgr.getShellConfig().shell;
-			run = session.start({ command, shell, ...options }, onChunk, onStart);
+			run = session.start(
+				{
+					command,
+					...options,
+					env: { ...options.env, SHELL: shell },
+				},
+				onChunk,
+				onStart,
+			);
 		}
 		void run.then(
 			async result => {

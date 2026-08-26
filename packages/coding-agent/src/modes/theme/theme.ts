@@ -363,6 +363,20 @@ function notifyThemeChange(event: ThemeChangeEvent = {}): void {
 	onThemeChangeCallback?.(event);
 }
 
+/**
+ * Get available symbol presets.
+ */
+export function getAvailableSymbolPresets(): SymbolPreset[] {
+	return ["unicode", "nerd", "ascii"];
+}
+
+/**
+ * Check if a string is a valid symbol preset.
+ */
+export function isValidSymbolPreset(preset: string): preset is SymbolPreset {
+	return preset === "unicode" || preset === "nerd" || preset === "ascii";
+}
+
 async function startThemeWatcher(): Promise<void> {
 	stopThemeWatcher();
 
@@ -659,6 +673,52 @@ export function stopThemeWatcher(): void {
 // ============================================================================
 
 /**
+ * Convert a 256-color index to hex string.
+ * Indices 0-15: basic colors (approximate)
+ * Indices 16-231: 6x6x6 color cube
+ * Indices 232-255: grayscale ramp
+ */
+function ansi256ToHex(index: number): string {
+	// Basic colors (0-15) - approximate common terminal values
+	const basicColors = [
+		"#000000",
+		"#800000",
+		"#008000",
+		"#808000",
+		"#000080",
+		"#800080",
+		"#008080",
+		"#c0c0c0",
+		"#808080",
+		"#ff0000",
+		"#00ff00",
+		"#ffff00",
+		"#0000ff",
+		"#ff00ff",
+		"#00ffff",
+		"#ffffff",
+	];
+	if (index < 16) {
+		return basicColors[index];
+	}
+
+	// Color cube (16-231): 6x6x6 = 216 colors
+	if (index < 232) {
+		const cubeIndex = index - 16;
+		const r = Math.floor(cubeIndex / 36);
+		const g = Math.floor((cubeIndex % 36) / 6);
+		const b = cubeIndex % 6;
+		const toHex = (n: number) => (n === 0 ? 0 : 55 + n * 40).toString(16).padStart(2, "0");
+		return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+	}
+
+	// Grayscale (232-255): 24 shades
+	const gray = 8 + (index - 232) * 10;
+	const grayHex = gray.toString(16).padStart(2, "0");
+	return `#${grayHex}${grayHex}${grayHex}`;
+}
+
+/**
  * Classify a parsed theme JSON as light/dark by the perceived luminance of its
  * status-line background. Mirrors {@link Theme.isLight} so the synchronous
  * helpers below stay in lockstep with the runtime classifier — see the comment
@@ -780,4 +840,296 @@ export async function getThemeExportColors(themeName?: string): Promise<{
 	} catch {
 		return {};
 	}
+}
+
+// ============================================================================
+// TUI Helpers
+// ============================================================================
+
+let cachedHighlightColorsFor: Theme | undefined;
+let cachedHighlightColors: NativeHighlightColors | undefined;
+
+function getHighlightColors(t: Theme): NativeHighlightColors {
+	if (cachedHighlightColorsFor !== t || !cachedHighlightColors) {
+		cachedHighlightColorsFor = t;
+		cachedHighlightColors = {
+			comment: t.getFgAnsi("syntaxComment"),
+			keyword: t.getFgAnsi("syntaxKeyword"),
+			function: t.getFgAnsi("syntaxFunction"),
+			variable: t.getFgAnsi("syntaxVariable"),
+			string: t.getFgAnsi("syntaxString"),
+			number: t.getFgAnsi("syntaxNumber"),
+			type: t.getFgAnsi("syntaxType"),
+			operator: t.getFgAnsi("syntaxOperator"),
+			punctuation: t.getFgAnsi("syntaxPunctuation"),
+			inserted: t.getFgAnsi("toolDiffAdded"),
+			deleted: t.getFgAnsi("toolDiffRemoved"),
+		};
+	}
+	return cachedHighlightColors;
+}
+
+/**
+ * Memoized native syntax highlight. Returns the joined ANSI string, or `null`
+ * when the native tokenizer throws so callers can apply their own fallback.
+ *
+ * Keyed on `(lang, code)` and reset whenever the active `theme` instance
+ * changes — the ANSI colors are baked into the highlighted output, so a theme
+ * switch (which always reassigns `theme`) must invalidate every entry.
+ *
+ * Why this exists: animated tool blocks (eval/bash) repaint their box on every
+ * ~33ms border-shimmer frame, and markdown re-lexes on every streamed delta.
+ * Without memoization each frame can re-tokenize an unchanged code body through
+ * the Rust FFI — ~26ms for 100 lines, ~40ms for 150 — consuming or overrunning
+ * the 33ms frame budget and starving the spinner/render timers (the "TUI freeze").
+ */
+const HIGHLIGHT_CACHE_MAX = 256;
+const highlightCache = new LRUCache<string, string>({ max: HIGHLIGHT_CACHE_MAX });
+let highlightCacheTheme: Theme | undefined;
+
+function highlightCached(code: string, validLang: string | undefined, highlightTheme: Theme): string | null {
+	if (highlightCacheTheme !== highlightTheme) {
+		highlightCache.clear();
+		highlightCacheTheme = highlightTheme;
+	}
+	const key = `${validLang ?? ""}\x00${code}`;
+	const hit = highlightCache.get(key);
+	if (hit !== undefined) {
+		return hit;
+	}
+	let highlighted: string;
+	try {
+		highlighted = nativeHighlightCode(code, validLang, getHighlightColors(highlightTheme));
+	} catch {
+		return null;
+	}
+	highlightCache.set(key, highlighted);
+	return highlighted;
+}
+
+/**
+ * Highlight code with syntax coloring based on file extension or language.
+ * Returns array of highlighted lines.
+ */
+export function highlightCode(code: string, lang?: string, highlightTheme: Theme = theme): string[] {
+	const validLang = lang && nativeSupportsLanguage(lang) ? lang : undefined;
+	const highlighted = highlightCached(code, validLang, highlightTheme);
+	// Always return a fresh array: callers (e.g. renderCodeCell) push extra lines
+	// onto the result, which would corrupt the cached string otherwise.
+	return (highlighted ?? code).split("\n");
+}
+
+export function getSymbolTheme(): SymbolTheme {
+	// Guard against `theme` being undefined (pre-init or cross-module-instance
+	// plugin calls). Fall back to the ASCII preset so the returned symbols are
+	// usable instead of crashing. See #2998.
+	if (typeof theme === "undefined") {
+		const box = {
+			topLeft: "+",
+			topRight: "+",
+			bottomLeft: "+",
+			bottomRight: "+",
+			horizontal: "-",
+			vertical: "|",
+			cross: "+",
+			teeDown: "+",
+			teeUp: "+",
+			teeLeft: "+",
+			teeRight: "+",
+		};
+		return {
+			cursor: ">",
+			inputCursor: "|",
+			boxRound: box,
+			boxSharp: box,
+			table: box,
+			quoteBorder: "|",
+			hrChar: "-",
+			colorSwatch: "[]",
+			spinnerFrames: ["-", "\\", "|", "/"],
+		};
+	}
+	const preset = theme.getSymbolPreset();
+
+	return {
+		cursor: theme.nav.cursor,
+		inputCursor: preset === "ascii" ? "|" : "▏",
+		boxRound: theme.boxRound,
+		boxSharp: theme.boxSharp,
+		table: theme.boxSharp,
+		quoteBorder: theme.md.quoteBorder,
+		hrChar: theme.md.hrChar,
+		colorSwatch: theme.md.colorSwatch,
+		spinnerFrames: theme.getSpinnerFrames("activity"),
+	};
+}
+
+let cachedMarkdownTheme: MarkdownTheme | undefined;
+let cachedMarkdownThemeRef: Theme | undefined;
+let markdownMermaidRendering = true;
+
+export function setMarkdownMermaidRendering(enabled: boolean): void {
+	if (markdownMermaidRendering === enabled) return;
+	markdownMermaidRendering = enabled;
+	cachedMarkdownTheme = undefined;
+}
+
+export function getMarkdownTheme(): MarkdownTheme {
+	if (cachedMarkdownTheme !== undefined && cachedMarkdownThemeRef === theme) {
+		return cachedMarkdownTheme;
+	}
+	const mermaid = markdownMermaidRendering
+		? (() => {
+				// Mermaid ASCII diagrams render with the active palette so they read as
+				// content rather than raw monochrome. Roles mirror the SVG renderer's
+				// mapping; `text`/`muted`/`border`/`borderMuted`/`accent` exist in every theme.
+				const mermaidColorMode =
+					theme.getColorMode() === "truecolor" ? ("truecolor" as const) : ("ansi256" as const);
+				const mermaidTheme = {
+					fg: theme.getColorHex("text"),
+					border: theme.getColorHex("border"),
+					line: theme.getColorHex("muted"),
+					arrow: theme.getColorHex("accent"),
+					corner: theme.getColorHex("muted"),
+					junction: theme.getColorHex("borderMuted"),
+				};
+				return { mermaidColorMode, mermaidTheme };
+			})()
+		: undefined;
+	const markdownTheme: MarkdownTheme = {
+		heading: (text: string) => theme.fg("mdHeading", text),
+		link: (text: string) => theme.fg("mdLink", text),
+		linkUrl: (text: string) => theme.fg("mdLinkUrl", text),
+		code: (text: string) => theme.fg("mdCode", text),
+		codeBlock: (text: string) => theme.fg("mdCodeBlock", text),
+		codeBlockBorder: (text: string) => theme.fg("mdCodeBlockBorder", text),
+		quote: (text: string) => theme.fg("mdQuote", text),
+		quoteBorder: (text: string) => theme.fg("mdQuoteBorder", text),
+		hr: (text: string) => theme.fg("mdHr", text),
+		listBullet: (text: string) => theme.fg("mdListBullet", text),
+		bold: (text: string) => theme.bold(text),
+		italic: (text: string) => theme.italic(text),
+		underline: (text: string) => theme.underline(text),
+		strikethrough: (text: string) => chalk.strikethrough(text),
+		symbols: getSymbolTheme(),
+		resolveMermaidAscii: mermaid
+			? (source, maxWidth) =>
+					resolveMermaidAscii(source, {
+						maxWidth,
+						theme: mermaid.mermaidTheme,
+						colorMode: mermaid.mermaidColorMode,
+					})
+			: undefined,
+		highlightCode: (code: string, lang?: string): string[] => {
+			const validLang = lang && nativeSupportsLanguage(lang) ? lang : undefined;
+			const highlighted = highlightCached(code, validLang, theme);
+			if (highlighted !== null) return highlighted.split("\n");
+			return code.split("\n").map(line => theme.fg("mdCodeBlock", line));
+		},
+	};
+	cachedMarkdownTheme = markdownTheme;
+	cachedMarkdownThemeRef = theme;
+	return markdownTheme;
+}
+
+export function getSelectListTheme(): SelectListTheme {
+	// Guard against `theme` being undefined (pre-init or cross-module-instance
+	// plugin calls). See #2998.
+	if (typeof theme === "undefined") {
+		return {
+			selectedPrefix: (text: string) => text,
+			selectedText: (text: string) => text,
+			description: (text: string) => text,
+			scrollInfo: (text: string) => text,
+			noMatch: (text: string) => text,
+			symbols: getSymbolTheme(),
+			hovered: (text: string) => text,
+		};
+	}
+	return {
+		selectedPrefix: (text: string) => theme.fg("accent", text),
+		selectedText: (text: string) => theme.fg("accent", text),
+		description: (text: string) => theme.fg("muted", text),
+		scrollInfo: (text: string) => theme.fg("muted", text),
+		noMatch: (text: string) => theme.fg("muted", text),
+		symbols: getSymbolTheme(),
+		hovered: (text: string) => theme.bg("selectedBg", text),
+	};
+}
+
+export function getEditorTheme(): EditorTheme {
+	// Guard against `theme` being undefined (pre-init or cross-module-instance
+	// plugin calls). See #2998.
+	if (typeof theme === "undefined") {
+		return {
+			borderColor: (text: string) => text,
+			selectList: getSelectListTheme(),
+			symbols: getSymbolTheme(),
+			hintStyle: (text: string) => text,
+		};
+	}
+	return {
+		borderColor: (text: string) => theme.fg("borderMuted", text),
+		selectList: getSelectListTheme(),
+		symbols: getSymbolTheme(),
+		hintStyle: (text: string) => theme.fg("dim", text),
+	};
+}
+
+export function getSettingsListTheme(): SettingsListTheme {
+	// Plugins (e.g. pi-rtk-optimizer) may call this before `initTheme()` assigns
+	// the global `theme`, or from a separate module instance under npm-global
+	// installs where the live binding was never initialized. Fall back to plain
+	// text so the call returns a usable (unstyled) theme instead of crashing with
+	// "undefined is not an object (evaluating 'theme.fg')". See #2998.
+	if (typeof theme === "undefined") {
+		return {
+			label: (text: string) => text,
+			value: (text: string) => text,
+			description: (text: string) => text,
+			cursor: "> ",
+			hint: (text: string) => text,
+			heading: (text: string) => text,
+			section: (text: string) => text,
+			hovered: (text: string) => text,
+			layerBadge: (layer: SettingLayerBadge) => {
+				switch (layer) {
+					case "override":
+						return "[O] ";
+					case "project":
+						return "[P] ";
+					case "global":
+						return "[G] ";
+					default:
+						return "    ";
+				}
+			},
+		};
+	}
+	return {
+		label: (text: string, selected: boolean, changed: boolean) =>
+			changed ? theme.fg("statusLineGitDirty", text) : selected ? theme.fg("accent", text) : text,
+		value: (text: string, selected: boolean, changed: boolean) =>
+			changed ? theme.fg("statusLineGitDirty", text) : selected ? theme.fg("accent", text) : theme.fg("muted", text),
+		description: (text: string) => theme.fg("dim", text),
+		cursor: theme.fg("accent", `${theme.nav.cursor} `),
+		hint: (text: string) => theme.fg("dim", text),
+		heading: (text: string, dimmed: boolean) =>
+			dimmed ? theme.fg("dim", theme.underline(text)) : theme.fg("muted", theme.bold(theme.underline(text))),
+		section: (text: string, active: boolean) =>
+			active ? theme.fg("accent", theme.bold(text)) : theme.fg("muted", text),
+		hovered: (text: string) => theme.bg("selectedBg", text),
+		layerBadge: (layer: SettingLayerBadge) => {
+			switch (layer) {
+				case "override":
+					return theme.fg("warning", "[O] ");
+				case "project":
+					return theme.fg("accent", "[P] ");
+				case "global":
+					return theme.fg("dim", "[G] ");
+				default:
+					return "    ";
+			}
+		},
+	};
 }

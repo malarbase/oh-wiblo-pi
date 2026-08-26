@@ -20,6 +20,7 @@ import type { DaemonCompletionNotification } from "../launch/protocol";
 import { LspTool } from "../lsp";
 import type { MCPManager } from "../mcp";
 import type { MnemopiSessionState } from "../mnemopi/state";
+import type { AskModeState } from "../modes/ask-mode/state";
 import type { PlanModeState } from "../plan-mode/state";
 import type { AgentLifecycleManager } from "../registry/agent-lifecycle";
 import type { AgentRegistry } from "../registry/agent-registry";
@@ -37,6 +38,7 @@ import { type InspectImageMode, isInspectImageToolActive } from "../utils/inspec
 import { WebSearchTool } from "../web/search";
 import type { WorkspaceTree } from "../workspace-tree";
 import { AskTool } from "./ask";
+import { AskFollowupQuestionTool } from "./ask-followup-question";
 import { AstEditTool } from "./ast-edit";
 import { AstGrepTool } from "./ast-grep";
 import { BashTool } from "./bash";
@@ -62,6 +64,7 @@ import { wrapToolWithMetaNotice } from "./output-meta";
 import { ReadTool } from "./read";
 import type { PlanProposalHandler } from "./resolve";
 import { SecurityScanTool } from "./security-scan";
+import { SwitchModeTool } from "./switch-mode";
 import { supportsExternalThinking, ThinkTool } from "./think";
 import { type TodoPhase, TodoTool } from "./todo";
 import { WriteTool } from "./write";
@@ -75,6 +78,7 @@ export * from "../session/streaming-output";
 export * from "../task";
 export * from "../web/search";
 export * from "./ask";
+export * from "./ask-followup-question";
 export * from "./ast-edit";
 export * from "./ast-grep";
 export * from "./bash";
@@ -104,9 +108,9 @@ export * from "./report-tool-issue";
 export * from "./resolve";
 export * from "./review";
 export * from "./security-scan";
+export * from "./switch-mode";
 export * from "./think";
 export * from "./todo";
-export * from "./tts";
 export * from "./vibe";
 export * from "./write";
 export * from "./xdev";
@@ -325,6 +329,8 @@ export interface ToolSession {
 	getPlanModeState?: () => PlanModeState | undefined;
 	/** Path of the session's active plan reference (e.g. `local://<title>.md`); defaults to `local://PLAN.md`. */
 	getPlanReferencePath?: () => string;
+	/** Ask mode state (if active). Read by in-tool ask-mode guards (mirrors plan-mode-guard). */
+	getAskModeState?: () => AskModeState | undefined;
 	/** Goal mode state (if active or paused) */
 	getGoalModeState?: () => GoalModeState | undefined;
 	/** Goal runtime for the active agent session. */
@@ -396,6 +402,9 @@ export interface ToolSession {
 	 *  Lazily initialized by `getNoopLoopGuard`. */
 	noopLoopGuard?: import("../edit/hashline/noop-loop-guard").NoopLoopGuard;
 
+	/** Per-session cache of file contents as rendered to the model by `read` and `search`. */
+	fileReadCache?: import("../edit/file-read-cache").FileReadCache;
+
 	/** Queue a hidden message to be injected at the next agent turn. */
 	queueDeferredMessage?(message: CustomMessage): void;
 	/** Queue a broker supervised-process completion for the owning session. */
@@ -462,6 +471,8 @@ export const HIDDEN_TOOLS: Record<HiddenToolName, ToolFactory> = {
 	think: () => new ThinkTool(),
 	yield: s => new YieldTool(s),
 	goal: s => new GoalTool(s),
+	switch_mode: s => new SwitchModeTool(s),
+	ask_followup_question: s => new AskFollowupQuestionTool(s),
 };
 
 export type ToolName = BuiltinToolName;
@@ -473,7 +484,7 @@ export async function createTools(session: ToolSession, toolNames?: string[]): P
 	const restrictToolNames = session.restrictToolNames === true;
 	const includeYield = session.requireYieldTool === true;
 	const enableLsp = session.enableLsp ?? true;
-	const requestedTools = restrictToolNames
+	let requestedTools = restrictToolNames
 		? normalizeToolNames(toolNames ?? [])
 		: toolNames && toolNames.length > 0
 			? normalizeToolNames(toolNames)
@@ -484,6 +495,9 @@ export async function createTools(session: ToolSession, toolNames?: string[]): P
 		session.settings.get("externalThinking") && supportsExternalThinking(session.getActiveModel?.());
 	if (goalModeActive && requestedTools && !requestedTools.includes("goal")) {
 		requestedTools.push("goal");
+	}
+	if (!restrictToolNames && requestedTools && !requestedTools.includes("switch_mode")) {
+		requestedTools = [...requestedTools, "switch_mode"];
 	}
 	const backends = resolveEvalBackends(session);
 	const allowPython = backends.python;
@@ -601,6 +615,7 @@ export async function createTools(session: ToolSession, toolNames?: string[]): P
 	}
 	const allTools: Record<string, ToolFactory> = { ...BUILTIN_TOOLS, ...HIDDEN_TOOLS };
 	const isToolAllowed = (name: string) => {
+		if (name === "switch_mode") return !restrictToolNames;
 		// Never in the default set. Explicitly activatable while goal.enabled and
 		// no goal record exists yet — /guided-goal enables it so the agent can
 		// finish the interview with `goal create`, which turns goal mode on. Once
@@ -675,6 +690,7 @@ export async function createTools(session: ToolSession, toolNames?: string[]): P
 					...(externalThinkingActive ? ([["think", HIDDEN_TOOLS.think]] as const) : []),
 					...(includeYield ? ([["yield", HIDDEN_TOOLS.yield]] as const) : []),
 					...(goalModeActive ? ([["goal", HIDDEN_TOOLS.goal]] as const) : []),
+					...(!restrictToolNames ? ([["switch_mode", HIDDEN_TOOLS.switch_mode]] as const) : []),
 				];
 
 	const activeToolNames = new Set(baseEntries.map(([name]) => name));

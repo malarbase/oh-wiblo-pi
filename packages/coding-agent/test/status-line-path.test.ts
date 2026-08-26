@@ -37,7 +37,9 @@ function createPathContext(): SegmentContext {
 				stripWorkPrefix: true,
 			},
 		},
-		planMode: null,
+		askMode: null,
+		debugMode: null,
+		planMode: { enabled: false, paused: false },
 		loopMode: null,
 		prewalk: null,
 		goalMode: null,
@@ -66,12 +68,12 @@ function createPathContext(): SegmentContext {
 		activeMs: 0,
 		activeRepo: null,
 		worktree: null,
+		usage: null,
 		git: {
 			branch: null,
 			status: null,
 			pr: null,
 		},
-		usage: null,
 	};
 }
 

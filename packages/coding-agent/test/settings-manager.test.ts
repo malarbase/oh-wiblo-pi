@@ -13,7 +13,6 @@ import {
 	onModelRolesChanged,
 	onStatusLineSessionAccentChanged,
 	resetSettingsForTest,
-	type SettingPath,
 	Settings,
 } from "@oh-my-pi/pi-coding-agent/config/settings";
 import * as discovery from "@oh-my-pi/pi-coding-agent/discovery";
@@ -23,7 +22,7 @@ import { SEARCH_PROVIDER_ORDER } from "@oh-my-pi/pi-coding-agent/web/search/type
 import { getProjectAgentDir, TempDir } from "@oh-my-pi/pi-utils";
 import * as fileLock from "@oh-my-pi/pi-utils/file-lock";
 import { YAML } from "bun";
-import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
+import { beginSettingsTest, type SettingsTestState } from "./helpers/settings-test-state";
 
 function context(): Context {
 	return {
@@ -40,6 +39,8 @@ class FsCodeError extends Error {
 		this.code = code;
 	}
 }
+
+import type { SettingPath } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
 
 describe("Settings", () => {
 	let settingsState: SettingsTestState | undefined;
@@ -80,9 +81,6 @@ describe("Settings", () => {
 		clearCustomApis();
 		__providerInFlightForTesting.setRoot(undefined);
 		AgentStorage.resetInstance();
-		restoreSettingsTestState(settingsState);
-		settingsState = undefined;
-		await Bun.sleep(0);
 		await tempDir?.remove();
 	});
 

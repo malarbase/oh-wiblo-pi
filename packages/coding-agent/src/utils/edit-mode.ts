@@ -1,13 +1,14 @@
 import { supportsHashlineEdits } from "@oh-my-pi/pi-catalog/identity";
 import { $env, $flag } from "@oh-my-pi/pi-utils";
 
-export type EditMode = "replace" | "patch" | "hashline" | "apply_patch" | "sloppy";
+export type EditMode = "replace" | "patch" | "hashline" | "apply_patch" | "mimo" | "sloppy";
 
 export const DEFAULT_EDIT_MODE: EditMode = "hashline";
 
 const EDIT_MODE_IDS = {
 	apply_patch: "apply_patch",
 	hashline: "hashline",
+	mimo: "mimo",
 	patch: "patch",
 	replace: "replace",
 	sloppy: "sloppy",

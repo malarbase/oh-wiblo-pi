@@ -632,7 +632,6 @@ describe("AgentSession concurrent prompt guard", () => {
 		});
 		session.setClientBridge({
 			capabilities: {},
-			deferAgentInitiatedTurns: true,
 		});
 
 		await session.prompt("First message");
@@ -668,6 +667,7 @@ describe("AgentSession concurrent prompt guard", () => {
 			}),
 		).toBe(true);
 	});
+
 });
 
 describe("AgentSession TTSR resume gate", () => {

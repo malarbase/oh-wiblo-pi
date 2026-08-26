@@ -41,16 +41,18 @@ import {
 import { expandKeyHint } from "../../../tools/render-utils";
 import type { EventBus } from "../../../utils/event-bus";
 import { bottomBorder, divider, row, topBorder } from "../overlay-box";
-import { ExtensionList } from "./extension-list";
+import { ExtensionList, type GroupingAxis } from "./extension-list";
 import { InspectorPanel, type ToolRuntimeSource } from "./inspector-panel";
 import { snapshotToolRuntimeSource } from "./live-tool-session";
 import { applyMcpToggleRuntime } from "./mcp-runtime";
 import {
 	applyDisabledExtensionsToState,
 	applyFilter,
+	createExtensionSettingsAdapter,
 	createInitialState,
 	filterByProvider,
 	refreshState,
+	toggleGroup,
 	toggleProvider,
 } from "./state-manager";
 import { type DashboardState, isShadowedExtension, type ProviderTab } from "./types";
@@ -66,7 +68,7 @@ export interface ExtensionDashboardOptions {
 }
 
 function extFooter(): string {
-	return ` ↑/↓: navigate · Space: toggle · ←/→: provider · PgUp/PgDn: inspector · ${expandKeyHint()}: expand · Esc: close`;
+	return ` ↑/↓: navigate · Space: toggle · g: cycle group mode · ←/→: provider · PgUp/PgDn: inspector · ${expandKeyHint()}: expand · Esc: close`;
 }
 
 /**
@@ -148,6 +150,7 @@ export class ExtensionDashboard implements Component {
 				},
 				onToggle: (extensionId, enabled) => this.#handleExtensionToggle(extensionId, enabled),
 				onMasterToggle: providerId => this.#handleProviderToggle(providerId),
+				onGroupToggle: (axis, value, enabled) => this.#handleGroupToggle(axis, value, enabled),
 				masterSwitchProvider: this.#getActiveProviderId(),
 				mcpSource: this.mcpManager,
 				toolSource: this.toolSource,
@@ -382,6 +385,19 @@ export class ExtensionDashboard implements Component {
 		void this.#refreshFromState();
 	}
 
+	#handleGroupToggle(axis: GroupingAxis, value: string, _enabled: boolean): void {
+		const sm = this.settings ?? Settings.instance;
+		if (!sm) return;
+		const adapter = createExtensionSettingsAdapter(sm);
+		this.#state = toggleGroup(this.#state, axis, value, adapter);
+		this.#mainList.setExtensions(this.#state.searchFiltered);
+		if (this.#state.selected) {
+			this.#inspector.setExtension(this.#state.selected);
+		}
+		this.#tabBar.setTabs(buildTabBarTabs(this.#state.tabs), this.#state.tabs[this.#state.activeTabIndex]?.id);
+		this.onRequestRender?.();
+	}
+
 	async #toggleMcpExtension(extensionId: string, enabled: boolean, sm: Settings): Promise<void> {
 		const name = extensionId.slice("mcp:".length);
 		try {
@@ -506,6 +522,13 @@ export class ExtensionDashboard implements Component {
 			}
 			this.dispose();
 			this.onClose?.();
+			return;
+		}
+
+		// g keybinding to cycle skill grouping axis (dir -> tag -> repo -> author -> dir) when search query is empty
+		if (matchesKey(data, "g") && this.#state.searchQuery.length === 0) {
+			this.#mainList.cycleGroupingAxis();
+			this.onRequestRender?.();
 			return;
 		}
 

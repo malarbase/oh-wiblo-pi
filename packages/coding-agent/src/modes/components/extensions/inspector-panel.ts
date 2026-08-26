@@ -121,6 +121,23 @@ export class InspectorPanel implements Component {
 		this.#pushDescription(lines, kind.description, width);
 		this.#pushGuidance(lines, kind.guidance, width);
 		this.#pushOrigin(lines, ext, width);
+		// Grouping & Metadata (fork feature: author/repo/tags/group badges)
+		if (ext.group || ext.author || ext.repo || (ext.tags && ext.tags.length > 0)) {
+			lines.push(theme.fg("muted", "Grouping & Metadata:"));
+			if (ext.group) {
+				lines.push(`  ${theme.fg("muted", "Group:")}  ${theme.fg("accent", ext.group)}`);
+			}
+			if (ext.author) {
+				lines.push(`  ${theme.fg("muted", "Author:")} ${theme.fg("accent", ext.author)}`);
+			}
+			if (ext.repo) {
+				lines.push(`  ${theme.fg("muted", "Repo:")}   ${theme.fg("dim", ext.repo)}`);
+			}
+			if (ext.tags && ext.tags.length > 0) {
+				lines.push(`  ${theme.fg("muted", "Tags:")}   ${theme.fg("accent", ext.tags.join(", "))}`);
+			}
+			lines.push("");
+		}
 		if (kind.surface.length > 0) lines.push(...kind.surface);
 		if (kind.contents.length > 0) lines.push(...kind.contents);
 		if (kind.preview) {

@@ -96,7 +96,6 @@ describe("parseAgentFields", () => {
 
 		expect(fields?.tools).toEqual(["glob", "grep", "yield"]);
 	});
-
 	test("parses autoloadSkills from array frontmatter", () => {
 		const fields = parseAgentFields({
 			name: "oracle",
@@ -160,6 +159,7 @@ describe("parseAgentFields", () => {
 	test("returns undefined readSummarize when field absent", () => {
 		expect(parseAgentFields({ name: "scout", description: "desc" })?.readSummarize).toBeUndefined();
 	});
+
 	test("parses prewalk from boolean frontmatter", () => {
 		expect(parseAgentFields({ name: "worker", description: "desc", prewalk: true })?.prewalk).toBe(true);
 		expect(parseAgentFields({ name: "worker", description: "desc", prewalk: false })?.prewalk).toBe(false);

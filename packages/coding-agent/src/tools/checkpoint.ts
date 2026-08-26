@@ -1,6 +1,7 @@
 import { type } from "@oh-my-pi/omptype";
 import type { AgentTool, AgentToolContext, AgentToolResult, AgentToolUpdateCallback } from "@oh-my-pi/pi-agent-core";
 import { prompt } from "@oh-my-pi/pi-utils";
+import { enforceAskModeGuard } from "../modes/ask-mode/ask-mode-guard";
 import checkpointDescription from "../prompts/tools/checkpoint.md" with { type: "text" };
 import rewindDescription from "../prompts/tools/rewind.md" with { type: "text" };
 import type { ToolSession } from ".";
@@ -76,6 +77,8 @@ export class CheckpointTool implements AgentTool<typeof checkpointSchema, Checkp
 		_onUpdate?: AgentToolUpdateCallback<CheckpointToolDetails>,
 		_context?: AgentToolContext,
 	): Promise<AgentToolResult<CheckpointToolDetails>> {
+		const askBlock = enforceAskModeGuard(this.session, "checkpoint", params);
+		if (askBlock) return askBlock;
 		if (this.session.getCheckpointState?.()) {
 			throw new ToolError("Checkpoint already active.");
 		}
@@ -112,6 +115,8 @@ export class RewindTool implements AgentTool<typeof rewindSchema, RewindToolDeta
 		_onUpdate?: AgentToolUpdateCallback<RewindToolDetails>,
 		_context?: AgentToolContext,
 	): Promise<AgentToolResult<RewindToolDetails>> {
+		const askBlock = enforceAskModeGuard(this.session, "rewind", params);
+		if (askBlock) return askBlock;
 		if (!this.session.getCheckpointState?.()) {
 			if (this.session.getLastCompletedRewind?.()) {
 				throw new ToolError(

@@ -142,6 +142,26 @@ function setByPath(obj: RawSettings, segments: string[], value: unknown): void {
 }
 
 /**
+ * Delete a nested value from an object by path segments.
+ */
+function deleteByPath(obj: RawSettings, segments: readonly string[]): void {
+	let current: unknown = obj;
+	for (let i = 0; i < segments.length - 1; i++) {
+		const segment = segments[i];
+		if (current === null || current === undefined || typeof current !== "object") {
+			return;
+		}
+		current = (current as Record<string, unknown>)[segment];
+	}
+	if (current && typeof current === "object") {
+		delete (current as Record<string, unknown>)[segments[segments.length - 1]];
+	}
+}
+
+export type SettingScope = "global" | "project";
+export type SettingLayer = "override" | "project" | "global" | "default";
+
+/**
  * Dotted-path prefixes that name settings groups (e.g. "tui" for "tui.*").
  * A prefix may simultaneously be a schema leaf; those accept their declared
  * value shape and are excluded from shadow detection.
@@ -185,7 +205,6 @@ export function dropSettingsGroupShadows(data: RawSettings, sourcePath: string, 
 	}
 	return result;
 }
-
 export function normalizeProviderMaxInFlightRequests(value: unknown): Record<string, number> {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return {};
 	const normalized: Record<string, number> = {};
@@ -413,6 +432,8 @@ export class Settings {
 	#modified = new Set<string>();
 	/** Individual project model roles modified during this session */
 	#modifiedProjectModelRoles = new Set<string>();
+	/** Individual project setting paths modified during this session */
+	#modifiedProjectPaths = new Set<string>();
 	/** Individual global model roles modified during this session (for partial save) */
 	#modifiedGlobalModelRoles = new Set<string>();
 	/** Changes whenever a live API mutates a persisted layer. */
@@ -561,21 +582,61 @@ export class Settings {
 	}
 
 	/**
+	 * Get the active configuration layer providing the value for `path`.
+	 * Priority order: override > project > global > default.
+	 */
+	getLayer(path: SettingPath): SettingLayer {
+		const segments = SETTING_PATH_SEGMENTS[path];
+		if (getByPath(this.#overrides, segments) !== undefined) return "override";
+		if (getByPath(this.#projectSettingsForMerge(), segments) !== undefined) return "project";
+		if (getByPath(this.#global, segments) !== undefined) return "global";
+		return "default";
+	}
+
+	/**
 	 * Set a setting value (sync).
-	 * Updates global settings and queues a background save.
+	 * Updates global or project settings depending on scope, and queues a background save.
 	 * Triggers hooks for settings that have side effects.
 	 */
-	set<P extends SettingPath>(path: P, value: SettingValue<P>): void {
+	set<P extends SettingPath>(path: P, value: SettingValue<P>, options?: { scope?: SettingScope }): void {
+		const scope = options?.scope ?? "global";
 		const prev = this.get(path);
-		const segments = path.split(".");
-		setByPath(this.#global, segments, value);
-		this.#persistedMutationGeneration++;
+		const segments = SETTING_PATH_SEGMENTS[path];
+
+		if (scope === "project") {
+			setByPath(this.#project, [...segments], value);
+			this.#modifiedProjectPaths.add(path);
+			this.#persistedMutationGeneration++;
+			this.#rebuildMerged();
+			this.#queueProjectSave();
+		} else {
+			setByPath(this.#global, [...segments], value);
+			this.#persistedMutationGeneration++;
+			this.#modified.add(path);
+		}
+		this.#rebuildMerged();
 		this.#modified.add(path);
 		this.#rebuildMerged();
-		const next = this.get(path);
 		this.#queueSave();
+		const next = this.get(path);
+		const hook = SETTING_HOOKS[path];
+		if (hook) {
+			hook(next, prev);
+		}
+		this.#fireEffectiveSettingChanged(path, next, prev);
+	}
 
-		// Trigger hook if exists
+	/**
+	 * Clear a setting override from the project configuration.
+	 */
+	clearProject(path: SettingPath): void {
+		const prev = this.get(path);
+		const segments = SETTING_PATH_SEGMENTS[path];
+		deleteByPath(this.#project, segments);
+		this.#modifiedProjectPaths.add(path);
+		this.#rebuildMerged();
+		this.#queueProjectSave();
+		const next = this.get(path);
 		const hook = SETTING_HOOKS[path];
 		if (hook) {
 			hook(next, prev);
@@ -2387,11 +2448,18 @@ export class Settings {
 	}
 
 	async #saveProjectNow(): Promise<void> {
-		if (this.#savesCancelled || !this.#persist || this.#modifiedProjectModelRoles.size === 0) return;
+		if (
+			this.#savesCancelled ||
+			!this.#persist ||
+			(this.#modifiedProjectModelRoles.size === 0 && this.#modifiedProjectPaths.size === 0)
+		)
+			return;
 
 		const projectConfigPath = path.join(this.#cwd, ".omp", "config.yml");
 		const modifiedModelRoles = [...this.#modifiedProjectModelRoles];
+		const modifiedPaths = [...this.#modifiedProjectPaths];
 		this.#modifiedProjectModelRoles.clear();
+		this.#modifiedProjectPaths.clear();
 
 		try {
 			await fs.promises.mkdir(path.dirname(projectConfigPath), { recursive: true });
@@ -2404,7 +2472,21 @@ export class Settings {
 				const projectRoles = getByPath(this.#project, ["modelRoles"]);
 				for (const role of modifiedModelRoles) {
 					const value = isRecord(projectRoles) ? projectRoles[role] : undefined;
-					setByPath(projectSettings, ["modelRoles", role], value);
+					if (value === undefined) {
+						deleteByPath(projectSettings, ["modelRoles", role]);
+					} else {
+						setByPath(projectSettings, ["modelRoles", role], value);
+					}
+				}
+
+				for (const modPath of modifiedPaths) {
+					const segments = modPath.split(".");
+					const value = getByPath(this.#project, segments);
+					if (value === undefined) {
+						deleteByPath(projectSettings, segments);
+					} else {
+						setByPath(projectSettings, segments, value);
+					}
 				}
 
 				await this.#writeYamlAtomically(writePath, projectSettings);
@@ -2415,6 +2497,9 @@ export class Settings {
 		} catch (error) {
 			for (const role of modifiedModelRoles) {
 				this.#modifiedProjectModelRoles.add(role);
+			}
+			for (const modPath of modifiedPaths) {
+				this.#modifiedProjectPaths.add(modPath);
 			}
 			throw error;
 		}

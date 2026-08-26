@@ -22,7 +22,7 @@ export class HookInputComponent extends OverlayPanel {
 
 	constructor(
 		title: string,
-		_placeholder: string | undefined,
+		defaultValue: string | undefined,
 		onSubmit: (value: string) => void,
 		onCancel: () => void,
 		opts?: HookInputOptions,
@@ -48,6 +48,11 @@ export class HookInputComponent extends OverlayPanel {
 		}
 
 		this.#input = new Input();
+		// Prefill the input with the suggested default (e.g. a derived plan name
+		// or a config-suggested value). The operator can accept it with Enter or
+		// edit/replace it. Passing a pure hint string ("e.g. ...") here is wrong —
+		// bake hints into the title instead.
+		if (defaultValue) this.#input.setValue(defaultValue);
 		this.addChild(this.#input);
 		this.addChild(new Spacer(1));
 		this.addChild(new Text(theme.fg("dim", "enter submit  esc cancel"), 0, 0));

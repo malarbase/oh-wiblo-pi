@@ -141,7 +141,6 @@ describe("InteractiveMode.showStatus", () => {
 			resetSettingsForTest();
 		}
 	});
-
 	test("preserves optimistic user signatures when rebuilding transcript state", () => {
 		const ctx = {
 			chatContainer: new Container(),

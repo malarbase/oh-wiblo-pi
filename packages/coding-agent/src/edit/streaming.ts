@@ -690,6 +690,50 @@ const applyPatchStrategy: EditStreamingStrategy<ApplyPatchArgs> = {
 		return entries.length > 0 ? entries : undefined;
 	},
 };
+interface MimoArgs {
+	file_path?: string;
+	old_string?: string;
+	new_string?: string;
+	replace_all?: boolean;
+	__partialJson?: string;
+}
+
+const mimoStrategy: EditStreamingStrategy<MimoArgs> = {
+	extractCompleteEdits(args, _partialJson) {
+		// Mimo mode uses flat params, not an edits array — nothing to trim
+		return args;
+	},
+	async computeDiffPreview(args, ctx) {
+		if (!args.file_path || args.old_string === undefined || args.new_string === undefined) return null;
+		ctx.signal.throwIfAborted();
+		const result = await computeEditDiff(
+			args.file_path,
+			args.old_string,
+			args.new_string,
+			ctx.cwd,
+			ctx.allowFuzzy ?? false,
+			args.replace_all,
+			ctx.fuzzyThreshold,
+		);
+		ctx.signal.throwIfAborted();
+		return [toPerFilePreview(args.file_path, result)];
+	},
+	renderStreamingFallback() {
+		return "";
+	},
+	matcherDigest(args) {
+		return typeof args?.new_string === "string" ? args.new_string : undefined;
+	},
+	matcherPaths(args) {
+		return typeof args?.file_path === "string" && args.file_path.length > 0 ? [args.file_path] : undefined;
+	},
+	matcherEntries(args) {
+		const path = args?.file_path;
+		if (typeof path !== "string" || path.length === 0) return undefined;
+		const digest = mimoStrategy.matcherDigest(args);
+		return digest === undefined ? undefined : [{ path, digest }];
+	},
+};
 interface SloppyArgs {
 	input?: string;
 }
@@ -742,12 +786,12 @@ const sloppyStrategy: EditStreamingStrategy<SloppyArgs> = {
 		return sections.map(section => ({ path: section.path, digest: section.body }));
 	},
 };
-
 export const EDIT_MODE_STRATEGIES: Record<EditMode, EditStreamingStrategy<unknown>> = {
 	replace: replaceStrategy as EditStreamingStrategy<unknown>,
 	patch: patchStrategy as EditStreamingStrategy<unknown>,
 	hashline: hashlineStrategy as EditStreamingStrategy<unknown>,
 	apply_patch: applyPatchStrategy as EditStreamingStrategy<unknown>,
+	mimo: mimoStrategy as EditStreamingStrategy<unknown>,
 	sloppy: sloppyStrategy as EditStreamingStrategy<unknown>,
 };
 

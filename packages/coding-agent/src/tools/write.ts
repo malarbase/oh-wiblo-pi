@@ -30,6 +30,7 @@ import { couldBecomeXdUrl, parseXdUrl } from "../internal-urls/xd-protocol";
 import { createLspWritethrough, type FileDiagnosticsResult, type WritethroughCallback, writethroughNoop } from "../lsp";
 import { DeferredDiagnostics } from "../lsp/deferred-diagnostics";
 import { getDiagnosticsLedger } from "../lsp/diagnostics-ledger";
+import { enforceAskModeGuard } from "../modes/ask-mode/ask-mode-guard";
 import { getLanguageFromPath, highlightCode, type Theme } from "../modes/theme/theme";
 import writeDescription from "../prompts/tools/write.md" with { type: "text" };
 import type { ToolSession } from "../sdk";
@@ -1100,17 +1101,9 @@ export class WriteTool implements AgentTool<typeof writeSchema, WriteToolDetails
 		onUpdate?: AgentToolUpdateCallback<WriteToolDetails>,
 		context?: AgentToolContext,
 	): Promise<AgentToolResult<WriteToolDetails>> {
-		// Strip a hashline `[path#TAG]` wrapper up front so every downstream
-		// decision (scheme routing, internal-URL handler dispatch, plan-mode
-		// guard, plan path resolution, ACP bridge routing) sees the same
-		// filesystem target. Without this, a model that pastes a `read`
-		// header as the `path` arg would slip past `isInternalUrlPath`
-		// (which fails on a leading `[`) and the bridge router would send a
-		// `[local://scratch.md#ABCD]` write to the editor instead of the
-		// session-local sandbox.
-		// Peel a read-tool selector (`:raw`, `:1-20`, …) so the write target matches
-		// what `read` resolves for the same URL; line-range/malformed selectors throw.
 		const path = peelWriteUrlSelector(unwrapHashlineHeaderPath(rawPath));
+		const askBlock = enforceAskModeGuard(this.session, "write", { path, content });
+		if (askBlock) return askBlock;
 		return untilAborted(signal, async () => {
 			// Strip hashline display prefixes ([PATH#HASH] + LINE:) if the model copied them from read output
 			const { text: cleanContent, stripped } = stripWriteContent(this.session, content);

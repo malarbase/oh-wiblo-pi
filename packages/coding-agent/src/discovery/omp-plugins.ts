@@ -46,24 +46,12 @@ const DESCRIPTION =
 	"Sub-discovery (skills, hooks, tools, commands, rules, prompts, .mcp.json) inside extension packages";
 const PRIORITY = 90;
 
-/**
- * Extension roots this legacy provider may process for a given surface. Roots
- * whose root `plugin.json` targets the Agent Plugins standard keep their
- * portable components (skills, MCP) exclusive to the `agent-plugins` provider;
- * fatally invalid Agent Plugins packages are skipped entirely.
- */
-async function allowedRoots(ctx: LoadContext, surface: "skills" | "mcp" | "other"): Promise<OmpExtensionRoot[]> {
-	const roots = await listOmpExtensionRoots(ctx);
-	const flags = await Promise.all(roots.map(root => legacyProviderAllowed(root.path, surface)));
-	return roots.filter((_, i) => flags[i]);
-}
-
 // =============================================================================
 // Skills
 // =============================================================================
 
 async function loadSkills(ctx: LoadContext): Promise<LoadResult<Skill>> {
-	const roots = await allowedRoots(ctx, "skills");
+	const roots = await listOmpExtensionRoots(ctx);
 	const results = await Promise.all(
 		roots.map(root =>
 			scanSkillsFromDir(ctx, {
@@ -85,7 +73,7 @@ async function loadSkills(ctx: LoadContext): Promise<LoadResult<Skill>> {
 // =============================================================================
 
 async function loadSlashCommands(ctx: LoadContext): Promise<LoadResult<SlashCommand>> {
-	const roots = await allowedRoots(ctx, "other");
+	const roots = await listOmpExtensionRoots(ctx);
 	const results = await Promise.all(
 		roots.map(root =>
 			loadFilesFromDir<SlashCommand>(ctx, path.join(root.path, "commands"), PROVIDER_ID, root.level, {
@@ -111,7 +99,7 @@ async function loadSlashCommands(ctx: LoadContext): Promise<LoadResult<SlashComm
 // =============================================================================
 
 async function loadRules(ctx: LoadContext): Promise<LoadResult<Rule>> {
-	const roots = await allowedRoots(ctx, "other");
+	const roots = await listOmpExtensionRoots(ctx);
 	const results = await Promise.all(
 		roots.map(root =>
 			loadFilesFromDir<Rule>(ctx, path.join(root.path, "rules"), PROVIDER_ID, root.level, {
@@ -132,7 +120,7 @@ async function loadRules(ctx: LoadContext): Promise<LoadResult<Rule>> {
 // =============================================================================
 
 async function loadPrompts(ctx: LoadContext): Promise<LoadResult<Prompt>> {
-	const roots = await allowedRoots(ctx, "other");
+	const roots = await listOmpExtensionRoots(ctx);
 	const results = await Promise.all(
 		roots.map(root =>
 			loadFilesFromDir<Prompt>(ctx, path.join(root.path, "prompts"), PROVIDER_ID, root.level, {
@@ -159,7 +147,7 @@ async function loadPrompts(ctx: LoadContext): Promise<LoadResult<Prompt>> {
 const HOOK_TYPES: ReadonlyArray<"pre" | "post"> = ["pre", "post"];
 
 async function loadHooks(ctx: LoadContext): Promise<LoadResult<Hook>> {
-	const roots = await allowedRoots(ctx, "other");
+	const roots = await listOmpExtensionRoots(ctx);
 	const tasks: Array<{ root: OmpExtensionRoot; hookType: "pre" | "post" }> = [];
 	for (const root of roots) {
 		for (const hookType of HOOK_TYPES) {
@@ -197,7 +185,7 @@ async function loadHooks(ctx: LoadContext): Promise<LoadResult<Hook>> {
 const TOOL_EXTENSIONS = ["json", "md", "ts", "js", "sh", "bash", "py"];
 
 async function loadTools(ctx: LoadContext): Promise<LoadResult<CustomTool>> {
-	const roots = await allowedRoots(ctx, "other");
+	const roots = await listOmpExtensionRoots(ctx);
 	const perRoot = await Promise.all(
 		roots.map(async root => {
 			const toolsDir = path.join(root.path, "tools");
@@ -277,7 +265,6 @@ const MCP_FILENAMES = [".mcp.json", "mcp.json"] as const;
 interface RawMcpServer {
 	enabled?: boolean;
 	timeout?: number;
-	requestIdFormat?: unknown;
 	command?: string;
 	args?: string[];
 	env?: Record<string, string>;
@@ -290,7 +277,7 @@ interface RawMcpServer {
 }
 
 async function loadMCPServers(ctx: LoadContext): Promise<LoadResult<MCPServer>> {
-	const roots = await allowedRoots(ctx, "mcp");
+	const roots = await listOmpExtensionRoots(ctx);
 	const items: MCPServer[] = [];
 	const warnings: string[] = [];
 
@@ -326,12 +313,10 @@ async function loadMCPServers(ctx: LoadContext): Promise<LoadResult<MCPServer>> 
 			// Root relative command/cwd at the plugin's config directory, not the
 			// session cwd (MCP stdio spawning resolves relative values there).
 			const rooted = resolvePluginStdioPaths({ command: cfg.command, cwd: cfg.cwd }, root.path);
-			const requestIdFormat = parseRequestIdFormat(cfg.requestIdFormat);
 			items.push({
 				name: serverName,
 				...(cfg.enabled !== undefined && { enabled: cfg.enabled }),
 				...(cfg.timeout !== undefined && { timeout: cfg.timeout }),
-				...(requestIdFormat !== undefined && { requestIdFormat }),
 				...(rooted.command !== undefined && { command: rooted.command }),
 				...(cfg.args !== undefined && { args: cfg.args }),
 				...(cfg.env !== undefined && { env: cfg.env }),

@@ -20,6 +20,7 @@ import type { Settings } from "../config/settings";
 import { applyDirenvPreflight, type BashResult, executeBash } from "../exec/bash-executor";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
 import { InternalUrlRouter } from "../internal-urls";
+import { enforceAskModeGuard } from "../modes/ask-mode/ask-mode-guard";
 import { truncateToVisualLines } from "../modes/components/visual-truncate";
 import { highlightCode, type Theme } from "../modes/theme/theme";
 import bashDescription from "../prompts/tools/bash.md" with { type: "text" };
@@ -910,6 +911,8 @@ export class BashTool implements AgentTool<typeof bashSchemaBase | typeof bashSc
 		onUpdate?: AgentToolUpdateCallback<BashToolDetails>,
 		ctx?: AgentToolContext,
 	): Promise<AgentToolResult<BashToolDetails>> {
+		const askBlock = enforceAskModeGuard(this.session, "bash", { command: rawCommand });
+		if (askBlock) return askBlock;
 		let command = rawCommand;
 		const env = normalizeBashEnv(rawEnv);
 

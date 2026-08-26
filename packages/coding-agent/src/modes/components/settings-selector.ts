@@ -31,6 +31,7 @@ import {
 	getType,
 	normalizeProviderMaxInFlightRequests,
 	type SettingPath,
+	type SettingScope,
 	settings,
 	validateProviderMaxInFlightRequests,
 } from "../../config/settings";
@@ -601,6 +602,8 @@ export class SettingsSelectorComponent implements Component {
 	#currentTabId: SettingTab | "plugins" = "appearance";
 	#preSearchTabId: SettingTab | "plugins" = "appearance";
 	#searchQuery = "";
+	/** Current target storage scope for setting changes ("global" or "project") */
+	#scope: SettingScope = "global";
 	/** Single-line editor backing the search banner (cursor, word ops, paste). */
 	#searchInput = new Input();
 	#searchMatchCount = 0;
@@ -665,8 +668,9 @@ export class SettingsSelectorComponent implements Component {
 	}
 
 	#footerHintText(): string {
+		const scopeLabel = this.#scope === "project" ? "Project" : "Global";
 		if (this.#searchList) {
-			return "Enter to change · Tab to jump tabs · Esc to exit search";
+			return `Enter: change · s: scope (${scopeLabel}) · c: clear · Tab: jump tabs · Esc: exit search`;
 		}
 		if (this.#currentTabId === "plugins") {
 			return "Tab to switch tabs · Esc to close";
@@ -674,8 +678,8 @@ export class SettingsSelectorComponent implements Component {
 		if (this.#currentList?.sectionFocused) {
 			return "↑/↓ to jump sections · Tab/Enter to settings · ←/→ to switch tabs · Esc to close";
 		}
-		const nav = this.#hasSectionJump ? "Tab to jump sections · ←/→ to switch tabs" : "Tab to switch tabs";
-		return `Enter/Space to change · ${nav} · Type to search · Esc to close`;
+		const nav = this.#hasSectionJump ? "Tab: jump sections · ←/→: switch tabs" : "Tab: switch tabs";
+		return `Enter/Space: change · s: scope (${scopeLabel}) · c: clear · ${nav} · Type to search · Esc to close`;
 	}
 
 	/** Single-line search banner: accent icon, editable query with live cursor, right-aligned match count. */
@@ -958,10 +962,10 @@ export class SettingsSelectorComponent implements Component {
 		if (!def) return;
 		if (def.type === "boolean") {
 			const boolValue = newValue === "true";
-			settings.set(path, boolValue as never);
+			settings.set(path, boolValue as never, { scope: this.#scope });
 			this.callbacks.onChange(path, boolValue);
 		} else if (def.type === "enum") {
-			settings.set(path, newValue as never);
+			settings.set(path, newValue as never, { scope: this.#scope });
 			this.callbacks.onChange(path, newValue);
 		}
 		// Submenu/text types already persisted inside their own done callbacks.
@@ -989,6 +993,7 @@ export class SettingsSelectorComponent implements Component {
 			description: def.description,
 			warning: def.warning,
 			changed: this.#isChanged(def, currentValue),
+			layer: settings.getLayer(def.path),
 		};
 
 		switch (def.type) {
@@ -1003,6 +1008,7 @@ export class SettingsSelectorComponent implements Component {
 					...item,
 					currentValue: this.#getSubmenuCurrentValue(def.path, currentValue),
 					submenu: (cv, done) => this.#createSubmenu(def, cv, done),
+
 				};
 
 			case "text":
@@ -1010,6 +1016,7 @@ export class SettingsSelectorComponent implements Component {
 					...item,
 					currentValue: this.#formatTextInputValue(def, currentValue),
 					submenu: (cv, done) => this.#createTextInput(def, cv, done),
+
 				};
 
 			case "providerLimits":
@@ -1017,6 +1024,7 @@ export class SettingsSelectorComponent implements Component {
 					...item,
 					currentValue: this.#formatProviderLimitsValue(currentValue),
 					submenu: (_cv, done) => this.#createProviderLimitsInput(done),
+
 				};
 
 			case "multiselect":
@@ -1024,6 +1032,7 @@ export class SettingsSelectorComponent implements Component {
 					...item,
 					currentValue: this.#formatMultiSelectValue(def, currentValue),
 					submenu: (_cv, done) => this.#createMultiSelect(def, done),
+
 				};
 		}
 	}
@@ -1238,7 +1247,7 @@ export class SettingsSelectorComponent implements Component {
 			initial,
 			def.ordered,
 			value => {
-				settings.set(def.path, value as never);
+				settings.set(def.path, value as never, { scope: this.#scope });
 				this.callbacks.onChange(def.path, value);
 			},
 			() => done(this.#formatMultiSelectValue(def, settings.get(def.path))),
@@ -1276,9 +1285,9 @@ export class SettingsSelectorComponent implements Component {
 		const currentValue = settings.get(path);
 		const schemaType = getType(path);
 		if (path === "compaction.thresholdPercent" && value === "default") {
-			settings.set(path, -1 as never);
+			settings.set(path, -1 as never, { scope: this.#scope });
 		} else if (path === "compaction.thresholdTokens" && value === "default") {
-			settings.set(path, -1 as never);
+			settings.set(path, -1 as never, { scope: this.#scope });
 		} else if (schemaType === "record") {
 			let parsed: unknown;
 			try {
@@ -1292,13 +1301,13 @@ export class SettingsSelectorComponent implements Component {
 			if (path === "providers.maxInFlightRequests") {
 				parsed = validateProviderMaxInFlightRequests(parsed);
 			}
-			settings.set(path, parsed as never);
+			settings.set(path, parsed as never, { scope: this.#scope });
 		} else if (typeof currentValue === "number") {
-			settings.set(path, Number(value) as never);
+			settings.set(path, Number(value) as never, { scope: this.#scope });
 		} else if (typeof currentValue === "boolean") {
-			settings.set(path, (value === "true") as never);
+			settings.set(path, (value === "true") as never, { scope: this.#scope });
 		} else {
-			settings.set(path, value as never);
+			settings.set(path, value as never, { scope: this.#scope });
 		}
 	}
 
@@ -1327,14 +1336,14 @@ export class SettingsSelectorComponent implements Component {
 
 				if (def.type === "boolean") {
 					const boolValue = newValue === "true";
-					settings.set(path, boolValue as never);
+					settings.set(path, boolValue as never, { scope: this.#scope });
 					this.callbacks.onChange(path, boolValue);
 
 					if (tabId === "appearance") {
 						this.#triggerStatusLinePreview();
 					}
 				} else if (def.type === "enum") {
-					settings.set(path, newValue as never);
+					settings.set(path, newValue as never, { scope: this.#scope });
 					this.callbacks.onChange(path, newValue);
 				}
 				// Submenu/text types already persisted the value inside their own
@@ -1449,6 +1458,35 @@ export class SettingsSelectorComponent implements Component {
 		}
 		if (matchesKey(data, "left") || matchesKey(data, "right")) {
 			this.#tabBar.handleInput(data);
+			return;
+		}
+
+		if (data === "s" || data === "S") {
+			this.#scope = this.#scope === "global" ? "project" : "global";
+			this.invalidate();
+			return;
+		}
+
+		if (data === "c" || data === "C") {
+			const selected = this.#currentList?.getSelectedItem();
+			if (selected && !selected.heading) {
+				const path = selected.id as SettingPath;
+				const currentLayer = settings.getLayer(path);
+				if (currentLayer === "project") {
+					settings.clearProject(path);
+				} else if (currentLayer === "global") {
+					settings.clearGlobal(path);
+				} else if (currentLayer === "override") {
+					if (this.#scope === "project") {
+						settings.clearProject(path);
+					} else {
+						settings.clearGlobal(path);
+					}
+				}
+				this.callbacks.onChange(path, settings.get(path));
+				const defs = getSettingsForTab(this.#currentTabId as SettingTab);
+				this.#refreshCurrentTabItems(defs);
+			}
 			return;
 		}
 

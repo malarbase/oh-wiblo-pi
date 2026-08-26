@@ -995,29 +995,6 @@ export function __resolveTypeBoxShimPath(
 
 const TYPEBOX_SHIM_PATH = __resolveTypeBoxShimPath(IS_COMPILED_BINARY, sourceShimPath("legacy-typebox.ts"));
 
-// Legacy extensions historically imported `Type` (and `Static`/`TSchema`) from
-// the package root of `@(scope)/pi-ai`. pi-ai 15.1.0 removed the runtime `Type`
-// export (see `packages/ai/CHANGELOG.md`), so the bare canonical specifier no
-// longer satisfies those imports. The override below redirects only the bare
-// pi-ai package root onto a sibling shim that re-exports the canonical surface
-// plus the borrowed `Type` runtime from the omptype TypeBox facade. Subpath
-// imports such as `@oh-my-pi/pi-ai/oauth` continue to resolve directly
-// against the bundled pi-ai package.
-const LEGACY_PI_AI_SHIM_PATH = IS_COMPILED_BINARY
-	? bundledModuleVirtualSpecifier(`${CANONICAL_PI_SCOPE}/pi-ai`)
-	: sourceShimPath("legacy-pi-ai-shim.ts");
-
-// The coding-agent's own `./src/index.ts` cannot be listed as an extra
-// `bun --compile` entrypoint alongside the CLI entry without breaking binary
-// startup (issue #1474 follow-up). In compiled-binary mode the legacy
-// `@(scope)/pi-coding-agent` root therefore resolves through the bundled
-// module shim; in dev / source-link / installed-package mode it points at the
-// sibling source shim whose distinct file path avoids the #1474 collision
-// while still re-exporting the canonical package surface.
-const LEGACY_PI_CODING_AGENT_SHIM_PATH = IS_COMPILED_BINARY
-	? bundledModuleVirtualSpecifier(`${CANONICAL_PI_SCOPE}/pi-coding-agent`)
-	: sourceShimPath("legacy-pi-coding-agent-shim.ts");
-
 // Legacy pi-tui exported `decodeKittyPrintable` from its package root. The
 // canonical TUI replaced it with the broader `decodePrintableKey`; route only
 // legacy root imports through a sibling shim that preserves the old name.
@@ -1065,8 +1042,8 @@ export function __validateLegacyPiPackageRootOverrides(
 
 /**
  * Compute the override map keyed by every canonical specifier the host serves
- * directly: the pi-ai / pi-coding-agent roots (compat shims that re-attach
- * legacy helpers) plus, in compiled mode, every build-supplied module key.
+ * directly: the pi-tui root (compat shim that re-attaches legacy helpers) plus,
+ * in compiled mode, every build-supplied module key.
  * Subpath coverage stops `@(scope)/pi-ai/oauth` and friends from falling
  * through to the extension's absent peer install when bunfs walks fail.
  */
@@ -1075,8 +1052,6 @@ export function __buildLegacyPiPackageRootOverrides(
 	bundledModuleKeys: Iterable<string> = [],
 ): Record<string, string> {
 	const candidates: Record<string, string> = {
-		[`${CANONICAL_PI_SCOPE}/pi-ai`]: LEGACY_PI_AI_SHIM_PATH,
-		[`${CANONICAL_PI_SCOPE}/pi-coding-agent`]: LEGACY_PI_CODING_AGENT_SHIM_PATH,
 		[`${CANONICAL_PI_SCOPE}/pi-tui`]: LEGACY_PI_TUI_SHIM_PATH,
 	};
 	if (isCompiled) {

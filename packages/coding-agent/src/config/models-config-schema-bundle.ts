@@ -266,7 +266,7 @@ export const getModelsConfigSchemaBundle = once(() => {
 	});
 
 	const ProviderDiscoverySchema = type({
-		type: '"ollama" | "llama.cpp" | "lm-studio" | "openai-models-list" | "proxy" | "litellm"',
+		type: '"ollama" | "llama.cpp" | "lm-studio" | "openai-models-list" | "openai-compatible" | "proxy" | "litellm"',
 		"timeoutMs?": "number",
 	}).narrow((value, ctx) => {
 		if (
@@ -330,6 +330,7 @@ export const getModelsConfigSchemaBundle = once(() => {
 		ModelOverrideSchema,
 		ProviderDiscoverySchema,
 		ProviderAuthSchema,
+		ProviderConfigSchema,
 		ModelsConfigSchema,
 	};
 });

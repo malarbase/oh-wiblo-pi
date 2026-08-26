@@ -17,6 +17,7 @@ import {
 	type WritethroughDeferredHandle,
 } from "../../lsp";
 import { FileChangeType, notifyWorkspaceWatchedFiles } from "../../lsp/client";
+import { enforceAskModeGuard } from "../../modes/ask-mode/ask-mode-guard";
 import type { ToolSession } from "../../tools";
 import { routeWriteThroughBridge } from "../../tools/acp-bridge";
 import { assertEditableFile } from "../../tools/auto-generated-guard";
@@ -1841,6 +1842,8 @@ export async function executePatchSingle(
 
 	const op: Operation = rawOp === "create" || rawOp === "delete" ? rawOp : "update";
 
+	const askBlock = enforceAskModeGuard(session, "edit", { path, ...params });
+	if (askBlock) return askBlock;
 	enforcePlanModeWrite(session, path, { op, move: rename });
 	const resolvedPath = resolvePlanPath(session, path);
 	const resolvedRename = rename ? resolvePlanPath(session, rename) : undefined;

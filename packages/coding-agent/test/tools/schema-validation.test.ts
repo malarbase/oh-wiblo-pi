@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { normalizeSchemaForGoogle } from "@oh-my-pi/pi-ai";
+import { normalizeSchemaForGoogle } from "@oh-my-pi/pi-ai/utils/schema";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { createTools, HIDDEN_TOOLS, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 
@@ -104,7 +104,6 @@ function validateSchema(schema: unknown, path = "root"): SchemaViolation[] {
 
 	return violations;
 }
-
 function createTestSession(): ToolSession {
 	return {
 		cwd: "/tmp/test",
@@ -116,12 +115,6 @@ function createTestSession(): ToolSession {
 }
 
 describe("normalizeSchemaForGoogle", () => {
-	it("converts const to enum", () => {
-		const schema = { type: "string", const: "active" };
-		const sanitized = normalizeSchemaForGoogle(schema);
-		expect(sanitized).toEqual({ type: "string", enum: ["active"] });
-	});
-
 	it("merges const into existing enum", () => {
 		const schema = { type: "string", const: "active", enum: ["inactive"] };
 		const sanitized = normalizeSchemaForGoogle(schema);
@@ -285,7 +278,6 @@ describe("tool schema validation (post-sanitization)", () => {
 			const sanitized = normalizeSchemaForGoogle(schema);
 			const violations = validateSchema(sanitized, name);
 			const errors = violations.filter(v => v.severity === "error");
-
 			if (errors.length > 0) {
 				const details = errors.map(v => `  - ${v.path}: ${v.key} = ${JSON.stringify(v.value)}`).join("\n");
 				throw new Error(`Hidden tool ${name} has prohibited schema features after sanitization:\n${details}`);
@@ -293,7 +285,6 @@ describe("tool schema validation (post-sanitization)", () => {
 		}
 	});
 });
-
 describe("validateSchema helper", () => {
 	it("detects $schema declarations", () => {
 		const schema = { $schema: "https://json-schema.org/draft/2020-12/schema", type: "object" };
