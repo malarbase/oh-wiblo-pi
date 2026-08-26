@@ -102,6 +102,18 @@ async function main(): Promise<void> {
 			if (shouldAdhocSign) {
 				await runCommand(["codesign", "--force", "--sign", "-", outputPath]);
 			}
+
+			// Keep dist/owp and dist/omp in sync so both binary names stay functional.
+			const owpPath = path.join(packageDir, "dist", "owp");
+			await Bun.write(owpPath, Bun.file(outputPath));
+			const fs = await import("node:fs/promises");
+			await fs.chmod(owpPath, 0o755);
+
+			const ompPath = path.join(packageDir, "dist", "omp");
+			if (ompPath !== outputPath) {
+				await Bun.write(ompPath, Bun.file(outputPath));
+				await fs.chmod(ompPath, 0o755);
+			}
 		} finally {
 			await runCommand(["bun", "--cwd=../natives", "run", "gen:native:reset"]);
 		}
