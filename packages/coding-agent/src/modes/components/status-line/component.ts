@@ -402,6 +402,8 @@ export class StatusLineComponent implements Component {
 	 * round-trips because the same {@link AgentSession} ref is reused.
 	 */
 	#activeMeters: WeakMap<AgentSession, ActiveMeter> = new WeakMap();
+	#askModeStatus: { enabled: boolean } | null = null;
+	#debugModeStatus: { enabled: boolean } | null = null;
 	#planModeStatus: { enabled: boolean; paused: boolean } | null = null;
 	#loopModeStatus: SegmentContext["loopMode"] = null;
 	#goalModeStatus: { enabled: boolean; paused: boolean } | null = null;
@@ -656,6 +658,14 @@ export class StatusLineComponent implements Component {
 
 	setPlanModeStatus(status: { enabled: boolean; paused: boolean } | undefined): void {
 		this.#planModeStatus = status ?? null;
+	}
+
+	setAskModeStatus(status: { enabled: boolean } | undefined): void {
+		this.#askModeStatus = status ?? null;
+	}
+
+	setDebugModeStatus(status: { enabled: boolean } | undefined): void {
+		this.#debugModeStatus = status ?? null;
 	}
 
 	setLoopModeStatus(status: NonNullable<SegmentContext["loopMode"]> | undefined): void {
@@ -1731,6 +1741,8 @@ export class StatusLineComponent implements Component {
 			width,
 			options: segmentOptions ?? {},
 			compactThinkingLevel: this.#resolveSettings().compactThinkingLevel ?? false,
+			askMode: this.#askModeStatus,
+			debugMode: this.#debugModeStatus,
 			planMode: this.#planModeStatus,
 			loopMode: this.#loopModeStatus,
 			prewalk:
