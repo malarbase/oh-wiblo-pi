@@ -24,10 +24,17 @@ export function resolveAuthBrokerConfig(): Promise<AuthBrokerClientConfig | null
 
 /**
  * Create an AuthStorage instance using the local SQLite store.
+ *
+ * `reload()` is required: the credential cache (`#data`) is only populated
+ * from the store on reload, so skipping it leaves every persisted provider
+ * key (e.g. an OpenRouter API key saved via `/login`) invisible after a
+ * restart — upstream's broker discovery performs the same reload.
  */
-export function discoverAuthStorage(agentDir: string = getAgentDir()): Promise<AuthStorage> {
+export async function discoverAuthStorage(agentDir: string = getAgentDir()): Promise<AuthStorage> {
 	const dbPath = require("node:path").join(agentDir, "auth.db");
-	return AuthStorage.create(dbPath);
+	const storage = await AuthStorage.create(dbPath);
+	await storage.reload();
+	return storage;
 }
 
 /**
