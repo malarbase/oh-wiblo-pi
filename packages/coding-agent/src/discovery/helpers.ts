@@ -403,6 +403,25 @@ export async function scanSkillsFromDir(
 			const skillDirName = path.basename(path.dirname(skillPath));
 			const rawName = frontmatter.name;
 			const name = typeof rawName === "string" ? rawName.trim() || skillDirName : skillDirName;
+
+			const rawMeta = (
+				frontmatter.metadata && typeof frontmatter.metadata === "object" ? frontmatter.metadata : {}
+			) as Record<string, unknown>;
+			const author =
+				typeof frontmatter.author === "string"
+					? frontmatter.author.trim()
+					: typeof rawMeta.author === "string"
+						? rawMeta.author.trim()
+						: undefined;
+			const repo =
+				typeof frontmatter.repo === "string"
+					? frontmatter.repo.trim()
+					: typeof rawMeta.repo === "string"
+						? rawMeta.repo.trim()
+						: undefined;
+			const tags = parseArrayOrCSV(frontmatter.tags ?? rawMeta.tags);
+			const group = skillDirName;
+
 			items.push({
 				name,
 				path: skillPath,
@@ -410,6 +429,10 @@ export async function scanSkillsFromDir(
 				frontmatter: frontmatter as SkillFrontmatter,
 				level,
 				_source: createSourceMeta(providerId, skillPath, level),
+				author,
+				repo,
+				tags,
+				group,
 			});
 		} catch {
 			warnings.push(`Failed to read skill file: ${skillPath}`);
