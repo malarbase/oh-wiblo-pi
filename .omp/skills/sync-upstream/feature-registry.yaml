@@ -143,7 +143,6 @@ features:
     owned_paths:
       - ".omp/extensions/pi-peon/"
       - ".omp/skills/owp-developer/"
-      - "packages/hashline/"
       - "packages/coding-agent/src/modes/interactive-mode.ts"
       - "packages/coding-agent/src/web/search/"
       - "packages/coding-agent/test/core/hashline.test.ts"
@@ -437,10 +436,6 @@ divergences:
 
   - path: "python/robomp/"
     reason: "Fork removes upstream robomp GitHub triage bot."
-    resolution: "prefer_ours"
-
-  - path: "packages/hashline/"
-    reason: "OWP maintains hashline as a workspace package after upstream deleted it. Vendored copy moved from coding-agent/src/hashline/ to packages/hashline/."
     resolution: "prefer_ours"
 
 # Intentional deletions — upstream files absent from owp on purpose.

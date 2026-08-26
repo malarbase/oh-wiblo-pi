@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `.omp/skills/sync-upstream/generate-skill-md.ts` — do not edit it by hand; run the script instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 60 fork commits on top of `upstream/main`.
+Total: 61 fork commits on top of `upstream/main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -112,6 +112,7 @@ Total: 60 fork commits on top of `upstream/main`.
 | `15e2a84349` | chore(owp): remove packages/coding-agent/examples/sdk/13-sql-sessions.ts — chore(owp): remove upstream-only components | `packages/coding-agent/examples/sdk/13-sql-sessions.ts` | chore |
 | `8e995cd06d` | chore(owp): remove packages/catalog/test/google-vertex-discovery.test.ts — chore(owp): remove upstream-only components | `packages/catalog/test/google-vertex-discovery.test.ts` | chore |
 | `ef6eda1dbc` | chore(owp): remove packages/catalog/test/wafer.test.ts — chore(owp): remove upstream-only components | `packages/catalog/test/wafer.test.ts` | chore |
+| `3598580763` | docs(owp): update Last Sync Point to eab72e88e4 (18.0.4) | `docs/maintaining-owp-fork.md` | docs only |
 
 > **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `bun .omp/skills/sync-upstream/generate-skill-md.ts`, never by hand.
 <!-- GENERATED:fork-commits:end -->

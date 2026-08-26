@@ -175,7 +175,7 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | Fix isBunBinary in compiled binary | `packages/coding-agent/src/config.ts` |
 | Build dist/owp as primary output | `packages/coding-agent/scripts/build-binary.ts` |
 | Fix plan-mode approval UI + omp bin entry + ETXTBSY fix | `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/coding-agent/package.json`, `.omp/commands/install-binary/index.ts`, `packages/coding-agent/test/tools/bash-interceptor.test.ts` |
-| Google search provider + hashline recovery + mode fixes | `.omp/extensions/pi-peon/`, `.omp/skills/owp-developer/`, `packages/hashline/`, `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/web/search/`, `packages/coding-agent/test/core/hashline.test.ts` |
+| Google search provider + hashline recovery + mode fixes | `.omp/extensions/pi-peon/`, `.omp/skills/owp-developer/`, `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/web/search/`, `packages/coding-agent/test/core/hashline.test.ts` |
 | Upstream-deleted module stubs | `packages/coding-agent/src/edit/file-read-cache.ts`, `packages/coding-agent/src/edit/file-snapshot-store.ts`, `packages/coding-agent/src/edit/hashline/`, `packages/coding-agent/src/hashline-compat.ts`, `packages/coding-agent/src/tools/approval.ts`, `packages/coding-agent/src/tools/exit-plan-mode.ts`, `packages/coding-agent/src/tools/output-schema-validator.ts`, `packages/utils/src/install-id.ts`, `packages/utils/src/sanitize-text.ts` |
 | sync-upstream skill and script | `.omp/skills/sync-upstream/` |
 | feature-checklist extension | `.omp/extensions/feature-checklist.ts` |
@@ -409,7 +409,6 @@ These omp files exist but owp intentionally doesn't override them. Always take u
 - `Dockerfile.robomp` — Fork removes upstream robomp Docker builder.
 - `Dockerfile.robomp.dockerignore` — Fork removes upstream robomp Docker builder context.
 - `python/robomp/` — Fork removes upstream robomp GitHub triage bot.
-- `packages/hashline/` — OWP maintains hashline as a workspace package after upstream deleted it. Vendored copy moved from coding-agent/src/hashline/ to packages/hashline/.
 
 > **WARNING:** The divergence list exists because these files are considered upstream-owned. If you add an owp feature that modifies one of these files, the feature will be silently lost on the next sync (the decision tree will "prefer upstream"). You must either:
 > 1. Move the feature out of these files, or

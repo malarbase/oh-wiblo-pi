@@ -15,7 +15,7 @@
  *
  * The abstract base class lets callers plug in whatever storage they like
  * (LRU, persistent SQLite, etc.). {@link InMemorySnapshotStore} ships as a
- * sensible default backed by `lru-cache`: a bounded set of paths, each with a
+ * sensible default backed by a bounded LRU: a limited set of paths, each with a
  * short history of full-file versions so in-session edit chains can still
  * recover against the version a stale tag names.
  */
@@ -141,7 +141,7 @@ export interface InMemorySnapshotStoreOptions {
 }
 
 /**
- * In-memory {@link SnapshotStore} backed by `lru-cache`. Per-path history is a
+ * In-memory {@link SnapshotStore} backed by a bounded LRU. Per-path history is a
  * short ring of full-file versions (oldest dropped first); per-session path
  * tracking is LRU-bounded so cold paths age out automatically.
  *
@@ -179,7 +179,7 @@ export class InMemorySnapshotStore extends SnapshotStore {
 		return history?.find(version => version.hash === hash) ?? null;
 	}
 
-	override byContent(path: string, fullText: string): Snapshot | null {
+	byContent(path: string, fullText: string): Snapshot | null {
 		const history = this.#versions.get(path);
 		return history?.find(version => version.text === fullText) ?? null;
 	}
@@ -194,7 +194,7 @@ export class InMemorySnapshotStore extends SnapshotStore {
 		return matches;
 	}
 
-	override record(path: string, fullText: string, seenLines?: Iterable<number>): string {
+	record(path: string, fullText: string, seenLines?: Iterable<number>): string {
 		const hash = computeFileHash(fullText);
 		// `get` refreshes LRU recency for `path`.
 		const history = this.#versions.get(path) ?? [];

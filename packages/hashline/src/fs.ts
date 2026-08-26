@@ -145,7 +145,7 @@ export class InMemoryFilesystem extends Filesystem {
 		return text;
 	}
 
-	override async writeText(path: string, content: string): Promise<WriteResult> {
+	async writeText(path: string, content: string): Promise<WriteResult> {
 		this.#files.set(path, content);
 		return { text: content };
 	}
@@ -193,7 +193,7 @@ export class InMemoryFilesystem extends Filesystem {
  * jail/sandbox resolution should wrap this with their own subclass.
  */
 export class NodeFilesystem extends Filesystem {
-	override async readText(path: string): Promise<string> {
+	async readText(path: string): Promise<string> {
 		const file = Bun.file(path);
 		if (!(await file.exists())) throw new NotFoundError(path);
 		return file.text();
@@ -208,7 +208,7 @@ export class NodeFilesystem extends Filesystem {
 		}
 	}
 
-	override async writeText(path: string, content: string): Promise<WriteResult> {
+	async writeText(path: string, content: string): Promise<WriteResult> {
 		await Bun.write(path, content);
 		return { text: content };
 	}
