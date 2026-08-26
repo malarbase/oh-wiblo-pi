@@ -1,12 +1,11 @@
-/**
- * Arktype schema for the `edit` tool's hashline mode payload. The schema is
- * deliberately permissive (allows extra keys) so providers can attach extra
- * keys without rejection; only `input` is required.
- */
-import { type } from "@oh-my-pi/omptype";
+// Stub: params module deleted upstream — not used by fork
+export interface HashlineParams {
+	filePath: string;
+	content: string;
+}
 
-export const hashlineEditParamsSchema = type({
-	input: "string",
-});
+export const hashlineEditParamsSchema = {} as never;
 
-export type HashlineParams = typeof hashlineEditParamsSchema.infer;
+export function parseHashlineParams(_input: string): HashlineParams {
+	return { filePath: "", content: "" };
+}
