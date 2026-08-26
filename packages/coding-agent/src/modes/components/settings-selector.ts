@@ -1008,7 +1008,6 @@ export class SettingsSelectorComponent implements Component {
 					...item,
 					currentValue: this.#getSubmenuCurrentValue(def.path, currentValue),
 					submenu: (cv, done) => this.#createSubmenu(def, cv, done),
-
 				};
 
 			case "text":
@@ -1016,7 +1015,6 @@ export class SettingsSelectorComponent implements Component {
 					...item,
 					currentValue: this.#formatTextInputValue(def, currentValue),
 					submenu: (cv, done) => this.#createTextInput(def, cv, done),
-
 				};
 
 			case "providerLimits":
@@ -1024,7 +1022,6 @@ export class SettingsSelectorComponent implements Component {
 					...item,
 					currentValue: this.#formatProviderLimitsValue(currentValue),
 					submenu: (_cv, done) => this.#createProviderLimitsInput(done),
-
 				};
 
 			case "multiselect":
@@ -1032,7 +1029,6 @@ export class SettingsSelectorComponent implements Component {
 					...item,
 					currentValue: this.#formatMultiSelectValue(def, currentValue),
 					submenu: (_cv, done) => this.#createMultiSelect(def, done),
-
 				};
 		}
 	}

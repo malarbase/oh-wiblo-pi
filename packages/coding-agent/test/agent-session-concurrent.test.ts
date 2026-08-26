@@ -667,7 +667,6 @@ describe("AgentSession concurrent prompt guard", () => {
 			}),
 		).toBe(true);
 	});
-
 });
 
 describe("AgentSession TTSR resume gate", () => {

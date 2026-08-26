@@ -463,10 +463,7 @@ export class GoogleAIProvider extends SearchProvider {
 							answer = normalizeText(answer);
 						}
 
-						const maxResults = Math.min(
-							params.numSearchResults ?? params.limit ?? MAX_SOURCES,
-							MAX_SOURCES,
-						);
+						const maxResults = Math.min(params.numSearchResults ?? params.limit ?? MAX_SOURCES, MAX_SOURCES);
 						const sources = await extractSources(page, maxResults);
 
 						if (!answer) {
@@ -526,10 +523,7 @@ export class GoogleAIProvider extends SearchProvider {
 			}
 
 			// Extract cited source links
-			const maxResults = Math.min(
-				params.numSearchResults ?? params.limit ?? MAX_SOURCES,
-				MAX_SOURCES,
-			);
+			const maxResults = Math.min(params.numSearchResults ?? params.limit ?? MAX_SOURCES, MAX_SOURCES);
 			const sources = await extractSources(page, maxResults);
 
 			// Fallback: if no answer, try extracting readable content from page HTML

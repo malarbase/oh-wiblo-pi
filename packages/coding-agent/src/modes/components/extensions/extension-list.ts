@@ -287,7 +287,13 @@ export class ExtensionList implements Component {
 		return truncateToWidth(line, width);
 	}
 
-	#renderExtensionRow(ext: Extension, isSelected: boolean, width: number, masterDisabled: boolean, grouped = false): string {
+	#renderExtensionRow(
+		ext: Extension,
+		isSelected: boolean,
+		width: number,
+		masterDisabled: boolean,
+		grouped = false,
+	): string {
 		const shadowed = isShadowedExtension(ext);
 		const effectivelyDisabled = masterDisabled || ext.state === "disabled";
 		const mcpSnap =
