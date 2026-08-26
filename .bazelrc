@@ -5,10 +5,11 @@
 
 common --enable_platform_specific_config
 
-# Hermetic-ish action env: no host env leaks into action keys. Build scripts
-# that need host tools (cmake for audiopus_sys' bundled opus) get an explicit
-# PATH through crate annotations in MODULE.bazel.
+# Hermetic-ish action env: no host env leaks into action keys.
 build --incompatible_strict_action_env
+# Pass host PATH through so build scripts find cmake/make from system packages,
+# mise, nix, homebrew, etc. Crate annotations no longer need to hardcode paths.
+build --action_env=PATH
 
 # Third-party crate resolution (rules_rust crate_universe) shells out to
 # `cargo-bazel splice`, which runs `cargo metadata` + fetches every git/registry
