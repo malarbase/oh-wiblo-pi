@@ -226,6 +226,15 @@ export interface AutocompleteProvider {
 		onApplied?: () => void;
 	};
 
+	/**
+	 * Synchronously try to expand text immediately before the cursor (no async I/O).
+	 * Called after every single-character insert. Implementations MUST cheaply
+	 * early-return when the trailing context cannot trigger them.
+	 * Returns the number of characters to delete immediately before the cursor
+	 * and the literal string to insert in their place, or null to leave the
+	 * buffer untouched.
+	 */
+	trySyncInlineReplace?(textBeforeCursor: string): { replaceLen: number; insert: string } | null;
 	/** Get inline hint text to show as dim ghost text after the cursor */
 	getInlineHint?(lines: string[], cursorLine: number, cursorCol: number): string | null;
 	/** Synchronously try to complete a slash command at the start of a line (no async I/O). */

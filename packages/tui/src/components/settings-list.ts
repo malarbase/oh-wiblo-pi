@@ -13,6 +13,8 @@ function sanitizeSingleLine(text: string): string {
 		.trim();
 }
 
+export type SettingLayerBadge = "override" | "project" | "global" | "default";
+
 export interface SettingItem {
 	/** Unique identifier for this setting */
 	id: string;
@@ -30,6 +32,8 @@ export interface SettingItem {
 	submenu?: (currentValue: string, done: (selectedValue?: string) => void) => Component;
 	/** True when the displayed setting differs from its default value. */
 	changed?: boolean;
+	/** Optional layer providing the current value, used for the [O]/[P]/[G]/[D] badge */
+	layer?: SettingLayerBadge;
 	/** Render as a non-interactive section heading. Skipped by navigation and search. */
 	heading?: boolean;
 }
@@ -50,6 +54,21 @@ export interface SettingsListTheme {
 	section?: (text: string, active: boolean) => string;
 	/** Hover band applied to the full row under the mouse pointer. */
 	hovered?: (text: string) => string;
+	/** Optional badge renderer; receives layer letter and selected state */
+	layerBadge?: (layer: SettingLayerBadge, selected: boolean) => string;
+}
+
+function defaultLayerBadge(layer: SettingLayerBadge): string {
+	switch (layer) {
+		case "override":
+			return "[O] ";
+		case "project":
+			return "[P] ";
+		case "global":
+			return "[G] ";
+		default:
+			return "    ";
+	}
 }
 
 /** A contiguous run of items under one heading, derived from the item list. */
@@ -157,6 +176,14 @@ export class SettingsList implements Component {
 		this.#selectedIndex = index;
 		this.#notifySelection();
 		return true;
+	}
+
+	/** Update an item's layer badge */
+	updateLayer(id: string, layer: SettingLayerBadge): void {
+		const item = this.#items.find(i => i.id === id);
+		if (item) {
+			item.layer = layer;
+		}
 	}
 
 	/** True while keyboard focus is on the section headings instead of the setting rows. */
@@ -513,7 +540,16 @@ export class SettingsList implements Component {
 		const labelPlain = item.label + mark;
 		const labelPad = padding(Math.max(0, maxLabelWidth - visibleWidth(labelPlain)));
 		const separator = "  ";
-		const valueMaxWidth = rowWidth - prefixWidth - maxLabelWidth - visibleWidth(separator) - 2;
+		const labelPadded = item.label + padding(Math.max(0, maxLabelWidth - visibleWidth(item.label)));
+		const hasAnyLayer = this.#filteredItems.some(i => i.layer !== undefined);
+		const badgeWidth = hasAnyLayer ? 4 : 0;
+		let badge = "";
+		if (hasAnyLayer && !item.heading) {
+			const layer = item.layer ?? "default";
+			badge = this.#theme.layerBadge ? this.#theme.layerBadge(layer, isSelected) : defaultLayerBadge(layer);
+		}
+
+		const valueMaxWidth = rowWidth - prefixWidth - maxLabelWidth - visibleWidth(separator) - badgeWidth - 2;
 		const valuePlain = truncateToWidth(String(item.currentValue ?? ""), valueMaxWidth, Ellipsis.Omit);
 		const hovered = !isSelected && this.#theme.hovered !== undefined && item.id === this.#hoveredItemId;
 		// De-emphasized rows (outside the active section) render as plain text
@@ -528,7 +564,7 @@ export class SettingsList implements Component {
 		const labelText =
 			this.#theme.label(item.label, isSelected, item.changed === true) + (mark ? warningStyle(mark) : "") + labelPad;
 		const valueText = this.#theme.value(valuePlain, isSelected, item.changed === true);
-		const text = truncateToWidth(prefix + labelText + separator + valueText, Math.max(0, rowWidth));
+		const text = truncateToWidth(prefix + labelText + separator + badge + valueText, Math.max(0, rowWidth));
 		// Pointer hover paints a band behind the whole row, distinct from the
 		// keyboard selection (cursor glyph + accent) which stays where it is.
 		if (hovered && this.#theme.hovered) {

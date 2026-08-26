@@ -80,14 +80,14 @@ export function setHangulCompatibilityJamoWidth(width: HangulCompatibilityJamoWi
 	const changed = hangulCompatibilityJamoWidth !== width;
 	hangulCompatibilityJamoWidth = width;
 	if (changed) widthConfigEpoch++;
-	nativeSetHangulCompatJamoWidthOverride(nativeHangulCompatibilityJamoOverride(width));
+	nativeSetHangulCompatJamoWidthOverride?.(nativeHangulCompatibilityJamoOverride(width));
 	return changed;
 }
 
 export function resetHangulCompatibilityJamoWidthForTests(): void {
 	if (hangulCompatibilityJamoWidth !== "platform") widthConfigEpoch++;
 	hangulCompatibilityJamoWidth = "platform";
-	nativeSetHangulCompatJamoWidthOverride(0);
+	nativeSetHangulCompatJamoWidthOverride?.(0);
 }
 
 export type TextSizingScale = 1 | 2 | 3;
@@ -648,4 +648,19 @@ export function isTuiTight(): boolean {
 
 export function getPaddingX(basePadding: number): number {
 	return globalTight ? Math.max(0, basePadding - 1) : basePadding;
+}
+
+/**
+ * Create an OSC 8 terminal hyperlink.
+ */
+export function fileHyperlink(url: string, text: string): string {
+	return `\x1b]8;;${url}\x07${text}\x1b]8;;\x07`;
+}
+
+/**
+ * Best-effort synchronous resolution of an internal URL to an absolute path.
+ * Returns undefined when the URL is not a recognized internal scheme.
+ */
+export function tryResolveInternalUrlSync(_url: string): string | undefined {
+	return undefined;
 }
