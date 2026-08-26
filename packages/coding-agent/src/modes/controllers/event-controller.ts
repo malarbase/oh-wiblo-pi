@@ -22,12 +22,15 @@ import { TtsrNotificationComponent } from "../../modes/components/ttsr-notificat
 import { createUsageRowBlock } from "../../modes/components/usage-row";
 import { getSymbolTheme, theme } from "../../modes/theme/theme";
 import type { InteractiveModeContext, TodoPhase } from "../../modes/types";
+import type { PlanApprovalDetails } from "../../plan-mode/approved-plan";
 import idleRecapPrompt from "../../prompts/system/recap-user.md" with { type: "text" };
 import type { AgentSessionEvent } from "../../session/agent-session";
 import { isSilentAbort, isUserInvokedSkillPrompt, readQueueChipText, resolveAbortLabel } from "../../session/messages";
 import { type ApprovalMode, resolveApproval } from "../../tools/approval";
+import type { AskFollowupDetails } from "../../tools/ask-followup-question";
 import { previewLine, TRUNCATE_LENGTHS } from "../../tools/render-utils";
-import { PROPOSE_DEVICE_NAME, writeDeviceDispatch } from "../../tools/resolve";
+import { PROPOSE_DEVICE_NAME, type ResolveDetails, writeDeviceDispatch } from "../../tools/resolve";
+import type { SwitchModeDetails } from "../../tools/switch-mode";
 import { nextActionableTask } from "../../tools/todo";
 import { SpeechEnhancer } from "../../tts/speech-enhancer";
 import { vocalizer } from "../../tts/vocalizer";
@@ -178,26 +181,6 @@ export class EventController {
 	#prevHideThinking = false;
 	#handlers: AgentSessionEventHandlers;
 	#terminalProgressActive = false;
-	// Coalescing window for `message_update` events at the subscription boundary.
-	// `message_update` carries the CUMULATIVE assistant message (every update
-	// re-lists all content blocks), so when a burst of deltas arrives faster than
-	// this window only the latest snapshot needs to rebuild streaming state — the
-	// intermediate rebuilds are redundant work. The TUI already caps the paint
-	// rate via its own render cadence; this caps the per-token handler work that
-	// feeds it. Speech stays intact: `#vocalizeDelta` runs at ARRIVAL for every
-	// delta before the snapshot is coalesced away.
-	#pendingMessageUpdate: Extract<AgentSessionEvent, { type: "message_update" }> | undefined = undefined;
-	#messageUpdateTimer: NodeJS.Timeout | undefined = undefined;
-	/** Tail of the serialized dispatch chain; see #runSerialized. */
-	#dispatchTail: Promise<void> = Promise.resolve();
-	/** Whether a chained run is currently in flight (awaiting its own awaits). */
-	#dispatchInFlight = false;
-	// Deltas already fed to speech at arrival by the coalescer. `#handleMessageUpdate`
-	// also vocalizes so the direct `handleEvent` path (tests, session focus replay)
-	// keeps working — the WeakSet makes the coalesced path speak each delta exactly
-	// once instead of twice.
-	#vocalizedMessageUpdates = new WeakSet<object>();
-	static readonly #MESSAGE_UPDATE_COALESCE_MS = 33;
 
 	constructor(private ctx: InteractiveModeContext) {
 		// Enhanced speech (`speech.enhanced`) rewrites blocks through the
@@ -516,35 +499,8 @@ export class EventController {
 	}
 
 	subscribeToAgent(): void {
-		// Serialize non-update dispatch behind any in-flight handler run:
-		// AgentSession.#emit fires listeners fire-and-forget (it does not await
-		// listener promises), so without this a rapid stream tail
-		// (message_update → message_end → agent_end) could let a later callback
-		// overtake the coalesced flush's handler mid-await — agent_end removing
-		// `streamingComponent` before #handleMessageEnd finalizes and records
-		// the final message (issue #7443 follow-up). When the tail has settled,
-		// dispatch stays synchronous: the flush's streaming rebuild runs before
-		// the listener's first await, preserving the timing the coalescing
-		// tests assert on. `message_update` enqueue is itself synchronous and
-		// needs no serialization.
 		this.ctx.unsubscribe = this.ctx.session.subscribe(async (event: AgentSessionEvent) => {
-			// Coalesce the cumulative `message_update` deltas of a streaming turn
-			// into at most one handler run per window. `#handleMessageUpdate` is
-			// synchronous, so without this every token re-runs the whole
-			// streaming rebuild (splitAssistantMessageToolTimeline, reveal
-			// setTarget, per-block tool-call reconciliation) even though the TUI
-			// paints at most ~30fps — at 40-100 tps the handler work then
-			// dominates the CPU profile of an idle-looking streaming session
-			// (issue #7443). Only the latest snapshot is meaningful; non-update
-			// events flush the pending snapshot first so ordering is preserved.
-			if (event.type === "message_update") {
-				this.#enqueueMessageUpdate(event);
-				return;
-			}
-			await this.#runSerialized(async () => {
-				await this.#flushPendingMessageUpdate();
-				await this.handleEvent(event);
-			});
+			await this.handleEvent(event);
 		});
 	}
 
@@ -650,7 +606,6 @@ export class EventController {
 	hasToolExecutionStarted(toolCallId: string): boolean {
 		return this.#executionStartedCallIds.has(toolCallId);
 	}
-
 	/**
 	 * Clear every transcript-anchored/turn-scoped piece of state. Used by the
 	 * session focus proxy when re-pointing the transcript at another session:
@@ -658,11 +613,6 @@ export class EventController {
 	 * session's transcript and must not bleed into the new one.
 	 */
 	resetTranscriptAnchors(): void {
-		if (this.#messageUpdateTimer) {
-			clearTimeout(this.#messageUpdateTimer);
-			this.#messageUpdateTimer = undefined;
-		}
-		this.#pendingMessageUpdate = undefined;
 		this.#resetReadGroup();
 		this.#lastVisibleBlockCount = 0;
 		this.#renderedCustomMessages.clear();
@@ -1068,9 +1018,7 @@ export class EventController {
 
 	async #handleMessageUpdate(event: Extract<AgentSessionEvent, { type: "message_update" }>): Promise<void> {
 		this.#ensureWorkingLoaderWhileStreaming();
-		if (!this.#vocalizedMessageUpdates.delete(event)) {
-			this.#vocalizeDelta(event);
-		}
+		this.#vocalizeDelta(event);
 		if (this.ctx.streamingComponent && event.message.role === "assistant") {
 			const unlockedThinkingVisibility = this.ctx.noteDisplayableThinkingContent(event.message);
 			if (unlockedThinkingVisibility) {
@@ -1172,7 +1120,6 @@ export class EventController {
 						content.name,
 						renderArgs,
 						{
-							useBuiltInRenderer: this.ctx.viewSession.hasBuiltInTool(content.name),
 							snapshots: getFileSnapshotStore(this.ctx.viewSession),
 							clipboard: getEditClipboard(this.ctx.viewSession),
 							showImages: settings.get("terminal.showImages"),
@@ -1420,7 +1367,6 @@ export class EventController {
 				event.toolName,
 				event.args,
 				{
-					useBuiltInRenderer: this.ctx.viewSession.hasBuiltInTool(event.toolName),
 					snapshots: getFileSnapshotStore(this.ctx.viewSession),
 					clipboard: getEditClipboard(this.ctx.viewSession),
 					showImages: settings.get("terminal.showImages"),
@@ -1717,29 +1663,37 @@ export class EventController {
 				typeof details.title === "string" &&
 				typeof details.planExists === "boolean"
 			) {
-				// Dispatch the approval WITHOUT blocking the serialized event
-				// dispatch chain. `handlePlanApproval` -> `#approvePlan` awaits
-				// `session.prompt` for the ENTIRE approved-execution turn; awaiting
-				// it here (this handler runs inside `#runSerialized`) would hold the
-				// single dispatch link for the whole run, so the run's own
-				// agent_start / message_start / tool / coalesced message_update
-				// events queue behind it on `#dispatchTail` and the chat stays blank
-				// until execution finishes (issue #7684, follow-up to #5688 which
-				// only closed the overlay). Detaching frees the link the moment this
-				// handler returns; the approval overlay and the turn's live events
-				// then render. The approval flow surfaces its own failures via
-				// `showError`, so only an unexpected rejection is logged here.
-				void this.ctx
-					.handlePlanApproval({
-						planFilePath: details.planFilePath,
-						title: details.title,
-						planExists: details.planExists,
-					})
-					.catch(err => {
-						logger.warn("Plan approval dispatch failed", {
-							error: err instanceof Error ? err.message : String(err),
-						});
-					});
+				const approval = details as unknown as PlanApprovalDetails;
+				await this.ctx.handlePlanApproval({
+					planFilePath: approval.planFilePath,
+					finalPlanFilePath: approval.finalPlanFilePath,
+					title: approval.title,
+					planExists: approval.planExists,
+				});
+			}
+		}
+		if (event.toolName === "resolve" && !event.isError) {
+			const details = event.result.details as ResolveDetails | undefined;
+			if (details?.sourceToolName === "plan_approval" && details.action === "apply") {
+				const planDetails = details.sourceResultDetails as PlanApprovalDetails | undefined;
+				if (planDetails) {
+					await this.ctx.handlePlanApproval(planDetails);
+				}
+			}
+		}
+		if (event.toolName === "switch_mode" && !event.isError) {
+			const details = event.result.details as SwitchModeDetails | undefined;
+			if (details) {
+				await this.ctx.handleSwitchModeTool(details);
+			}
+		}
+		if (event.toolName === "ask_followup_question" && !event.isError) {
+			const details = event.result.details as AskFollowupDetails | undefined;
+			if (details?.selectedMode) {
+				await this.ctx.handleSwitchModeTool({
+					targetMode: details.selectedMode,
+					reason: details.reason,
+				});
 			}
 		}
 	}
@@ -1766,12 +1720,6 @@ export class EventController {
 		// model/thinking level until the terminal settle.
 		if (event.isTerminal === false) {
 			await this.ctx.flushPendingModelSwitch();
-			// Reaching here means the first guard passed, so `isStreaming` is already
-			// false: a command issued from now on mounts immediately. Leaving earlier
-			// panels queued would render them out of order, minutes later, after the
-			// user was told they were only waiting for the turn. The transcript is
-			// quiescent at a settle, which is the condition #4806 wanted.
-			this.ctx.flushPendingCommandOutput();
 			return;
 		}
 		setTerminalTitleState("idle");
