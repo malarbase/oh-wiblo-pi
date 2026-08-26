@@ -1897,11 +1897,6 @@ export interface PtyStartOptions {
   cols?: number
   /** PTY row count. */
   rows?: number
-  /**
-   * Shell binary to use (e.g. "sh", "bash", or an absolute path).
-   * Defaults to "sh" if not provided.
-   */
-  shell?: string
 }
 
 /**
@@ -1926,27 +1921,14 @@ export declare function rasterizeSvg(input: Uint8Array, maxWidthPx: number, maxH
  */
 export declare function readImageFromClipboard(): Promise<ClipboardImage | undefined | null>
 
-/**
- * Render one snapcompact frame on a libuv worker: print pre-normalized text
- * onto a `size`-wide bitmap and encode it as PNG.
- *
- * The bitmap height hugs the rows the text actually occupies
- * (`usedRows * lineRepeat * cellHeight`), so a partially filled frame never
- * pays for blank padding rows. The glyph grid holds `floor(size/cellWidth) *
- * floor(size/cellHeight/lineRepeat)` characters; input beyond that is ignored.
- * Native-cell bitmap-font shapes encode as indexed PNG; stretched bitmap-font
- * shapes (target cell != font cell) encode as RGB. TrueType shapes encode RGB
- * directly from grayscale coverage.
- * `stretch: false` pins bitmap fonts to the indexed path, printing
- * natural-size glyphs on the requested cell box; `columns: 2` flows
- * pre-wrapped newline-separated lines down two newspaper columns.
- * `U+000E`/`U+000F` in `text` toggle dim-gray ink spans without occupying a
- * cell.
- * Returns a promise for the PNG encoded as base64, created as a one-byte
- * (Latin-1) JS string straight from native code — no `Uint8Array` hop or
- * JS-side re-encode.
- */
+/** Render a snapcompact frame as a PNG string. */
 export declare function renderSnapcompactPng(text: string, options: SnapcompactRenderOptions): Promise<string>
+
+/**
+ * Strip ANSI escape sequences, remove control characters / lone surrogates,
+ * and normalize line endings.
+ */
+export declare function sanitizeText(text: string): string
 
 /**
  * Search content for a pattern (one-shot, compiles pattern each time).
@@ -2163,14 +2145,11 @@ export interface SummaryOptions {
   minBodyLines?: number
   /** Minimum total comment lines before eliding a multiline block comment. */
   minCommentLines?: number
-  /**
-   * Target visible-line count for BFS unfold. `None` or `0` keeps only
-   * the outermost elisions (no progressive unfolding).
-   */
+  /** Target visible-line count for BFS unfold. None or 0 disables BFS. */
   unfoldUntilLines?: number
   /**
-   * Hard ceiling for BFS unfold. Defaults to `unfold_until_lines * 2`
-   * when omitted.
+   * Hard ceiling for BFS unfold. Defaults to `unfold_until_lines * 2` when
+   * omitted.
    */
   unfoldLimitLines?: number
 }
