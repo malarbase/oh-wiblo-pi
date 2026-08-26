@@ -41,6 +41,7 @@ import {
 	Snowflake,
 } from "@oh-my-pi/pi-utils";
 import { INTENT_FIELD } from "@oh-my-pi/pi-wire";
+
 import {
 	discoverAdvisorConfigs,
 	discoverWatchdogFiles,
@@ -79,7 +80,6 @@ import "./discovery";
 import { createImageUrlServiceFromSettings } from "./blob-broker/service";
 import { wrapStreamFnWithBlobUrlFallback } from "./blob-broker/stream-fallback";
 import { initializeWithSettings } from "./discovery";
-import { withOmpExtensionRootScope } from "./discovery/omp-extension-roots";
 import { disposeAllJuliaKernelSessions, disposeJuliaKernelSessionsByOwner } from "./eval/jl/executor";
 import { disposeVmContextsByOwner } from "./eval/js/context-manager";
 import { disposeAllKernelSessions, disposeKernelSessionsByOwner } from "./eval/py/executor";
@@ -1250,10 +1250,7 @@ export function createAutoLearnCaptureRunner(
  * ```
  */
 export async function createAgentSession(options: CreateAgentSessionOptions = {}): Promise<CreateAgentSessionResult> {
-	const rootMode = options.disableExtensionDiscovery ? "explicit-only" : "merge";
-	return await withOmpExtensionRootScope(options.additionalExtensionPaths ?? [], rootMode, () =>
-		createAgentSessionScoped(options),
-	);
+	return await createAgentSessionScoped(options);
 }
 
 async function createAgentSessionScoped(options: CreateAgentSessionOptions): Promise<CreateAgentSessionResult> {
