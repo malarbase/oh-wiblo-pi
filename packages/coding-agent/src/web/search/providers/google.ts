@@ -1,5 +1,5 @@
 import type { AuthStorage } from "@oh-my-pi/pi-ai";
-import { type Element, parseHTML } from "@oh-my-pi/pi-utils/dom";
+import { parseHTML } from "linkedom";
 import type { SearchResponse, SearchSource } from "../../../web/search/types";
 import { SearchProviderError } from "../../../web/search/types";
 import { formatScraperQuery } from "../query";
@@ -117,14 +117,13 @@ function blockReason(page: LoadedHtmlPage): "javascript" | "traffic" | undefined
 }
 
 async function callGoogleHtml(params: SearchParams, numResults: number): Promise<string> {
-	const signal = withHardTimeout(params.signal, params.timeoutMs);
+	const signal = withHardTimeout(params.signal);
 	const url = buildSearchUrl(params, numResults);
 	let page: LoadedHtmlPage;
 	try {
 		page = await browserFetch(url, {
 			fetch: params.fetch,
 			signal,
-			timeoutMs: params.timeoutMs,
 			referer: GOOGLE_HOME_URL,
 			browser: {
 				homeUrl: GOOGLE_HOME_URL,
