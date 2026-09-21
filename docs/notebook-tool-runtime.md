@@ -10,6 +10,7 @@ The critical distinction: **notebook support is file conversion/editing, not not
 - [`crates/pi-edit/src/files.rs`](../crates/pi-edit/src/files.rs)
 - [`src/tools/read.ts`](../packages/coding-agent/src/tools/read.ts)
 - [`src/tools/eval.ts`](../packages/coding-agent/src/tools/eval.ts)
+- [`src/tools/notebook.ts`](../packages/coding-agent/src/tools/notebook.ts)
 - [`src/eval/py/executor.ts`](../packages/coding-agent/src/eval/py/executor.ts)
 - [`src/eval/py/kernel.ts`](../packages/coding-agent/src/eval/py/kernel.ts)
 - [`src/session/streaming-output.ts`](../packages/coding-agent/src/session/streaming-output.ts)
@@ -36,6 +37,10 @@ No kernel lifecycle exists in this path:
 - no stream chunks from Python
 - no rich display capture
 - no output artifact pipeline from execution
+
+## `notebook` tool (`src/tools/notebook.ts`)
+
+OWP provides a dedicated `notebook` tool for cell-level execution within notebook files, building on the kernel-backed Python runtime.
 
 ## Kernel-backed execution path (`src/tools/eval.ts` + `src/eval/py/*`)
 
