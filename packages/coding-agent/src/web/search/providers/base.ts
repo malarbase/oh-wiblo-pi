@@ -76,6 +76,12 @@ export interface SearchParams {
 	sessionId?: string;
 	antigravityEndpointMode?: "auto" | "production" | "sandbox";
 	geminiModel?: string;
+	/** How to handle CAPTCHA: "wait" pauses for manual solve, "error" throws immediately. */
+	captchaBehavior?: "error" | "wait";
+	/** Seconds to wait for CAPTCHA solve before falling back (only when behavior is "wait"). */
+	captchaTimeout?: number;
+	/** Callback for progress updates (e.g. CAPTCHA countdown). */
+	onUpdate?: (message: string) => void;
 }
 
 /** Base class for web search providers. */
