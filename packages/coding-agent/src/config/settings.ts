@@ -250,6 +250,31 @@ function setByPath(obj: RawSettings, segments: string[], value: unknown): void {
 }
 
 /**
+ * Remove a nested value from an object by path segments.
+ * Missing intermediates are a no-op; empty parent objects are left in place.
+ */
+function deleteByPath(obj: RawSettings, segments: readonly string[]): void {
+	let current: RawSettings | undefined = obj;
+	for (let i = 0; i < segments.length - 1; i++) {
+		const next = current?.[segments[i]];
+		if (typeof next !== "object" || next === null) return;
+		current = next as RawSettings;
+	}
+	if (current) delete current[segments[segments.length - 1]];
+}
+
+/**
+ * Where a `set()` call persists: the user-global config or the project config.
+ */
+export type SettingScope = "global" | "project";
+
+/**
+ * Which configuration layer currently provides a setting's value.
+ * Priority order: override > project > global > default.
+ */
+export type SettingLayer = "override" | "project" | "global" | "default";
+
+/**
  * Dotted-path prefixes that name settings groups (e.g. "tui" for "tui.*").
  * A prefix may simultaneously be a schema leaf; those accept their declared
  * value shape and are excluded from shadow detection.
@@ -566,6 +591,8 @@ export class Settings {
 	#modified = new Set<string>();
 	/** Individual project model roles modified during this session */
 	#modifiedProjectModelRoles = new Set<string>();
+	/** Dotted setting paths written with project scope, pending background save to the project config. */
+	#modifiedProjectPaths = new Set<string>();
 	/** Individual global model roles modified during this session (for partial save) */
 	#modifiedGlobalModelRoles = new Set<string>();
 	/** On-disk generations and prior values observed before each pending global mutation. */
@@ -721,19 +748,88 @@ export class Settings {
 	 * Updates global settings and queues a background save.
 	 * Triggers hooks for settings that have side effects.
 	 */
-	set<P extends SettingPath>(path: P, value: SettingValue<P>): void {
+	/**
+	 * Get the active configuration layer providing the value for `path`.
+	 * Priority order: override > project > global > default.
+	 */
+	getLayer(path: SettingPath): SettingLayer {
+		const segments = SETTING_PATH_SEGMENTS[path];
+		if (getByPath(this.#overrides, segments) !== undefined) return "override";
+		if (getByPath(this.#projectSettingsForMerge(), segments) !== undefined) return "project";
+		if (getByPath(this.#global, segments) !== undefined) return "global";
+		return "default";
+	}
+
+	/**
+	 * Set a setting value (sync).
+	 * Updates global or project settings depending on scope, and queues a background save.
+	 * Triggers hooks for settings that have side effects.
+	 */
+	set<P extends SettingPath>(path: P, value: SettingValue<P>, options?: { scope?: SettingScope }): void {
 		assertKnownStatusLineSegments(path, value);
+		const scope = options?.scope ?? "global";
+		const prev = this.get(path);
+		const segments = path.split(".");
+
+		if (scope === "project") {
+			setByPath(this.#project, [...segments], value);
+			this.#modifiedProjectPaths.add(path);
+			this.#persistedMutationGeneration++;
+			this.#rebuildMerged();
+			this.#queueProjectSave();
+		} else {
+			this.#captureGlobalMutation(path, this.#modifiedPathMutations, getByPath(this.#global, segments));
+			setByPath(this.#global, segments, value);
+			this.#persistedMutationGeneration++;
+			this.#modified.add(path);
+			this.#rebuildMerged();
+			this.#queueSave();
+		}
+
+		const next = this.get(path);
+
+		// Trigger hook if exists
+		const hook = SETTING_HOOKS[path];
+		if (hook) {
+			hook(next, prev);
+		}
+		this.#fireEffectiveSettingChanged(path, next, prev);
+	}
+
+	/**
+	 * Clear a setting override from the global configuration, falling back to
+	 * the project layer or the schema default.
+	 */
+	clearGlobal(path: SettingPath): void {
 		const prev = this.get(path);
 		const segments = path.split(".");
 		this.#captureGlobalMutation(path, this.#modifiedPathMutations, getByPath(this.#global, segments));
-		setByPath(this.#global, segments, value);
+		deleteByPath(this.#global, segments);
 		this.#persistedMutationGeneration++;
 		this.#modified.add(path);
 		this.#rebuildMerged();
-		const next = this.get(path);
 		this.#queueSave();
+		const next = this.get(path);
+		const hook = SETTING_HOOKS[path];
+		if (hook) {
+			hook(next, prev);
+		}
+		this.#fireEffectiveSettingChanged(path, next, prev);
+	}
 
-		// Trigger hook if exists
+	/**
+	 * Clear a setting override from the project configuration, falling back to
+	 * the global layer or the schema default.
+	 */
+	clearProject(path: SettingPath): void {
+		const prev = this.get(path);
+		const segments = path.split(".");
+		deleteByPath(this.#project, segments);
+		this.#modifiedProjectPaths.add(path);
+		this.#persistedMutationGeneration++;
+		this.#rebuildMerged();
+		this.#queueProjectSave();
+		const next = this.get(path);
 		const hook = SETTING_HOOKS[path];
 		if (hook) {
 			hook(next, prev);
@@ -857,7 +953,7 @@ export class Settings {
 		if (this.#modified.size > 0 || this.#modifiedGlobalModelRoles.size > 0) {
 			await this.#saveNow();
 		}
-		if (this.#modifiedProjectModelRoles.size > 0) {
+		if (this.#modifiedProjectModelRoles.size > 0 || this.#modifiedProjectPaths.size > 0) {
 			await this.#saveProjectNow();
 		}
 	}
@@ -3064,11 +3160,18 @@ export class Settings {
 	}
 
 	async #saveProjectNow(): Promise<void> {
-		if (this.#savesCancelled || !this.#persist || this.#modifiedProjectModelRoles.size === 0) return;
+		if (
+			this.#savesCancelled ||
+			!this.#persist ||
+			(this.#modifiedProjectModelRoles.size === 0 && this.#modifiedProjectPaths.size === 0)
+		)
+			return;
 
 		const projectConfigPath = path.join(getProjectAgentDir(this.#cwd), "config.yml");
 		const modifiedModelRoles = [...this.#modifiedProjectModelRoles];
+		const modifiedPaths = [...this.#modifiedProjectPaths];
 		this.#modifiedProjectModelRoles.clear();
+		this.#modifiedProjectPaths.clear();
 
 		try {
 			await fs.promises.mkdir(path.dirname(projectConfigPath), { recursive: true });
@@ -3081,7 +3184,21 @@ export class Settings {
 				const projectRoles = getByPath(this.#project, ["modelRoles"]);
 				for (const role of modifiedModelRoles) {
 					const value = isRecord(projectRoles) ? projectRoles[role] : undefined;
-					setByPath(projectSettings, ["modelRoles", role], value);
+					if (value === undefined) {
+						deleteByPath(projectSettings, ["modelRoles", role]);
+					} else {
+						setByPath(projectSettings, ["modelRoles", role], value);
+					}
+				}
+
+				for (const modifiedPath of modifiedPaths) {
+					const segments = modifiedPath.split(".");
+					const value = getByPath(this.#project, segments);
+					if (value === undefined) {
+						deleteByPath(projectSettings, segments);
+					} else {
+						setByPath(projectSettings, segments, value);
+					}
 				}
 
 				await this.#writeYamlAtomically(writePath, projectSettings);
@@ -3092,6 +3209,9 @@ export class Settings {
 		} catch (error) {
 			for (const role of modifiedModelRoles) {
 				this.#modifiedProjectModelRoles.add(role);
+			}
+			for (const modifiedPath of modifiedPaths) {
+				this.#modifiedProjectPaths.add(modifiedPath);
 			}
 			throw error;
 		}

@@ -126,10 +126,29 @@ export interface SettingsDisplayEntry {
 	condition?: () => boolean;
 }
 
+/**
+ * Where a `set()` call persists: the user-global config or the project config.
+ */
+export type SettingsScope = "global" | "project";
+
 export interface SettingsHost {
 	entries: readonly SettingsDisplayEntry[];
 	get(path: string): unknown;
-	set(path: string, value: unknown): void;
+	/**
+	 * Persist `value` for `path`. `scope` selects the target config layer
+	 * (user-global by default; hosts that ignore it always write globally).
+	 */
+	set(path: string, value: unknown, scope?: SettingsScope): void;
+	/**
+	 * Which configuration layer currently provides `path`'s value, or undefined
+	 * when the host does not track provenance. Drives the [O]/[P]/[G] row badge.
+	 */
+	getLayer?(path: string): "override" | "project" | "global" | "default";
+	/**
+	 * Revert `path` to its default: remove the highest non-default layer that
+	 * currently provides its value. Undefined when the host cannot revert.
+	 */
+	clear?(path: string): void;
 	normalizeProviderLimits(value: unknown): Record<string, number>;
 	validateProviderLimits(value: unknown): Record<string, number>;
 }

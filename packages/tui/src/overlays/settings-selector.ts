@@ -35,6 +35,7 @@ import {
 	type SettingTab,
 	type SettingsHost,
 	type SettingsDisplayEntry,
+	type SettingsScope,
 } from "./settings-defs";
 import { getCurrentThemeName, getSelectListTheme, getSettingsListTheme, theme } from "../theme/theme";
 import { AUTO_THINKING, type ConfiguredThinkingLevel } from "../thinking";
@@ -498,6 +499,8 @@ export class SettingsSelectorComponent implements Component {
 	#searchList: SettingsList | null = null;
 	#pluginComponent: PluginSettingsComponent | null = null;
 	#currentTabId: SettingTab | "plugins" = "appearance";
+	/** Write target for setting changes: user-global config or project config. */
+	#scope: SettingsScope = "global";
 	#preSearchTabId: SettingTab | "plugins" = "appearance";
 	#searchQuery = "";
 	/** Single-line editor backing the search banner (cursor, word ops, paste). */
@@ -574,10 +577,10 @@ export class SettingsSelectorComponent implements Component {
 			return "Tab to switch tabs · Esc to close";
 		}
 		if (this.#currentList?.sectionFocused) {
-			return "↑/↓ to jump sections · Tab/Enter to settings · ←/→ to switch tabs · Esc to close";
+			return `↑/↓ to jump sections · Tab/Enter to settings · ←/→ to switch tabs · Ctrl+S saves to ${this.#scope} · Esc to close`;
 		}
 		const nav = this.#hasSectionJump ? "Tab to jump sections · ←/→ to switch tabs" : "Tab to switch tabs";
-		return `Enter/Space to change · ${nav} · Type to search · Esc to close`;
+		return `Enter/Space to change · ${nav} · Ctrl+S saves to ${this.#scope} · Del reverts · Type to search · Esc to close`;
 	}
 
 	/** Single-line search banner: accent icon, editable query with live cursor, right-aligned match count. */
@@ -866,10 +869,10 @@ export class SettingsSelectorComponent implements Component {
 		if (!def) return;
 		if (def.type === "boolean") {
 			const boolValue = newValue === "true";
-			this.#context.settings.set(path, boolValue);
+			this.#context.settings.set(path, boolValue, this.#scope);
 			this.#callbacks.onChange(path, boolValue);
 		} else if (def.type === "enum") {
-			this.#context.settings.set(path, newValue);
+			this.#context.settings.set(path, newValue, this.#scope);
 			this.#callbacks.onChange(path, newValue);
 		}
 		// Submenu/text types already persisted inside their own done callbacks.
@@ -897,6 +900,7 @@ export class SettingsSelectorComponent implements Component {
 			description: def.description,
 			warning: def.warning,
 			changed: this.#isChanged(def, currentValue),
+			layer: this.#context.settings.getLayer?.(def.path),
 		};
 
 		switch (def.type) {
@@ -1151,7 +1155,7 @@ export class SettingsSelectorComponent implements Component {
 			initial,
 			def.ordered,
 			value => {
-				this.#context.settings.set(def.path, value);
+				this.#context.settings.set(def.path, value, this.#scope);
 				this.#callbacks.onChange(def.path, value);
 			},
 			() => done(this.#formatMultiSelectValue(def, this.#context.settings.get(def.path))),
@@ -1189,9 +1193,9 @@ export class SettingsSelectorComponent implements Component {
 		const currentValue = this.#context.settings.get(path);
 		const schemaType = getSettingDef(this.#context.settings.entries, path)?.schemaType;
 		if (path === "compaction.thresholdPercent" && value === "default") {
-			this.#context.settings.set(path, -1);
+			this.#context.settings.set(path, -1, this.#scope);
 		} else if (path === "compaction.thresholdTokens" && value === "default") {
-			this.#context.settings.set(path, -1);
+			this.#context.settings.set(path, -1, this.#scope);
 		} else if (schemaType === "record") {
 			let parsed: unknown;
 			try {
@@ -1205,13 +1209,13 @@ export class SettingsSelectorComponent implements Component {
 			if (path === "providers.maxInFlightRequests") {
 				parsed = this.#context.settings.validateProviderLimits(parsed);
 			}
-			this.#context.settings.set(path, parsed);
+			this.#context.settings.set(path, parsed, this.#scope);
 		} else if (typeof currentValue === "number") {
-			this.#context.settings.set(path, Number(value));
+			this.#context.settings.set(path, Number(value), this.#scope);
 		} else if (typeof currentValue === "boolean") {
-			this.#context.settings.set(path, value === "true");
+			this.#context.settings.set(path, value === "true", this.#scope);
 		} else {
-			this.#context.settings.set(path, value);
+			this.#context.settings.set(path, value, this.#scope);
 		}
 	}
 
@@ -1240,14 +1244,14 @@ export class SettingsSelectorComponent implements Component {
 
 				if (def.type === "boolean") {
 					const boolValue = newValue === "true";
-					this.#context.settings.set(path, boolValue);
+					this.#context.settings.set(path, boolValue, this.#scope);
 					this.#callbacks.onChange(path, boolValue);
 
 					if (tabId === "appearance") {
 						this.#triggerStatusLinePreview();
 					}
 				} else if (def.type === "enum") {
-					this.#context.settings.set(path, newValue);
+					this.#context.settings.set(path, newValue, this.#scope);
 					this.#callbacks.onChange(path, newValue);
 				}
 				// Submenu/text types already persisted the value inside their own
@@ -1288,6 +1292,22 @@ export class SettingsSelectorComponent implements Component {
 	#refreshCurrentTabItems(defs: SettingDef[]): void {
 		if (this.#currentTabId === "plugins" || !this.#currentList) return;
 		this.#currentList.setItems(this.#buildItemsForDefs(defs));
+	}
+
+	/**
+	 * Revert the selected setting to its default: remove the highest
+	 * non-default layer that currently provides its value.
+	 */
+	#clearSelectedSetting(): void {
+		const selected = this.#currentList?.getSelectedItem?.();
+		if (!selected || selected.heading) return;
+		if (!this.#context.settings.clear) return;
+		const def = getSettingDef(this.#context.settings.entries, selected.id);
+		if (!def) return;
+		this.#context.settings.clear(def.path);
+		this.#callbacks.onChange(def.path, this.#context.settings.get(def.path));
+		this.#refreshCurrentTabItems(getSettingsForTab(this.#context.settings.entries, this.#currentTabId as SettingTab));
+		this.invalidate();
 	}
 
 	/**
@@ -1362,6 +1382,18 @@ export class SettingsSelectorComponent implements Component {
 		}
 		if (matchesKey(data, "left") || matchesKey(data, "right")) {
 			this.#tabBar.handleInput(data);
+			return;
+		}
+
+		// Ctrl+S toggles the write scope (user-global config vs project config);
+		// Delete reverts the selected setting to its default.
+		if (matchesKey(data, "ctrl+s")) {
+			this.#scope = this.#scope === "global" ? "project" : "global";
+			this.invalidate();
+			return;
+		}
+		if (matchesKey(data, "delete")) {
+			this.#clearSelectedSetting();
 			return;
 		}
 

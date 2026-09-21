@@ -111,7 +111,18 @@ export function createSettingsHost(): SettingsHost {
 	return {
 		entries,
 		get: path => settings.get(path as SettingPath),
-		set: (path, value) => settings.set(path as SettingPath, value as never),
+		set: (path, value, scope) => settings.set(path as SettingPath, value as never, scope ? { scope } : undefined),
+		getLayer: path => settings.getLayer(path as SettingPath),
+		clear: path => {
+			const layer = settings.getLayer(path as SettingPath);
+			if (layer === "project") {
+				settings.clearProject(path as SettingPath);
+			} else if (layer === "global") {
+				settings.clearGlobal(path as SettingPath);
+			} else if (layer === "override") {
+				settings.clearOverride(path as SettingPath);
+			}
+		},
 		normalizeProviderLimits: normalizeProviderMaxInFlightRequests,
 		validateProviderLimits: validateProviderMaxInFlightRequests,
 	};
