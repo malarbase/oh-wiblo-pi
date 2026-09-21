@@ -32,9 +32,11 @@ import {
 	resolveAbortLabel,
 } from "../../session/messages";
 import { type ApprovalMode, resolveApproval } from "../../tools/approval";
+import type { AskFollowupDetails } from "../../tools/ask-followup-question";
 import { previewLine, TRUNCATE_LENGTHS } from "@oh-my-pi/pi-tui/render/render-utils";
 import { PROPOSE_DEVICE_NAME } from "@oh-my-pi/pi-tui/tools/resolve";
 import { writeDeviceDispatch } from "../../tools/resolve";
+import type { SwitchModeDetails } from "../../tools/switch-mode";
 import { nextActionableTask } from "../../tools/todo";
 import { SpeechEnhancer } from "../../tts/speech-enhancer";
 import { vocalizer } from "../../tts/vocalizer";
@@ -590,17 +592,6 @@ export class EventController {
 	}
 
 	subscribeToAgent(): void {
-		// Serialize non-update dispatch behind any in-flight handler run:
-		// AgentSession.#emit fires listeners fire-and-forget (it does not await
-		// listener promises), so without this a rapid stream tail
-		// (message_update → message_end → agent_end) could let a later callback
-		// overtake the coalesced flush's handler mid-await — agent_end removing
-		// `streamingComponent` before #handleMessageEnd finalizes and records
-		// the final message (issue #7443 follow-up). When the tail has settled,
-		// dispatch stays synchronous: the flush's streaming rebuild runs before
-		// the listener's first await, preserving the timing the coalescing
-		// tests assert on. `message_update` enqueue is itself synchronous and
-		// needs no serialization.
 		this.ctx.unsubscribe = this.ctx.session.subscribe(async (event: AgentSessionEvent) => {
 			// Coalesce the cumulative `message_update` deltas of a streaming turn
 			// into at most one handler run per window. `#handleMessageUpdate` is
@@ -724,7 +715,6 @@ export class EventController {
 	hasToolExecutionStarted(toolCallId: string): boolean {
 		return this.#executionStartedCallIds.has(toolCallId);
 	}
-
 	/**
 	 * Clear every transcript-anchored/turn-scoped piece of state. Used by the
 	 * session focus proxy when re-pointing the transcript at another session:
@@ -732,11 +722,6 @@ export class EventController {
 	 * session's transcript and must not bleed into the new one.
 	 */
 	resetTranscriptAnchors(): void {
-		if (this.#messageUpdateTimer) {
-			clearTimeout(this.#messageUpdateTimer);
-			this.#messageUpdateTimer = undefined;
-		}
-		this.#pendingMessageUpdate = undefined;
 		this.#resetReadGroup();
 		this.#lastVisibleBlockCount = 0;
 		this.#renderedCustomMessages.clear();
@@ -1247,9 +1232,7 @@ export class EventController {
 
 	async #handleMessageUpdate(event: Extract<AgentSessionEvent, { type: "message_update" }>): Promise<void> {
 		this.#ensureWorkingLoaderWhileStreaming();
-		if (!this.#vocalizedMessageUpdates.delete(event)) {
-			this.#vocalizeDelta(event);
-		}
+		this.#vocalizeDelta(event);
 		if (this.ctx.streamingComponent && event.message.role === "assistant") {
 			const unlockedThinkingVisibility = this.ctx.noteDisplayableThinkingContent(event.message);
 			if (unlockedThinkingVisibility) {
@@ -1355,19 +1338,19 @@ export class EventController {
 				// that already finished, permanently pending.
 				if (!this.ctx.pendingTools.has(content.id) && !this.#toolTimelineComponents.has(content.id)) {
 					this.#resolveDisplaceablePoll(renderToolName);
-					this.#resetReadGroup();
-					const component = new ToolExecutionComponent(
-						renderToolName,
-						renderArgs,
-						{
-							useBuiltInRenderer: this.ctx.viewSession.hasBuiltInTool(renderToolName),
-							showImages: settings.get("terminal.showImages"),
-						},
-						tool,
-						this.ctx.ui,
-						this.ctx.sessionManager.getCwd(),
-						content.id,
-					);
+this.#resetReadGroup();
+			const component = new ToolExecutionComponent(
+				renderToolName,
+				renderArgs,
+				{
+					useBuiltInRenderer: this.ctx.viewSession.hasBuiltInTool(renderToolName),
+					showImages: settings.get("terminal.showImages"),
+				},
+				tool,
+				this.ctx.ui,
+				this.ctx.sessionManager.getCwd(),
+				content.id,
+			);
 					const pendingPreview = this.#pendingStreamPreviews.get(content.id);
 					if (pendingPreview !== undefined) {
 						component.updateStreamPreview(pendingPreview);
@@ -1960,29 +1943,37 @@ export class EventController {
 				typeof details.title === "string" &&
 				typeof details.planExists === "boolean"
 			) {
-				// Dispatch the approval WITHOUT blocking the serialized event
-				// dispatch chain. `handlePlanApproval` -> `#approvePlan` awaits
-				// `session.prompt` for the ENTIRE approved-execution turn; awaiting
-				// it here (this handler runs inside `#runSerialized`) would hold the
-				// single dispatch link for the whole run, so the run's own
-				// agent_start / message_start / tool / coalesced message_update
-				// events queue behind it on `#dispatchTail` and the chat stays blank
-				// until execution finishes (issue #7684, follow-up to #5688 which
-				// only closed the overlay). Detaching frees the link the moment this
-				// handler returns; the approval overlay and the turn's live events
-				// then render. The approval flow surfaces its own failures via
-				// `showError`, so only an unexpected rejection is logged here.
-				void this.ctx
-					.handlePlanApproval({
-						planFilePath: details.planFilePath,
-						title: details.title,
-						planExists: details.planExists,
-					})
-					.catch(err => {
-						logger.warn("Plan approval dispatch failed", {
-							error: err instanceof Error ? err.message : String(err),
-						});
-					});
+				const approval = details as unknown as PlanApprovalDetails;
+				await this.ctx.handlePlanApproval({
+					planFilePath: approval.planFilePath,
+					finalPlanFilePath: approval.finalPlanFilePath,
+					title: approval.title,
+					planExists: approval.planExists,
+				});
+			}
+		}
+		if (event.toolName === "resolve" && !event.isError) {
+			const details = event.result.details as ResolveDetails | undefined;
+			if (details?.sourceToolName === "plan_approval" && details.action === "apply") {
+				const planDetails = details.sourceResultDetails as PlanApprovalDetails | undefined;
+				if (planDetails) {
+					await this.ctx.handlePlanApproval(planDetails);
+				}
+			}
+		}
+		if (event.toolName === "switch_mode" && !event.isError) {
+			const details = event.result.details as SwitchModeDetails | undefined;
+			if (details) {
+				await this.ctx.handleSwitchModeTool(details);
+			}
+		}
+		if (event.toolName === "ask_followup_question" && !event.isError) {
+			const details = event.result.details as AskFollowupDetails | undefined;
+			if (details?.selectedMode) {
+				await this.ctx.handleSwitchModeTool({
+					targetMode: details.selectedMode,
+					reason: details.reason,
+				});
 			}
 		}
 	}
@@ -2009,12 +2000,6 @@ export class EventController {
 		// model/thinking level until the terminal settle.
 		if (event.isTerminal === false) {
 			await this.ctx.flushPendingModelSwitch();
-			// Reaching here means the first guard passed, so `isStreaming` is already
-			// false: a command issued from now on mounts immediately. Leaving earlier
-			// panels queued would render them out of order, minutes later, after the
-			// user was told they were only waiting for the turn. The transcript is
-			// quiescent at a settle, which is the condition #4806 wanted.
-			this.ctx.flushPendingCommandOutput();
 			return;
 		}
 		setTerminalTitleState("idle");
