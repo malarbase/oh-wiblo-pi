@@ -3594,7 +3594,7 @@ export const SETTINGS_SCHEMA = {
 			tab: "files",
 			group: "Editing",
 			label: "Edit Mode",
-			description: "Select the edit tool variant (replace, patch, hashline, or apply_patch)",
+			description: "Select the edit tool variant (replace, patch, hashline, apply_patch, or mimo)",
 		},
 	},
 
@@ -4866,28 +4866,24 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 
-	"plan.autosave": {
-		type: "boolean",
-		default: false,
+	"plan.storage": {
+		type: "enum",
+		values: ["session", "project"] as const,
+		default: "session",
 		ui: {
 			tab: "tasks",
 			group: "Modes",
-			label: "Autosave Plans",
-			description: "Automatically save approved plans to disk when plan mode completes",
-			condition: "planModeEnabled",
-		},
-	},
-
-	"plan.autosaveDir": {
-		type: "string",
-		default: undefined,
-		ui: {
-			tab: "tasks",
-			group: "Modes",
-			label: "Autosave Directory",
+			label: "Plan Storage Location",
 			description:
-				"Directory for autosaved plans. Supports ~, absolute, and cwd-relative paths. Empty uses <project>/.omp/plans/.",
-			condition: "planAutosaveEnabled",
+				"Where approved plans are saved. 'session' stores in session artifacts directory (local://), 'project' saves to .omp/plans/ in project root.",
+			options: [
+				{
+					value: "session",
+					label: "Session Artifacts",
+					description: "Default — stored in session artifacts (local://)",
+				},
+				{ value: "project", label: "Project Directory", description: "Saved to .omp/plans/ in workspace" },
+			],
 		},
 	},
 
@@ -5453,6 +5449,40 @@ export const SETTINGS_SCHEMA = {
 			group: "Services",
 			label: "Gemini web_search model",
 			description: "Model ID for Gemini Google Search grounding. Defaults to gemini-2.5-flash.",
+		},
+	},
+	"providers.webSearchCaptchaBehavior": {
+		type: "enum",
+		values: ["wait", "error"] as const,
+		default: "wait",
+		ui: {
+			tab: "providers",
+			group: "Services",
+			label: "CAPTCHA Behavior",
+			description:
+				"When Google serves a CAPTCHA: 'wait' pauses with a timeout for you to solve it in the browser, 'error' throws immediately and falls back to other providers",
+			options: [
+				{ value: "wait", label: "Wait for manual solve (Recommended)" },
+				{ value: "error", label: "Throw immediately" },
+			],
+		},
+	},
+	"providers.webSearchCaptchaTimeout": {
+		type: "number",
+		default: 90,
+		ui: {
+			tab: "providers",
+			group: "Services",
+			label: "CAPTCHA Solve Timeout",
+			description:
+				"Seconds to wait for you to solve a CAPTCHA before falling back to other providers (only when behavior is 'wait')",
+			options: [
+				{ value: "30", label: "30 seconds" },
+				{ value: "60", label: "1 minute" },
+				{ value: "90", label: "1.5 minutes" },
+				{ value: "120", label: "2 minutes" },
+				{ value: "300", label: "5 minutes" },
+			],
 		},
 	},
 	"providers.antigravityEndpoint": {
