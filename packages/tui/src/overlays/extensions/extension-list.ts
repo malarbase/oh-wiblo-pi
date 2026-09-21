@@ -1,18 +1,15 @@
 /**
- * ExtensionList - Inventory list with Master Switch and fuzzy search.
+ * ExtensionList - Inventory list with Master Switch, skill grouping, and fuzzy search.
  *
  * When viewing a specific provider (not "ALL"), Row #0 is the Master Switch
  * that toggles the entire provider. All items below are dimmed when the
- * master switch is off.
+ * master switch is off. Skills can be grouped by directory, tag, repo, or author.
  */
-import type { Component } from "../../tui";
-import { matchesKey } from "../../keys";
-import { padding, truncateToWidth, visibleWidth } from "../../utils";
-import { theme } from "../../theme";
-import { matchesSelectDown, matchesSelectUp } from "../../keybinding-matchers";
-import { contentRowWidth, renderScrollableList, searchableChar } from "../../chrome/selector-helpers";
-import { MenuSelection } from "../../components/menu-selection";
-import { scrollOffsetForRow, viewportRange } from "../../components/scroll-viewport";
+import { type Component, matchesKey, padding, truncateToWidth, visibleWidth } from "@oh-my-pi/pi-tui";
+import { isProviderEnabled } from "../../../discovery";
+import { theme } from "../../../modes/theme/theme";
+import { matchesSelectDown, matchesSelectUp } from "../../utils/keybinding-matchers";
+import { clampSelection, contentRowWidth, renderScrollableList, searchableChar } from "../selector-helpers";
 import { sanitizeDisplayLine } from "./display-text";
 import {
 	formatExtensionListHint,
@@ -30,20 +27,17 @@ import {
 	snapshotMcpRuntime,
 } from "./mcp-runtime";
 import { applyFilter } from "./state-manager";
-import {
-	type Extension,
-	type ExtensionKind,
-	type ExtensionProvider,
-	type ExtensionState,
-	isShadowedExtension,
-} from "./types";
+import { type Extension, type ExtensionKind, type ExtensionState, isShadowedExtension } from "./types";
+
+export type GroupingAxis = "dir" | "tag" | "repo" | "author";
 
 export interface ExtensionListCallbacks {
-	getProviders?: () => readonly ExtensionProvider[];
 	onSelectionChange?: (extension: Extension | null) => void;
 	onToggle?: (extensionId: string, enabled: boolean) => void;
 	onMasterToggle?: (providerId: string) => void;
-	onUserSourceToggle?: (providerId: string) => void;
+	/** Called when skill group is toggled */
+	onGroupToggle?: (groupAxis: GroupingAxis, groupValue: string, enabled: boolean) => void;
+	/** Provider ID for master switch (null = no master switch) */
 	masterSwitchProvider?: string | null;
 	mcpSource?: MCPRuntimeSource;
 	toolSource?: ToolRuntimeSource;
@@ -51,83 +45,58 @@ export interface ExtensionListCallbacks {
 
 const DEFAULT_MAX_VISIBLE = 15;
 
-/** Stable identity for menu selection retention across rebuilds and filtering. */
-function getListItemKey(item: ListItem): string {
-	switch (item.type) {
-		case "master":
-			return `master:${item.providerId}`;
-		case "user-source":
-			return `user-source:${item.providerId}`;
-		case "kind-header":
-			return `kind:${item.kind}`;
-		case "extension":
-			// Shadowed same-name rows share the winner's id; the source path disambiguates them.
-			return `extension:${item.item.id}:${item.item.path}`;
-	}
-}
-
-/** Searchable text for a flattened row (the menu filter rebuilds via applyFilter; this covers headers/switches). */
-function getListItemSearchText(item: ListItem): string {
-	switch (item.type) {
-		case "master":
-			return `Enable ${item.providerName} Master Switch ${item.providerId}`;
-		case "user-source":
-			return `Load ${item.providerName} config user source ${item.providerId}`;
-		case "kind-header":
-			return `${item.label} ${item.kind}`;
-		case "extension":
-			return `${item.item.displayName} ${item.item.name} ${item.item.description ?? ""} ${item.item.trigger ?? ""}`;
-	}
-}
-
 /** Flattened list item for rendering */
 type ListItem =
 	| { type: "master"; providerId: string; providerName: string; enabled: boolean }
-	| { type: "user-source"; providerId: string; providerName: string; enabled: boolean }
 	| { type: "kind-header"; kind: ExtensionKind; label: string; icon: string; count: number }
-	| { type: "extension"; item: Extension };
+	| {
+			type: "group-header";
+			groupAxis: GroupingAxis;
+			groupValue: string;
+			label: string;
+			count: number;
+			enabled: boolean;
+			mixed: boolean;
+	  }
+	| { type: "extension"; item: Extension; grouped?: boolean };
 
 export class ExtensionList implements Component {
-	#menu: MenuSelection<ListItem>;
+	#listItems: ListItem[] = [];
+	#selectedIndex = 0;
 	#scrollOffset = 0;
+	#searchQuery = "";
 	#focused = false;
 	#masterSwitchProvider: string | null = null;
 	#maxVisible: number;
 	#hoveredIndex: number | null = null;
+	#groupingAxis: GroupingAxis = "dir";
 	/** Item rows rendered in the last frame, for mouse hit-testing. */
 	#visibleCount = 0;
 	#mcpSource: MCPRuntimeSource | undefined;
 	#toolSource: ToolRuntimeSource | undefined;
 	#toolFrame: ToolRuntimeSource | undefined;
 
-	#extensions: Extension[];
-	readonly #callbacks: ExtensionListCallbacks;
-
-	constructor(extensions: Extension[], callbacks: ExtensionListCallbacks = {}, maxVisible?: number) {
-		this.#extensions = extensions;
-		this.#callbacks = callbacks;
+	constructor(
+		private extensions: Extension[],
+		private readonly callbacks: ExtensionListCallbacks = {},
+		maxVisible?: number,
+	) {
 		this.#masterSwitchProvider = callbacks.masterSwitchProvider ?? null;
 		this.#mcpSource = callbacks.mcpSource;
 		this.#toolSource = callbacks.toolSource;
 		this.#maxVisible = maxVisible ?? DEFAULT_MAX_VISIBLE;
-		this.#menu = new MenuSelection<ListItem>(this.#buildListItems(""), {
-			getKey: getListItemKey,
-			getSearchText: getListItemSearchText,
-			filter: (_items, query) => this.#buildListItems(query),
-		});
+		this.#rebuildList();
 	}
 
 	setMaxVisible(maxVisible: number): void {
 		this.#maxVisible = maxVisible;
-		this.#syncScroll();
+		this.#clampSelection();
 	}
 
 	setExtensions(extensions: Extension[]): void {
-		this.#extensions = extensions;
-		const keepIndex = this.#menu.selectedIndex;
-		this.#menu.setItems(this.#buildListItems(""));
-		this.#menu.setSelectedIndex(keepIndex);
-		this.#syncScroll();
+		this.extensions = extensions;
+		this.#rebuildList();
+		this.#clampSelection();
 	}
 
 	setFocused(focused: boolean): void {
@@ -136,8 +105,21 @@ export class ExtensionList implements Component {
 
 	setMasterSwitchProvider(providerId: string | null): void {
 		this.#masterSwitchProvider = providerId;
-		this.#menu.setItems(this.#buildListItems(""));
-		this.#syncScroll();
+		this.#rebuildList();
+	}
+
+	cycleGroupingAxis(): GroupingAxis {
+		const order: GroupingAxis[] = ["dir", "tag", "repo", "author"];
+		const nextIdx = (order.indexOf(this.#groupingAxis) + 1) % order.length;
+		this.#groupingAxis = order[nextIdx];
+		this.#rebuildList();
+		this.#clampSelection();
+		this.#notifySelectionChange();
+		return this.#groupingAxis;
+	}
+
+	getGroupingAxis(): GroupingAxis {
+		return this.#groupingAxis;
 	}
 
 	setMcpSource(source: MCPRuntimeSource | undefined): void {
@@ -149,28 +131,29 @@ export class ExtensionList implements Component {
 	}
 
 	getSearchQuery(): string {
-		return this.#menu.query;
+		return this.#searchQuery;
 	}
 
 	resetSelection(): void {
-		this.#menu.moveToBoundary("first");
+		this.#selectedIndex = 0;
 		this.#scrollOffset = 0;
 		this.#notifySelectionChange();
 	}
 
 	getSelectedExtension(): Extension | null {
-		const item = this.#menu.selectedItem;
+		const item = this.#listItems[this.#selectedIndex];
 		return item?.type === "extension" ? item.item : null;
 	}
 
-	/** Get the currently selected kind header (for preview purposes) */
 	getSelectedKind(): ExtensionKind | null {
-		const item = this.#menu.selectedItem;
+		const item = this.#listItems[this.#selectedIndex];
 		return item?.type === "kind-header" ? item.kind : null;
 	}
 
 	setSearchQuery(query: string): void {
-		this.#menu.setQuery(query, false);
+		this.#searchQuery = query;
+		this.#rebuildList();
+		this.#selectedIndex = 0;
 		this.#scrollOffset = 0;
 		this.#notifySelectionChange();
 	}
@@ -188,47 +171,42 @@ export class ExtensionList implements Component {
 
 		// Search bar
 		const searchPrefix = theme.fg("muted", "Search: ");
-		const query = this.#menu.query;
-		const searchText = query || (this.#focused ? "" : theme.fg("dim", "type to filter"));
+		const searchText = this.#searchQuery || (this.#focused ? "" : theme.fg("dim", "type to filter"));
 		const cursor = this.#focused ? theme.fg("accent", "_") : "";
 		lines.push(searchPrefix + searchText + cursor);
 		lines.push("");
 
-		const items = this.#menu.visibleItems;
-		if (items.length === 0) {
+		if (this.#listItems.length === 0) {
 			lines.push(theme.fg("muted", "  No extensions found for this provider."));
 			return lines;
 		}
 
 		// Determine if master switch is off (for dimming child items)
-		const masterDisabled =
-			this.#masterSwitchProvider !== null &&
-			this.#callbacks.getProviders?.().find(provider => provider.id === this.#masterSwitchProvider)?.enabled ===
-				false;
+		const masterDisabled = this.#masterSwitchProvider !== null && !isProviderEnabled(this.#masterSwitchProvider);
 
-		// Calculate visible range (one fixed row per item)
-		const { start: startIdx, end: endIdx } = viewportRange(items.length, this.#maxVisible, this.#scrollOffset);
+		// Calculate visible range
+		const startIdx = this.#scrollOffset;
+		const endIdx = Math.min(startIdx + this.#maxVisible, this.#listItems.length);
 
 		// Reserve the rightmost column for the scrollbar when overflowing
-		const rowWidth = contentRowWidth(width, items.length, this.#maxVisible);
+		const rowWidth = contentRowWidth(width, this.#listItems.length, this.#maxVisible);
 
 		// Render visible items
 		const rows: string[] = [];
 		for (let i = startIdx; i < endIdx; i++) {
-			const listItem = items[i];
-			if (!listItem) continue;
-			const isSelected = this.#focused && i === this.#menu.selectedIndex;
+			const listItem = this.#listItems[i];
+			const isSelected = this.#focused && i === this.#selectedIndex;
 			const isHovered = this.#focused && i === this.#hoveredIndex && !isSelected;
 
 			let rowStr: string;
 			if (listItem.type === "master") {
 				rowStr = this.#renderMasterSwitch(listItem, isSelected, rowWidth);
-			} else if (listItem.type === "user-source") {
-				rowStr = this.#renderUserSourceSwitch(listItem, isSelected, masterDisabled, rowWidth);
 			} else if (listItem.type === "kind-header") {
 				rowStr = this.#renderKindHeader(listItem, isSelected, rowWidth);
+			} else if (listItem.type === "group-header") {
+				rowStr = this.#renderGroupHeader(listItem, isSelected, rowWidth);
 			} else {
-				rowStr = this.#renderExtensionRow(listItem.item, isSelected, rowWidth, masterDisabled);
+				rowStr = this.#renderExtensionRow(listItem.item, isSelected, rowWidth, masterDisabled, listItem.grouped);
 			}
 			if (isHovered) rowStr = theme.bg("selectedBg", rowStr);
 			rows.push(rowStr);
@@ -238,36 +216,12 @@ export class ExtensionList implements Component {
 		lines.push(
 			...renderScrollableList(rows, {
 				width,
-				totalRows: items.length,
+				totalRows: this.#listItems.length,
 				scrollOffset: this.#scrollOffset,
 			}),
 		);
 
 		return lines;
-	}
-
-	#renderUserSourceSwitch(
-		item: ListItem & { type: "user-source" },
-		isSelected: boolean,
-		masterDisabled: boolean,
-		width: number,
-	): string {
-		const checkbox = item.enabled
-			? theme.fg("success", theme.checkbox.checked)
-			: theme.fg("dim", theme.checkbox.unchecked);
-		const label = `Load ~/ ${item.providerName} config`;
-		const badge = theme.fg("muted", "(opt-in; project config always loads)");
-
-		let line = `${checkbox} ${theme.icon.folder} ${label}  ${badge}`;
-
-		if (isSelected) {
-			line = theme.bold(theme.fg("accent", line));
-			line = theme.bg("selectedBg", line);
-		} else if (!item.enabled || masterDisabled) {
-			line = theme.fg("dim", line);
-		}
-
-		return truncateToWidth(line, width);
 	}
 
 	#renderMasterSwitch(item: ListItem & { type: "master" }, isSelected: boolean, width: number): string {
@@ -304,7 +258,42 @@ export class ExtensionList implements Component {
 		return truncateToWidth(line, width);
 	}
 
-	#renderExtensionRow(ext: Extension, isSelected: boolean, width: number, masterDisabled: boolean): string {
+	#renderGroupHeader(item: ListItem & { type: "group-header" }, isSelected: boolean, width: number): string {
+		const checkbox = item.enabled
+			? item.mixed
+				? theme.fg("warning", theme.checkbox?.checked ?? "[x]")
+				: theme.fg("success", theme.checkbox?.checked ?? "[x]")
+			: theme.fg("dim", theme.checkbox?.unchecked ?? "[ ]");
+
+		const iconMap: Record<GroupingAxis, string> = {
+			dir: theme.icon?.folder ?? "📁",
+			tag: "#",
+			repo: "📦",
+			author: "@",
+		};
+		const icon = iconMap[item.groupAxis] ?? "📁";
+		const countBadge = theme.fg("muted", `(${item.count})`);
+		const axisPrefix = theme.fg("dim", `${item.groupAxis}:`);
+
+		let line = `  ${checkbox} ${icon} ${axisPrefix}${item.label} ${countBadge}`;
+
+		if (isSelected) {
+			line = theme.bold(theme.fg("accent", line));
+			line = theme.bg("selectedBg", line);
+		} else if (!item.enabled) {
+			line = theme.fg("dim", line);
+		}
+
+		return truncateToWidth(line, width);
+	}
+
+	#renderExtensionRow(
+		ext: Extension,
+		isSelected: boolean,
+		width: number,
+		masterDisabled: boolean,
+		grouped = false,
+	): string {
 		const shadowed = isShadowedExtension(ext);
 		const effectivelyDisabled = masterDisabled || ext.state === "disabled";
 		const mcpSnap =
@@ -323,8 +312,7 @@ export class ExtensionList implements Component {
 		let name = sanitizeDisplayLine(ext.displayName);
 		const nameWidth = Math.min(24, width - 16);
 
-		// Build the line with indentation (visually "inside" the master switch)
-		let line = `   ${stateIcon} `;
+		let line = grouped ? `     ${stateIcon} ` : `   ${stateIcon} `;
 
 		if (isSelected && !masterDisabled) {
 			name = theme.bold(theme.fg("accent", name));
@@ -334,7 +322,6 @@ export class ExtensionList implements Component {
 			name = theme.fg("warning", name);
 		}
 
-		// Pad name
 		const namePadded = this.#padText(name, nameWidth);
 		line += namePadded;
 
@@ -355,7 +342,6 @@ export class ExtensionList implements Component {
 			}
 		}
 
-		// Apply selection background
 		if (isSelected) {
 			line = theme.bg("selectedBg", line);
 		}
@@ -366,41 +352,41 @@ export class ExtensionList implements Component {
 	#getKindIcon(kind: ExtensionKind): string {
 		switch (kind) {
 			case "extension-module":
-				return theme.icon.extensionTool;
+				return theme.icon?.extensionTool ?? "🔧";
 			case "skill":
-				return theme.icon.extensionSkill;
+				return theme.icon?.extensionSkill ?? "⚡";
 			case "tool":
-				return theme.icon.extensionTool;
+				return theme.icon?.extensionTool ?? "🔧";
 			case "slash-command":
-				return theme.icon.extensionSlashCommand;
+				return theme.icon?.extensionSlashCommand ?? "/";
 			case "mcp":
-				return theme.icon.extensionMcp;
+				return theme.icon?.extensionMcp ?? "🔌";
 			case "rule":
-				return theme.icon.extensionRule;
+				return theme.icon?.extensionRule ?? "📜";
 			case "hook":
-				return theme.icon.extensionHook;
+				return theme.icon?.extensionHook ?? "🪝";
 			case "prompt":
-				return theme.icon.extensionPrompt;
+				return theme.icon?.extensionPrompt ?? "💬";
 			case "context-file":
-				return theme.icon.extensionContextFile;
+				return theme.icon?.extensionContextFile ?? "📄";
 			case "instruction":
-				return theme.icon.extensionInstruction;
+				return theme.icon?.extensionInstruction ?? "📋";
 			default:
-				return theme.format.bullet;
+				return theme.format?.bullet ?? "•";
 		}
 	}
 
 	#getStateIcon(state: ExtensionState, masterDisabled: boolean): string {
 		if (masterDisabled) {
-			return theme.fg("dim", theme.status.disabled);
+			return theme.fg("dim", theme.status?.disabled ?? "[ ]");
 		}
 		switch (state) {
 			case "active":
-				return theme.fg("success", theme.status.enabled);
+				return theme.fg("success", theme.status?.enabled ?? "[x]");
 			case "disabled":
-				return theme.fg("dim", theme.status.disabled);
+				return theme.fg("dim", theme.status?.disabled ?? "[ ]");
 			case "shadowed":
-				return theme.fg("warning", theme.status.shadowed);
+				return theme.fg("warning", theme.status?.shadowed ?? "[-]");
 		}
 	}
 
@@ -428,53 +414,97 @@ export class ExtensionList implements Component {
 		return text + padding(targetWidth - width);
 	}
 
-	/**
-	 * Rebuild the flattened list for `query`: a flat applyFilter hit list while
-	 * searching, otherwise the master-switch rows (provider scope) or the
-	 * kind-grouped ALL view with headers.
-	 */
-	#buildListItems(query: string): ListItem[] {
-		const items: ListItem[] = [];
+	#skillGroupKeys(ext: Extension): string[] {
+		if (this.#groupingAxis === "tag") {
+			return ext.tags && ext.tags.length > 0 ? ext.tags : [];
+		}
+		const key = this.#skillGroupKey(ext);
+		return key !== null ? [key] : [];
+	}
 
-		// Apply search filter
-		const filtered = query.length > 0 ? applyFilter(this.#extensions, query) : this.#extensions;
+	#skillGroupKey(ext: Extension): string | null {
+		if (this.#groupingAxis === "repo") return ext.repo ?? null;
+		if (this.#groupingAxis === "author") return ext.author ?? null;
+		if (this.#groupingAxis === "dir") return ext.group ?? null;
+		return null;
+	}
 
-		// When searching, show flat list
-		if (query.length > 0) {
+	#rebuildList(): void {
+		this.#listItems = [];
+
+		const filtered = this.#searchQuery.length > 0 ? applyFilter(this.extensions, this.#searchQuery) : this.extensions;
+
+		if (this.#searchQuery.length > 0) {
 			for (const ext of filtered) {
-				items.push({ type: "extension", item: ext });
+				this.#listItems.push({ type: "extension", item: ext, grouped: false });
 			}
-			return items;
+			return;
 		}
 
-		// Provider-specific view: Master switch + flat list
 		if (this.#masterSwitchProvider) {
 			const providerName = filtered[0]?.source.providerName ?? this.#masterSwitchProvider;
-			const provider = this.#callbacks.getProviders?.().find(provider => provider.id === this.#masterSwitchProvider);
-			const enabled = provider?.enabled ?? true;
+			const enabled = isProviderEnabled(this.#masterSwitchProvider);
 
-			items.push({
+			this.#listItems.push({
 				type: "master",
 				providerId: this.#masterSwitchProvider,
 				providerName,
 				enabled,
 			});
-			if (provider?.foreignUserSource) {
-				items.push({
-					type: "user-source",
-					providerId: this.#masterSwitchProvider,
-					providerName,
-					enabled: provider.userSourceEnabled,
-				});
-			}
 
-			for (const ext of filtered) {
-				items.push({ type: "extension", item: ext });
+			if (filtered.some(e => e.kind === "skill")) {
+				const groups = new Map<string, Extension[]>();
+				const ungrouped: Extension[] = [];
+				const nonSkills: Extension[] = [];
+
+				for (const ext of filtered) {
+					if (ext.kind !== "skill") {
+						nonSkills.push(ext);
+						continue;
+					}
+					const keys = this.#skillGroupKeys(ext);
+					if (keys.length > 0) {
+						for (const key of keys) {
+							const list = groups.get(key) ?? [];
+							list.push(ext);
+							groups.set(key, list);
+						}
+					} else {
+						ungrouped.push(ext);
+					}
+				}
+
+				for (const [groupValue, skills] of groups) {
+					const allDisabled = skills.every(s => s.state === "disabled");
+					const anyDisabled = skills.some(s => s.state === "disabled");
+					this.#listItems.push({
+						type: "group-header",
+						groupAxis: this.#groupingAxis,
+						groupValue,
+						label: groupValue,
+						count: skills.length,
+						enabled: !allDisabled,
+						mixed: anyDisabled && !allDisabled,
+					});
+					for (const skill of skills) {
+						this.#listItems.push({ type: "extension", item: skill, grouped: true });
+					}
+				}
+
+				for (const skill of ungrouped) {
+					this.#listItems.push({ type: "extension", item: skill, grouped: false });
+				}
+				for (const ext of nonSkills) {
+					this.#listItems.push({ type: "extension", item: ext, grouped: false });
+				}
+			} else {
+				for (const ext of filtered) {
+					this.#listItems.push({ type: "extension", item: ext, grouped: false });
+				}
 			}
-			return items;
+			return;
 		}
 
-		// ALL view: Group by kind with headers
 		const byKind = new Map<ExtensionKind, Extension[]>();
 		for (const ext of filtered) {
 			const list = byKind.get(ext.kind) ?? [];
@@ -496,22 +526,57 @@ export class ExtensionList implements Component {
 		];
 
 		for (const kind of kindOrder) {
-			const kindItems = byKind.get(kind);
-			if (!kindItems || kindItems.length === 0) continue;
+			const items = byKind.get(kind);
+			if (!items || items.length === 0) continue;
 
-			items.push({
+			this.#listItems.push({
 				type: "kind-header",
 				kind,
 				label: this.#getKindLabel(kind),
 				icon: this.#getKindIcon(kind),
-				count: kindItems.length,
+				count: items.length,
 			});
 
-			for (const ext of kindItems) {
-				items.push({ type: "extension", item: ext });
+			if (kind === "skill") {
+				const groups = new Map<string, Extension[]>();
+				const ungrouped: Extension[] = [];
+				for (const ext of items) {
+					const keys = this.#skillGroupKeys(ext);
+					if (keys.length > 0) {
+						for (const key of keys) {
+							const list = groups.get(key) ?? [];
+							list.push(ext);
+							groups.set(key, list);
+						}
+					} else {
+						ungrouped.push(ext);
+					}
+				}
+				for (const [groupValue, skills] of groups) {
+					const allDisabled = skills.every(s => s.state === "disabled");
+					const anyDisabled = skills.some(s => s.state === "disabled");
+					this.#listItems.push({
+						type: "group-header",
+						groupAxis: this.#groupingAxis,
+						groupValue,
+						label: groupValue,
+						count: skills.length,
+						enabled: !allDisabled,
+						mixed: anyDisabled && !allDisabled,
+					});
+					for (const skill of skills) {
+						this.#listItems.push({ type: "extension", item: skill, grouped: true });
+					}
+				}
+				for (const ext of ungrouped) {
+					this.#listItems.push({ type: "extension", item: ext, grouped: false });
+				}
+			} else {
+				for (const ext of items) {
+					this.#listItems.push({ type: "extension", item: ext, grouped: false });
+				}
 			}
 		}
-		return items;
 	}
 
 	#getKindLabel(kind: ExtensionKind): string {
@@ -541,127 +606,109 @@ export class ExtensionList implements Component {
 		}
 	}
 
-	/** Keep the selection inside the one-row fixed viewport. */
-	#syncScroll(): void {
-		this.#scrollOffset = scrollOffsetForRow(
-			this.#scrollOffset,
-			this.#menu.selectedIndex,
-			this.#menu.visibleItems.length,
-			this.#maxVisible,
-			"nearest",
-		);
+	#clampSelection(): void {
+		const next = clampSelection(this.#selectedIndex, this.#scrollOffset, this.#listItems.length, this.#maxVisible);
+		this.#selectedIndex = next.selectedIndex;
+		this.#scrollOffset = next.scrollOffset;
 	}
 
-	/** Toggle the selected item, or flip the provider master switch when on it. */
 	#activateSelected(): void {
-		const item = this.#menu.selectedItem;
+		const item = this.#listItems[this.#selectedIndex];
 		if (item?.type === "master") {
-			this.#callbacks.onMasterToggle?.(item.providerId);
-		} else if (item?.type === "user-source") {
-			if (this.#callbacks.getProviders?.().find(provider => provider.id === item.providerId)?.enabled !== false)
-				this.#callbacks.onUserSourceToggle?.(item.providerId);
+			this.callbacks.onMasterToggle?.(item.providerId);
+		} else if (item?.type === "group-header") {
+			const newEnabled = !item.enabled;
+			this.callbacks.onGroupToggle?.(item.groupAxis, item.groupValue, newEnabled);
 		} else if (item?.type === "extension") {
 			// Shadowed same-name rows share the winner's id (`mcp:github`).
 			// Toggling them would mutate whichever config `find(id)` hits first.
 			if (isShadowedExtension(item.item)) return;
-			const masterDisabled =
-				this.#masterSwitchProvider !== null &&
-				this.#callbacks.getProviders?.().find(provider => provider.id === this.#masterSwitchProvider)?.enabled ===
-					false;
+			const masterDisabled = this.#masterSwitchProvider !== null && !isProviderEnabled(this.#masterSwitchProvider);
 			if (!masterDisabled) {
 				const newEnabled = item.item.state === "disabled";
-				this.#callbacks.onToggle?.(item.item.id, newEnabled);
+				this.callbacks.onToggle?.(item.item.id, newEnabled);
 			}
 		}
 	}
 
-	/** Highlight the row under the pointer (null clears). */
 	setHoverIndex(index: number | null): void {
 		this.#hoveredIndex = index;
 	}
 
-	/**
-	 * Map a 0-based line within this component's render to the absolute list-item
-	 * index, or null when the line is the search banner, a padding row, or outside
-	 * the visible window. The first two lines are the search banner and a blank
-	 * separator; item rows follow, windowed at the current scroll offset.
-	 */
 	hitTest(line: number): number | null {
 		const rowLine = line - 2;
 		if (rowLine < 0 || rowLine >= this.#visibleCount) return null;
 		const index = this.#scrollOffset + rowLine;
-		return index < this.#menu.visibleItems.length ? index : null;
+		return index < this.#listItems.length ? index : null;
 	}
 
-	/** Wheel notch: move the selection (and the inspector) one row. */
 	handleWheel(delta: -1 | 1): void {
 		if (delta < 0) this.#moveSelectionUp();
 		else this.#moveSelectionDown();
 	}
 
-	/** Click: select the row under the pointer, or activate it when already selected. */
 	handleClick(line: number): void {
 		const index = this.hitTest(line);
 		if (index === null) return;
-		if (index === this.#menu.selectedIndex) {
+		if (index === this.#selectedIndex) {
 			this.#activateSelected();
 			return;
 		}
-		this.#menu.setSelectedIndex(index);
+		this.#selectedIndex = index;
 		this.#notifySelectionChange();
 	}
 
 	handleInput(data: string): void {
-		// Navigation (arrow keys / configurable tui.select.up/down). Bare j/k are
-		// intentionally NOT navigation here: the search filter is always active, so
-		// those letters must reach the query (e.g. searching for "jira"/"json").
-		if (matchesSelectUp(data)) {
+		if (matchesSelectUp(data) || matchesKey(data, "k")) {
 			this.#moveSelectionUp();
 			return;
 		}
 
-		if (matchesSelectDown(data)) {
+		if (matchesSelectDown(data) || matchesKey(data, "j")) {
 			this.#moveSelectionDown();
 			return;
 		}
 
-		// Space or Enter: activate the selected row (toggle item / master switch)
 		if (data === " " || matchesKey(data, "enter") || matchesKey(data, "return") || data === "\n") {
 			this.#activateSelected();
 			return;
 		}
 
-		// Backspace: Delete from search query
 		if (matchesKey(data, "backspace")) {
-			if (this.#menu.query.length > 0) {
-				this.setSearchQuery(this.#menu.query.slice(0, -1));
+			if (this.#searchQuery.length > 0) {
+				this.setSearchQuery(this.#searchQuery.slice(0, -1));
 			}
 			return;
 		}
 
-		// Printable characters -> search
 		const char = searchableChar(data);
 		if (char !== null) {
-			this.setSearchQuery(this.#menu.query + char);
+			this.setSearchQuery(this.#searchQuery + char);
 		}
 	}
 
 	#moveSelectionUp(): void {
-		if (this.#menu.move(-1, false)) {
-			this.#syncScroll();
+		if (this.#selectedIndex > 0) {
+			this.#selectedIndex--;
+			if (this.#selectedIndex < this.#scrollOffset) {
+				this.#scrollOffset = this.#selectedIndex;
+			}
 			this.#notifySelectionChange();
 		}
 	}
 
 	#moveSelectionDown(): void {
-		if (this.#menu.move(1, false)) {
-			this.#syncScroll();
+		if (this.#selectedIndex < this.#listItems.length - 1) {
+			this.#selectedIndex++;
+			if (this.#selectedIndex >= this.#scrollOffset + this.#maxVisible) {
+				this.#scrollOffset = this.#selectedIndex - this.#maxVisible + 1;
+			}
 			this.#notifySelectionChange();
 		}
 	}
 
 	#notifySelectionChange(): void {
 		const ext = this.getSelectedExtension();
-		this.#callbacks.onSelectionChange?.(ext);
+		this.callbacks.onSelectionChange?.(ext);
 	}
 }

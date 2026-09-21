@@ -360,10 +360,21 @@ function formatLoopLimit(
 const modeSegment: StatusLineSegment = {
 	id: "mode",
 	render(ctx) {
-		const pauseSuffix = theme.icon.pause ? ` ${theme.icon.pause}` : " (paused)";
+		const ask = ctx.askMode;
+		if (ask?.enabled) {
+			const content = withIcon(theme.symbol("tool.ask"), "Ask");
+			return { content: theme.fg("accent", content), visible: true };
+		}
+
+		const debug = ctx.debugMode;
+		if (debug?.enabled) {
+			const content = withIcon(theme.symbol("tool.debug"), "Debug");
+			return { content: theme.fg("accent", content), visible: true };
+		}
 
 		const plan = ctx.planMode;
 		if (plan && (plan.enabled || plan.paused)) {
+			const pauseSuffix = theme.icon.pause ? ` ${theme.icon.pause}` : " (paused)";
 			const label = plan.paused ? `Plan${pauseSuffix}` : "Plan";
 			const content = withIcon(theme.icon.plan, label);
 			return {

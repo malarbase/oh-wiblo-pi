@@ -2143,6 +2143,9 @@ export class ProcessTerminal implements Terminal {
 			this.#safeWrite(TERMINAL_PROGRESS_CLEAR_SEQUENCE);
 		}
 	}
+	isNativeViewportAtBottom(): boolean | undefined {
+		return undefined;
+	}
 
 	#clearProgressTimer(): boolean {
 		if (!this.#progressTimer) return false;

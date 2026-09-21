@@ -20,7 +20,6 @@ export interface SymbolTheme {
 	table: BoxSymbols;
 	quoteBorder: string;
 	hrChar: string;
-	/** Chip glyph drawn (painted with the referenced color) before inline hex colors. */
 	colorSwatch?: string;
 	spinnerFrames: string[];
 }
