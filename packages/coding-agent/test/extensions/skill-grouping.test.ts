@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { LoadContext } from "../../src/capability/types";
 import { scanSkillsFromDir } from "../../src/discovery/helpers";
-import { ExtensionList } from "../../src/modes/components/extensions/extension-list";
+import { ExtensionList } from "@oh-my-pi/pi-tui/overlays/extensions/extension-list";
 import type { ExtensionSettingsManager } from "../../src/modes/components/extensions/state-manager";
 import {
 	createExtensionSettingsAdapter,
@@ -12,8 +12,8 @@ import {
 	toggleExtensionState,
 	toggleGroup,
 } from "../../src/modes/components/extensions/state-manager";
-import type { DashboardState, Extension } from "../../src/modes/components/extensions/types";
-import { initTheme } from "../../src/modes/theme/theme";
+import type { DashboardState, Extension } from "@oh-my-pi/pi-tui/overlays/extensions/types";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
 describe("Skill Metadata Parsing & Grouping Infrastructure", () => {
 	beforeAll(async () => {

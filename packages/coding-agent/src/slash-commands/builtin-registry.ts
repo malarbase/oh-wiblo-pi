@@ -7,23 +7,12 @@ import { formatDuration } from "@oh-my-pi/pi-utils/format";
 import { CollabQrCodeComponent } from "@oh-my-pi/pi-tui/chrome/collab-qrcode";
 import { extractLastCodeBlock, extractLastCommand } from "@oh-my-pi/pi-tui/overlays/copy-targets";
 import { theme } from "@oh-my-pi/pi-tui/theme";
-import {
-	APP_NAME,
-	getMCPConfigPath,
-	getProjectDir,
-	logger,
-	setProjectDir,
-} from "@oh-my-pi/pi-utils";
+import { APP_NAME, getMCPConfigPath, getProjectDir, logger, setProjectDir } from "@oh-my-pi/pi-utils";
 import { reset as resetCapabilities } from "../capability";
 import { COLLAB_GUEST_ALLOWED_COMMANDS, CollabGuestLink } from "../collab/guest";
 import { CollabHost } from "../collab/host";
 import { buildModelSelectorCompletions } from "./builtin-completions";
-import {
-	expandRoleAlias,
-	formatModelString,
-	getModelMatchPreferences,
-	resolveCliModel,
-} from "../config/model-resolver";
+import { expandRoleAlias, getModelMatchPreferences, resolveCliModel } from "../config/model-resolver";
 import { applyProviderGlobalsFromSettings } from "../config/provider-globals";
 import type { SettingPath, SettingValue } from "../config/settings";
 import { settings } from "../config/settings";
@@ -54,7 +43,6 @@ import type { FreshSessionResult, SessionOAuthAccountList } from "../session/age
 import { COMPACT_MODES, parseCompactArgs } from "../session/compact-modes";
 import { resolveResumableSession } from "../session/session-listing";
 import { formatShakeSummary, type ShakeMode } from "../session/shake-types";
-import { computerExposureMode } from "../tools/computer/exposure";
 import { expandTilde, resolveToCwd } from "../tools/path-utils";
 import { urlHyperlinkAlways } from "../tui";
 import {
@@ -69,7 +57,8 @@ import { buildContextReportText } from "./helpers/context-report";
 import { createMarketplaceManager } from "./helpers/marketplace-manager";
 import { handleMcpAcp } from "./helpers/mcp";
 import { commandConsumed, errorMessage, parseSlashCommand, parseSubcommand, usage } from "./helpers/parse";
-import { describeRedeemOutcome, type ResetUsageAccount, toResetUsageAccounts } from "./helpers/reset-usage";
+import { describeRedeemOutcome, toResetUsageAccounts } from "./helpers/reset-usage";
+import type { ResetUsageAccount } from "@oh-my-pi/pi-tui/overlays/reset-usage-selector";
 import { handleSecurityCommand } from "./helpers/security";
 import { matchSessionPinAccounts, toSessionPinAccounts } from "./helpers/session-pin";
 import { handleSshAcp } from "./helpers/ssh";
@@ -1619,7 +1608,7 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<SlashCommandSpec> = [
 		description: "Delete the current session and start a new one",
 		handleTui: async (_command, runtime) => {
 			runtime.ctx.editor.setText("");
-			await runtime.ctx.handleDropCommand();
+			await runtime.ctx.handleDeleteCommand();
 		},
 	},
 	{

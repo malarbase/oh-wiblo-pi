@@ -1,4 +1,5 @@
 import * as path from "node:path";
+import { fuzzyMatch } from "@oh-my-pi/pi-tui";
 import { getMCPConfigPath, logger } from "@oh-my-pi/pi-utils";
 import type { ContextFile } from "../../../capability/context-file";
 import type { ExtensionModule } from "../../../capability/extension-module";
@@ -15,6 +16,7 @@ import {
 	disableUserSource,
 	enableProvider,
 	enableUserSource,
+	getAllProvidersInfo,
 	isProviderEnabled,
 	isUserSourceEnabled,
 	loadCapability,
@@ -23,13 +25,26 @@ import { readDisabledServers, readEnabledServers } from "../../../mcp/config-wri
 import { commandPreview } from "@oh-my-pi/pi-tui/overlays/extensions/inspector-model";
 import { inferMcpTransport } from "@oh-my-pi/pi-tui/overlays/extensions/mcp-runtime";
 import {
+	type DashboardState,
 	type DisabledReason,
 	type Extension,
 	type ExtensionKind,
 	type ExtensionState,
+	type FlatTreeItem,
+	isShadowedExtension,
 	makeExtensionId,
+	type ProviderTab,
 	sourceFromMeta,
+	type TreeNode,
 } from "@oh-my-pi/pi-tui/overlays/extensions/types";
+
+/**
+ * Settings manager interface for granular toggle persistence.
+ */
+export interface ExtensionSettingsManager {
+	getDisabledExtensions(): string[];
+	setDisabledExtensions(ids: string[]): void;
+}
 
 /**
  * Provider-level gate for one discovered item: the whole-provider switch, plus

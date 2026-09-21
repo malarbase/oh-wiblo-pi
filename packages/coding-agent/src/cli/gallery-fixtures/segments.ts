@@ -27,6 +27,8 @@ export function createGallerySegmentContext(sessionOptions?: GallerySessionOptio
 		now: FIXED_NOW,
 		hostname: "gallery-host",
 		sessionAccent: false,
+		askMode: null,
+		debugMode: null,
 		activeRepo: {
 			cwd: "/workspace/oh-my-pi",
 			repoRoot: "/workspace/oh-my-pi",

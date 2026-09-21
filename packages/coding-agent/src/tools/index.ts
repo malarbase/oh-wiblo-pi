@@ -1,4 +1,5 @@
 import type { AgentOptions, AgentTelemetryConfig, AgentTool, AgentToolContext } from "@oh-my-pi/pi-agent-core";
+import type { Clipboard, InMemorySnapshotStore } from "@oh-my-pi/hashline";
 import type { EditStore } from "@oh-my-pi/pi-natives";
 import type { FetchImpl, ImageContent, Model, ServiceTierByFamily, ToolChoice } from "@oh-my-pi/pi-ai";
 import { logger } from "@oh-my-pi/pi-utils";
@@ -40,8 +41,10 @@ import { WebSearchTool } from "../web/search";
 import type { WorkspaceTree } from "../workspace-tree";
 import { AskTool } from "./ask";
 import { AstEditTool } from "./ast-edit";
+import { AskFollowupQuestionTool } from "./ask-followup-question";
 import { AstGrepTool } from "./ast-grep";
 import { BashTool } from "./bash";
+import { SwitchModeTool } from "./switch-mode";
 import { type BuiltinToolName, type HiddenToolName, normalizeToolNames } from "./builtin-names";
 import { type CheckpointState, CheckpointTool, type CompletedRewindState, RewindTool } from "./checkpoint";
 import { ContextNotesTool, NewContextTool } from "./context-notes";
@@ -398,6 +401,8 @@ export interface ToolSession {
 	getPlanModeState?: () => PlanModeState | undefined;
 	/** Path of the session's active plan reference (e.g. `local://<title>.md`); defaults to `local://PLAN.md`. */
 	getPlanReferencePath?: () => string;
+	/** Ask mode state (if active). Read by in-tool ask-mode guards (mirrors plan-mode-guard). */
+	getAskModeState?: () => import("../modes/ask-mode/state").AskModeState | undefined;
 	/** Goal mode state (if active or paused) */
 	getGoalModeState?: () => GoalModeState | undefined;
 	/** Goal runtime for the active agent session. */
@@ -460,6 +465,26 @@ export interface ToolSession {
 
 	/** Native snapshots, clipboard registers, and no-op guard shared by edit calls. */
 	editStore?: EditStore;
+
+	/** Per-session snapshot store of file contents as last shown to the model
+	 *  by `read`/`search`. Used by hashline anchor-stale recovery to
+	 *  reconstruct the version the model authored anchors against when the
+	 *  file changed out-of-band. Lazily initialized by `getFileSnapshotStore`. */
+	fileSnapshotStore?: InMemorySnapshotStore;
+
+	/** Per-session `CUT`/`PASTE` clipboard register shared across edit
+	 *  calls. Lazily initialized by `getEditClipboard`. */
+	editClipboard?: Clipboard;
+
+	/** Per-session ledger of consecutive byte-identical no-op edits, keyed by
+	 *  canonical file path. The hashline executor escalates a soft no-op hint
+	 *  to a thrown error once the same payload no-ops `NOOP_HARD_LIMIT` times,
+	 *  breaking subagent loops that ignore the textual hint (issue #2081).
+	 *  Lazily initialized by `getNoopLoopGuard`. */
+	noopLoopGuard?: import("../edit/hashline/noop-loop-guard").NoopLoopGuard;
+
+	/** Per-session cache of file contents as rendered to the model by `read` and `search`. */
+	fileReadCache?: import("../edit/file-read-cache").FileReadCache;
 
 	/** Per-session log of unresolved git merge conflict regions surfaced by
 	 *  `read`. Each entry gets a stable id N referenced by `write conflict://N`
@@ -536,6 +561,8 @@ export const HIDDEN_TOOLS: Record<HiddenToolName, ToolFactory> = {
 	think: () => new ThinkTool(),
 	yield: s => new YieldTool(s),
 	goal: s => new GoalTool(s),
+	switch_mode: s => new SwitchModeTool(s),
+	ask_followup_question: s => new AskFollowupQuestionTool(s),
 };
 
 export type ToolName = BuiltinToolName;

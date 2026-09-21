@@ -106,6 +106,7 @@ import {
 	resolvePlanTitle,
 } from "../plan-mode/approved-plan";
 import { resolvePlanModelTransition } from "../plan-mode/model-transition";
+import { autosaveApprovedPlan, planSaveFileName } from "../plan-mode/plan-autosave";
 import type { PlanModeLoadedFrom } from "../plan-mode/state";
 import {
 	getFinalPlanPath,

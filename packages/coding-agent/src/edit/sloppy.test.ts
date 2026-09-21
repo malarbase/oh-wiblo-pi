@@ -2190,7 +2190,7 @@ describe("executeSloppy multi-file", () => {
 	}
 	const writethrough = async (dst: string, content: string) => {
 		await Bun.write(dst, content);
-		return undefined;
+		return { finalContent: content };
 	};
 	const deferred = () => ({ close: () => {} }) as never;
 

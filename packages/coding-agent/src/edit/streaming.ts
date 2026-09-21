@@ -786,14 +786,14 @@ const sloppyStrategy: EditStreamingStrategy<SloppyArgs> = {
 		return sections.map(section => ({ path: section.path, digest: section.body }));
 	},
 };
-export const EDIT_MODE_STRATEGIES: Record<EditMode, EditStreamingStrategy<unknown>> = {
+export const EDIT_MODE_STRATEGIES = {
 	replace: replaceStrategy as EditStreamingStrategy<unknown>,
 	patch: patchStrategy as EditStreamingStrategy<unknown>,
 	hashline: hashlineStrategy as EditStreamingStrategy<unknown>,
 	apply_patch: applyPatchStrategy as EditStreamingStrategy<unknown>,
 	mimo: mimoStrategy as EditStreamingStrategy<unknown>,
 	sloppy: sloppyStrategy as EditStreamingStrategy<unknown>,
-};
+} satisfies Record<EditMode, EditStreamingStrategy<unknown>> & Record<string, EditStreamingStrategy<unknown>>;
 
 export { resolveEditMode };
 

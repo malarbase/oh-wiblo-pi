@@ -1191,9 +1191,11 @@ export async function executeReplace(
 	if (await routeWriteThroughBridge(session, path, absolutePath, finalContent, signal)) {
 		// bridge handled the write; diagnostics not available via writethrough
 	} else {
-		diagnostics = await writethrough(absolutePath, finalContent, signal, Bun.file(absolutePath), batchRequest, dst =>
-			dst === absolutePath ? beginDeferredDiagnosticsForPath(absolutePath) : undefined,
-		);
+		diagnostics = (
+			await writethrough(absolutePath, finalContent, signal, Bun.file(absolutePath), batchRequest, dst =>
+				dst === absolutePath ? beginDeferredDiagnosticsForPath(absolutePath) : undefined,
+			)
+		).diagnostics;
 		invalidateFsScanAfterWrite(absolutePath);
 	}
 

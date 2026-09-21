@@ -25,7 +25,7 @@ import { SEARCH_PROVIDER_ORDER } from "@oh-my-pi/pi-coding-agent/web/search/type
 import { getAgentDbPath, getProjectAgentDir, logger, TempDir } from "@oh-my-pi/pi-utils";
 import * as fileLock from "@oh-my-pi/pi-utils/file-lock";
 import { YAML } from "bun";
-import { beginSettingsTest, type SettingsTestState } from "./helpers/settings-test-state";
+import { beginSettingsTest, restoreSettingsTestState, type SettingsTestState } from "./helpers/settings-test-state";
 
 function context(): Context {
 	return {

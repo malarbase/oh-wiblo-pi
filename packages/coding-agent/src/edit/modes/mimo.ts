@@ -413,7 +413,7 @@ export async function executeMimoSingle(
 	if (old_string === "") {
 		const finalContent = new_string;
 		const written = await serializeEditFileText(absolutePath, displayPath, finalContent);
-		const diagnostics = await writethrough(
+		const { diagnostics } = await writethrough(
 			absolutePath,
 			written,
 			signal,
@@ -464,7 +464,7 @@ export async function executeMimoSingle(
 		displayPath,
 		bom + restoreLineEndings(resultContent, originalEnding),
 	);
-	const diagnostics = await writethrough(
+	const { diagnostics } = await writethrough(
 		absolutePath,
 		finalContent,
 		signal,

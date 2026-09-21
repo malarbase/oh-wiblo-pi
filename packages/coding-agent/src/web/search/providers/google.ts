@@ -8,7 +8,7 @@ import type { SearchParams } from "./base";
 import { SearchProvider } from "./base";
 import type { LoadedHtmlPage } from "./browser-page";
 import { browserFetch } from "./browser-page";
-import { withHardTimeout } from "./utils";
+import { normalizeSearchText, withHardTimeout } from "./utils";
 
 const GOOGLE_HOME_URL = "https://www.google.com/";
 const GOOGLE_SEARCH_URL = "https://www.google.com/search";

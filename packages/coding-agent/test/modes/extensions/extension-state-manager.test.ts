@@ -8,7 +8,7 @@ import {
 	filterByProvider,
 	flattenTree,
 } from "@oh-my-pi/pi-coding-agent/modes/components/extensions/state-manager";
-import type { DashboardState, Extension } from "@oh-my-pi/pi-coding-agent/modes/components/extensions/types";
+import type { DashboardState, Extension } from "@oh-my-pi/pi-tui/overlays/extensions/types";
 
 function makeSkill(
 	name: string,

@@ -1776,8 +1776,8 @@ class LspFileSystem implements FileSystem {
 			this.batchRequest,
 			deferredForPath ? (dst: string) => deferredForPath(dst) : undefined,
 		);
-		if (result) {
-			this.#lastDiagnostics = result;
+		if (result.diagnostics) {
+			this.#lastDiagnostics = result.diagnostics;
 		}
 	}
 

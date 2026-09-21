@@ -549,7 +549,7 @@ function recoverBracketPairs(lines: string[], content: string): string[] | undef
 
 function hasInlineSelection(pattern: string): boolean {
 	let selected = false;
-	for (let index = 0; index < pattern.length; ) {
+	for (let index = 0; index < pattern.length;) {
 		if (pattern.startsWith(SELECT_OPEN, index)) {
 			selected = true;
 			index += SELECT_OPEN.length;
@@ -632,7 +632,7 @@ function parseInlinePattern(
 	let sawBare = false;
 	let sawInline = false;
 
-	for (let index = 0; index < pattern.length; ) {
+	for (let index = 0; index < pattern.length;) {
 		const codePoint = pattern.codePointAt(index);
 		if (codePoint === undefined) break;
 		const character = String.fromCodePoint(codePoint);
@@ -724,7 +724,7 @@ function recoverMixedRewriteForms(
 	let currentText = "";
 	let desiredText = "";
 	let replacementIndex = 0;
-	for (let index = 0; index < inline.patternText.length; ) {
+	for (let index = 0; index < inline.patternText.length;) {
 		const open = inline.patternText.indexOf(SELECT_OPEN, index);
 		if (open === -1) {
 			const tail = inline.patternText.slice(index);
@@ -1385,7 +1385,7 @@ function normalizeText(source: string): NormalizedText {
 	let text = "";
 	const starts: number[] = [];
 	const ends: number[] = [];
-	for (let index = 0; index < source.length; ) {
+	for (let index = 0; index < source.length;) {
 		const codePoint = source.codePointAt(index);
 		if (codePoint === undefined) break;
 		if (codePoint <= 0x7f) {
@@ -1456,7 +1456,7 @@ function parsePattern(pattern: string, operationNumber: number): ParsedPattern {
 		literal = "";
 	};
 
-	for (let index = 0; index < pattern.length; ) {
+	for (let index = 0; index < pattern.length;) {
 		const gapMarker = patternGapAt(pattern, index);
 		if (gapMarker) {
 			flushLiteral();
@@ -1944,7 +1944,7 @@ function lineNumberAt(content: string, offset: number): number {
 function renderInlinePattern(patternText: string, replacements: string[]): string {
 	let rendered = "";
 	let replacementIndex = 0;
-	for (let index = 0; index < patternText.length; ) {
+	for (let index = 0; index < patternText.length;) {
 		const codePoint = patternText.codePointAt(index);
 		if (codePoint === undefined) break;
 		const character = String.fromCodePoint(codePoint);
@@ -2313,7 +2313,7 @@ function recoverNonConsecutiveOperation(content: string, operation: Operation): 
 
 function rewriteGapCount(rewrite: string): number {
 	let count = 0;
-	for (let index = 0; index < rewrite.length; ) {
+	for (let index = 0; index < rewrite.length;) {
 		if (rewrite.startsWith(GAP, index)) {
 			count++;
 			index += GAP.length;
@@ -2575,7 +2575,7 @@ function renderRewrite(
 	const sentinels = selectedCaptureIndices.map((_, index) => `\u0000V8GAP${index}\u0000`);
 	let markerIndex = 0;
 	let marked = "";
-	for (let index = 0; index < rewrite.length; ) {
+	for (let index = 0; index < rewrite.length;) {
 		const gapMarker = rewrite.startsWith(GAP, index) ? GAP : undefined;
 		if (gapMarker) {
 			const lineStart = rewrite.lastIndexOf("\n", index - 1) + 1;
@@ -3062,7 +3062,7 @@ function dropSelectionEchoes(patternText: string): string | undefined {
  */
 function overlapTrimCandidates(patternText: string): string[] {
 	const results: string[] = [];
-	for (let index = 0; index < patternText.length; ) {
+	for (let index = 0; index < patternText.length;) {
 		if (patternText.startsWith(GAP, index)) {
 			index += GAP.length;
 			continue;
@@ -3932,14 +3932,16 @@ export async function executeSloppy(
 		if (await routeWriteThroughBridge(session, entry.path, entry.absolutePath, finalContent, signal)) {
 			// bridge handled the write; diagnostics not available via writethrough
 		} else {
-			diagnostics = await writethrough(
-				entry.absolutePath,
-				finalContent,
-				signal,
-				Bun.file(entry.absolutePath),
-				sectionBatch,
-				dst => (dst === entry.absolutePath ? beginDeferredDiagnosticsForPath(entry.absolutePath) : undefined),
-			);
+			diagnostics = (
+				await writethrough(
+					entry.absolutePath,
+					finalContent,
+					signal,
+					Bun.file(entry.absolutePath),
+					sectionBatch,
+					dst => (dst === entry.absolutePath ? beginDeferredDiagnosticsForPath(entry.absolutePath) : undefined),
+				)
+			).diagnostics;
 			invalidateFsScanAfterWrite(entry.absolutePath);
 		}
 

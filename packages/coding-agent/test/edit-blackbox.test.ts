@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { EditTool, getEditStore, type PatchParams } from "@oh-my-pi/pi-coding-agent/edit";
+import { EditTool, getFileSnapshotStore, type PatchParams } from "@oh-my-pi/pi-coding-agent/edit";
 import { formatHashlineHeader } from "@oh-my-pi/pi-tui/tools/hashline-format";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import type { EditMode } from "@oh-my-pi/pi-tui/tools/edit";
@@ -152,7 +152,7 @@ describe("edit parse-regression blackbox", () => {
 		});
 
 		const hashlinePath = await writeFixture("hashline.ts");
-		const tag = getEditStore(session).recordSnapshot(hashlinePath, SOURCE, undefined);
+		const tag = getFileSnapshotStore(session).record(hashlinePath, SOURCE, undefined);
 		const hashlineArg = {
 			input: `${formatHashlineHeader("hashline.ts", tag)}\nPUT 2-2:\n+\treturn (;`,
 		};

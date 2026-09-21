@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { SEGMENTS } from "@oh-my-pi/pi-coding-agent/modes/components/status-line/segments";
-import type { SegmentContext } from "@oh-my-pi/pi-coding-agent/modes/components/status-line/types";
-import { initTheme } from "@oh-my-pi/pi-coding-agent/modes/theme/theme";
+import { SEGMENTS } from "@oh-my-pi/pi-tui/status-line/segments";
+import type { SegmentContext } from "@oh-my-pi/pi-tui/status-line/types";
+import { initTheme } from "@oh-my-pi/pi-tui/theme";
 
 describe("modeSegment rendering", () => {
 	beforeAll(async () => {
@@ -26,6 +26,8 @@ describe("modeSegment rendering", () => {
 			goalMode: null,
 			vibeMode: null,
 			collab: null,
+			vim: null,
+			stream: null,
 			usageStats: {
 				input: 0,
 				output: 0,
@@ -47,6 +49,7 @@ describe("modeSegment rendering", () => {
 			speculationBlinkOn: false,
 			subagentCount: 0,
 			activeMs: 0,
+			turnElapsedMs: null,
 			git: { branch: null, status: null, pr: null },
 			worktree: null,
 			usage: null,

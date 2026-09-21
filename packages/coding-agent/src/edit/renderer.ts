@@ -10,7 +10,7 @@ import type { RenderResultOptions } from "../extensibility/custom-tools/types";
 import type { FileDiagnosticsResult } from "../lsp";
 import { renderDiff as renderDiffColored } from "../modes/components/diff";
 import { getLanguageFromPath, type Theme } from "@oh-my-pi/pi-tui/theme";
-import type { OutputMeta } from "../tools/output-meta";
+import type { OutputMeta } from "@oh-my-pi/pi-tui/tools/output-meta";
 import {
 	cachedRenderedString,
 	createRenderedStringCache,
@@ -28,7 +28,7 @@ import {
 	shortenPath,
 	truncateDiffByHunk,
 } from "../tools/render-utils";
-import type { ToolActivityContext, ToolActivitySummary } from "../tools/renderers";
+import type { ToolActivityContext, ToolActivitySummary } from "@oh-my-pi/pi-tui/tools/renderer";
 import {
 	fileHyperlink,
 	framedBlock,

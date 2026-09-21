@@ -11,8 +11,8 @@
 import { Container, matchesKey, padding } from "@oh-my-pi/pi-tui";
 import type { StatusLineSegmentId } from "../../config/settings-schema";
 import { theme } from "@oh-my-pi/pi-tui/theme";
-import { matchesAppInterrupt } from "../../modes/utils/keybinding-matchers";
-import { ALL_SEGMENT_IDS } from "./status-line/segments";
+import { matchesAppInterrupt } from "@oh-my-pi/pi-tui/keybinding-matchers";
+import { ALL_SEGMENT_IDS } from "@oh-my-pi/pi-tui/status-line/segments";
 
 // Segment display names and short descriptions
 const SEGMENT_INFO: Record<StatusLineSegmentId, { label: string; short: string }> = {
@@ -40,6 +40,9 @@ const SEGMENT_INFO: Record<StatusLineSegmentId, { label: string; short: string }
 	session_name: { label: "Session Name", short: "named session" },
 	usage: { label: "Usage", short: "token usage" },
 	collab: { label: "Collab", short: "collab session" },
+	status: { label: "Status", short: "agent/host status" },
+	stream: { label: "Stream", short: "streaming throughput" },
+	vim: { label: "Vim", short: "vim mode" },
 };
 
 type Column = "left" | "right" | "disabled";

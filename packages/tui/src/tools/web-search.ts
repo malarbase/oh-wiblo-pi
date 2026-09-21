@@ -260,11 +260,6 @@ export const SEARCH_PROVIDER_OPTIONS = [
 		description: "Automatically uses the first configured web-search provider",
 	},
 	{
-		value: "parallel",
-		label: "Parallel",
-		description: "Uses API auth when configured; otherwise searches through the keyless public MCP",
-	},
-	{
 		value: "perplexity",
 		label: "Perplexity",
 		description: "Uses auth when configured; explicit selection falls back to anonymous search",
@@ -302,12 +297,14 @@ export const SEARCH_PROVIDER_OPTIONS = [
 		description: "Uses Firecrawl API when FIRECRAWL_API_KEY is set; falls back to keyless mode",
 	},
 	{ value: "brave", label: "Brave", description: "Requires BRAVE_API_KEY" },
+	{ value: "serpapi", label: "SerpAPI", description: "Requires SERPAPI_API_KEY" },
 	{
 		value: "kimi",
 		label: "Kimi",
 		description:
 			"Kimi Code search (requires a Kimi Code Console key via KIMI_SEARCH_API_KEY/MOONSHOT_SEARCH_API_KEY or /login kimi-code; not MOONSHOT_API_KEY)",
 	},
+	{ value: "parallel", label: "Parallel", description: "Requires PARALLEL_API_KEY" },
 	{ value: "synthetic", label: "Synthetic", description: "Requires SYNTHETIC_API_KEY" },
 	{ value: "ollama", label: "Ollama", description: "Requires OLLAMA_CLOUD_API_KEY" },
 	{ value: "searxng", label: "SearXNG", description: "Requires SEARXNG_ENDPOINT or searxng.endpoint" },
@@ -332,6 +329,11 @@ export const SEARCH_PROVIDER_OPTIONS = [
 		description: "Credential-free browser-backed fallback; slower and may be bot-challenged",
 	},
 	{
+		value: "google-ai",
+		label: "Google AI",
+		description: "Credential-free browser-backed scrape of Google AI Overviews; extracts synthesized AI answer",
+	},
+	{
 		value: "mojeek",
 		label: "Mojeek",
 		description: "Credential-free browser-backed scrape of Mojeek's independent index",
@@ -342,6 +344,8 @@ export const SEARCH_PROVIDER_OPTIONS = [
 		description: "Queries every credential-free engine in parallel and consolidates deduplicated results",
 	},
 ] as const;
+
+/** Default hard timeout for each web-search provider transport. */
 
 /** Supported web search providers (every option except `auto`). */
 export type SearchProviderId = Exclude<(typeof SEARCH_PROVIDER_OPTIONS)[number]["value"], "auto">;

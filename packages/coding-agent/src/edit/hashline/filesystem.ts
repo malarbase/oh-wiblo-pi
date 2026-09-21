@@ -233,7 +233,7 @@ export class HashlineFilesystem extends Filesystem {
 			}
 		}
 
-		const diagnostics = await this.#writethrough(
+		const { diagnostics } = await this.#writethrough(
 			absolutePath,
 			finalContent,
 			this.#signal,

@@ -11,6 +11,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { InMemorySnapshotStore } from "@oh-my-pi/hashline";
+import { SNAPSHOT_MAX_BYTES } from "../tools/read";
 import { normalizeToLF } from "./normalize";
 
 /**
@@ -19,7 +20,7 @@ import { normalizeToLF } from "./normalize";
  * the store. Files above this cap emit no `[path#tag]` header — line-anchored
  * editing of multi-megabyte files is out of scope under the full-content model.
  */
-export const SNAPSHOT_MAX_BYTES = 4 * 1024 * 1024;
+export { SNAPSHOT_MAX_BYTES };
 
 interface FileSnapshotStoreOwner {
 	fileSnapshotStore?: InMemorySnapshotStore;

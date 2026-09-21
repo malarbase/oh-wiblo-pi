@@ -10,7 +10,7 @@ import {
 } from "@oh-my-pi/pi-coding-agent/edit";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import { formatHashlineHeader } from "../../src/hashline";
+import { formatHashlineHeader } from "@oh-my-pi/pi-tui/tools/hashline-format";
 
 beforeAll(async () => {
 	resetSettingsForTest();
@@ -36,7 +36,7 @@ function executeOptions(_tempDir: string, input: string, session: ToolSession): 
 		input,
 		writethrough: async (targetPath, content) => {
 			await Bun.write(targetPath, content);
-			return undefined;
+			return { finalContent: content };
 		},
 		beginDeferredDiagnosticsForPath: () => ({
 			onDeferredDiagnostics: () => {},

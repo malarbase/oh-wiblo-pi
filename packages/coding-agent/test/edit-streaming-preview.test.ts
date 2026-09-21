@@ -4,7 +4,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { dropIncompleteLastEdit, EDIT_MODE_STRATEGIES } from "@oh-my-pi/pi-coding-agent/edit";
 import { removeWithRetries } from "@oh-my-pi/pi-utils";
-import { computeFileHash, formatHashlineHeader, InMemorySnapshotStore } from "../src/hashline";
+import { computeFileHash, formatHashlineHeader } from "@oh-my-pi/pi-tui/tools/hashline-format";
+import { InMemorySnapshotStore } from "@oh-my-pi/hashline";
 
 describe("dropIncompleteLastEdit", () => {
 	test("keeps all entries when partialJson is undefined", () => {
