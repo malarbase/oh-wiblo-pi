@@ -7,6 +7,7 @@ dist/
 packages/*/dist/
 packages/*/dist-chrome/
 packages/*/dist-firefox/
+packages/coding-agent/binaries/
 target/
 .xwin-cache/
 *.tsbuildinfo
@@ -90,6 +91,6 @@ packages/coding-agent/bench/boot-baseline.json
 /bazel-testlogs
 /bazel-pi
 /bazel-oh-my-pi
+/bazel-oh-wiblo-pi
 /.bazelrc.user
-
 .parity/
