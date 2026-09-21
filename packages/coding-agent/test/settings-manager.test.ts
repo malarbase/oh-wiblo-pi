@@ -85,14 +85,10 @@ describe("Settings", () => {
 		vi.restoreAllMocks();
 		clearCustomApis();
 		__providerInFlightForTesting.setRoot(undefined);
-<<<<<<< HEAD
 		AgentStorage.close();
 		restoreSettingsTestState(settingsState);
 		settingsState = undefined;
 		await Bun.sleep(0);
-=======
-		AgentStorage.resetInstance();
->>>>>>> 314d198a7f (feat(owp): OWP coding-agent package)
 		await tempDir?.remove();
 	});
 

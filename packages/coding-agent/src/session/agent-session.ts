@@ -8755,7 +8755,6 @@ export class AgentSession {
 			this.settings.set("interruptMode", mode);
 		}
 	}
-	}
 
 	/**
 	 * Cancel in-progress branch summarization.
