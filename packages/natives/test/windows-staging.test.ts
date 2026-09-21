@@ -233,4 +233,47 @@ describe("pi-natives version sentinel", () => {
 		const expected = `__piNativesV${packageJson.version.replace(/[^A-Za-z0-9]/g, "_")}`;
 		expect(sentinelMatch?.[1]).toBe(expected);
 	});
+	it("compiled .node binary exports the version sentinel", async () => {
+		// Catches the stale-binary problem: after a version bump, the Rust source
+		// is correct but the `.node` on disk may still be from the previous build.
+		// This ships as a startup crash for every user because the JS loader
+		// validates the sentinel at runtime.
+		const platformTag = `${process.platform}-${process.arch}`;
+		const expected = `__piNativesV${packageJson.version.replace(/[^A-Za-z0-9]/g, "_")}`;
+		// Find the binary for the current platform. x64 has -modern and -baseline
+		// variants; other arches use a single unqualified name.
+		const nativeDir = path.join(import.meta.dir, "../native");
+		const candidates =
+			process.arch === "x64"
+				? [
+						path.join(nativeDir, `pi_natives.${platformTag}-modern.node`),
+						path.join(nativeDir, `pi_natives.${platformTag}-baseline.node`),
+					]
+				: [path.join(nativeDir, `pi_natives.${platformTag}.node`)];
+		for (const candidate of candidates) {
+			const exists = await Bun.file(candidate).exists();
+			if (!exists) continue;
+			// Try to load directly — this is exactly what the loader does.
+			let addon: Record<string, unknown>;
+			try {
+				addon = require(candidate) as Record<string, unknown>;
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				throw new Error(
+					`Failed to load ${candidate}: ${message}\n` +
+						"The .node file may be corrupted or built for a different platform. " +
+						"Rebuild with: bun --cwd=packages/natives run build",
+				);
+			}
+			expect(
+				typeof addon[expected],
+				`${candidate} does not export version sentinel \`${expected}\`. ` +
+					"The binary is stale — rebuild with: bun --cwd=packages/natives run build",
+			).toBe("function");
+			return; // one match is enough
+		}
+		throw new Error(
+			`No native addon binary found for ${platformTag}. Rebuild with: bun --cwd=packages/natives run build`,
+		);
+	});
 });

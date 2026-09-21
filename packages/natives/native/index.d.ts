@@ -1479,7 +1479,7 @@ export declare function execReplace(argv: Array<string>): void
  */
 export declare function executeShell(options: ShellExecuteOptions, onChunk?: ((error: Error | null, chunk: string) => void) | undefined | null): Promise<ShellRunResult>
 
-/** Locate `<SM:EDIT path="…">` payloads the model emitted as plain text. */
+/** Locate `*** SM:EDIT path` payloads the model emitted as plain text. */
 export declare function extractInlineSloppyRegions(text: string): Array<InlineSloppyRegion>
 
 /**
@@ -2670,14 +2670,11 @@ export interface SummaryOptions {
   minBodyLines?: number
   /** Minimum total comment lines before eliding a multiline block comment. */
   minCommentLines?: number
-  /**
-   * Target visible-line count for BFS unfold. `None` or `0` keeps only
-   * the outermost elisions (no progressive unfolding).
-   */
+  /** Target visible-line count for BFS unfold. None or 0 disables BFS. */
   unfoldUntilLines?: number
   /**
-   * Hard ceiling for BFS unfold. Defaults to `unfold_until_lines * 2`
-   * when omitted.
+   * Hard ceiling for BFS unfold. Defaults to `unfold_until_lines * 2` when
+   * omitted.
    */
   unfoldLimitLines?: number
 }
