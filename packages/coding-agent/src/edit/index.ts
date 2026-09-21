@@ -52,7 +52,6 @@ import { EDIT_MODE_STRATEGIES } from "./streaming";
 
 export * from "@oh-my-pi/hashline";
 export { DEFAULT_EDIT_MODE, type EditMode, normalizeEditMode } from "../utils/edit-mode";
-export * from "./apply-patch";
 export * from "./diff";
 export * from "./file-snapshot-store";
 export * from "./hashline";

@@ -3,25 +3,80 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { getOAuthProviders } from "@oh-my-pi/pi-ai/oauth";
 import { type AutocompleteItem, Spacer } from "@oh-my-pi/pi-tui";
-import { APP_NAME, getMCPConfigPath, getProjectDir, logger, setProjectDir } from "@oh-my-pi/pi-utils";
+import { formatDuration } from "@oh-my-pi/pi-utils/format";
+import { CollabQrCodeComponent } from "@oh-my-pi/pi-tui/chrome/collab-qrcode";
+import { extractLastCodeBlock, extractLastCommand } from "@oh-my-pi/pi-tui/overlays/copy-targets";
+import { theme } from "@oh-my-pi/pi-tui/theme";
+import {
+	APP_NAME,
+	getMCPConfigPath,
+	getProjectDir,
+	logger,
+	setProjectDir,
+} from "@oh-my-pi/pi-utils";
 import { reset as resetCapabilities } from "../capability";
 import { COLLAB_GUEST_ALLOWED_COMMANDS, CollabGuestLink } from "../collab/guest";
 import { CollabHost } from "../collab/host";
+import { buildModelSelectorCompletions } from "./builtin-completions";
 import {
-	buildArgumentCompletions,
-	buildDirectoryArgumentCompletions,
-	buildMcpArgumentCompletions,
-	buildModelSelectorCompletions,
-	buildStaticInlineHint,
-	buildSubcommandInlineHint,
-} from "./builtin-completions";
-import { BUILTIN_CONTROL_SLASH_COMMANDS } from "./builtin-control";
-import { BUILTIN_LIFECYCLE_SLASH_COMMANDS } from "./builtin-lifecycle";
-import { BUILTIN_MARKETPLACE_SLASH_COMMANDS, reloadTuiPluginState } from "./builtin-marketplace";
-import { BUILTIN_MODE_SLASH_COMMANDS } from "./builtin-modes";
-import { BUILTIN_SESSION_SLASH_COMMANDS } from "./builtin-session";
-import { parseSlashCommand } from "./helpers/parse";
-import { BUILTIN_COLLABORATION_SLASH_COMMANDS } from "./builtin-collaboration";
+	expandRoleAlias,
+	formatModelString,
+	getModelMatchPreferences,
+	resolveCliModel,
+} from "../config/model-resolver";
+import { applyProviderGlobalsFromSettings } from "../config/provider-globals";
+import type { SettingPath, SettingValue } from "../config/settings";
+import { settings } from "../config/settings";
+import {
+	clearPluginRootsAndCaches,
+	resolveActiveProjectRegistryPath,
+	resolveOrDefaultProjectRegistryPath,
+} from "../discovery/helpers.js";
+import { parseExportArgs } from "../export/html/args";
+import { shareSession } from "../export/share";
+import { PluginManager } from "../extensibility/plugins";
+import {
+	getInstalledPluginsRegistryPath,
+	getMarketplacesCacheDir,
+	getMarketplacesRegistryPath,
+	getPluginsCacheDir,
+	MarketplaceManager,
+} from "../extensibility/plugins/marketplace";
+import { readMCPConfigFile } from "../mcp/config-writer";
+import { memoryStatsUnavailableMessage, resolveMemoryBackend } from "../memory-backend";
+import { runPauseScreen } from "../modes/components/pause-screen";
+import { collectMcpServerNames, MCPCommandController } from "../modes/controllers/mcp-command-controller";
+import { describeLoopLimitRuntime } from "../modes/loop-limit";
+import type { InteractiveModeContext } from "../modes/types";
+import { listSavedPlans } from "../plan-mode/storage";
+import { AgentSession } from "../session/agent-session";
+import type { FreshSessionResult, SessionOAuthAccountList } from "../session/agent-session-types";
+import { COMPACT_MODES, parseCompactArgs } from "../session/compact-modes";
+import { resolveResumableSession } from "../session/session-listing";
+import { formatShakeSummary, type ShakeMode } from "../session/shake-types";
+import { computerExposureMode } from "../tools/computer/exposure";
+import { expandTilde, resolveToCwd } from "../tools/path-utils";
+import { urlHyperlinkAlways } from "../tui";
+import {
+	getChangelogPath,
+	parseChangelog,
+	RECENT_CHANGELOG_ENTRY_LIMIT,
+	renderChangelogEntries,
+} from "../utils/changelog";
+import { copyToClipboard } from "../utils/clipboard";
+import { handleAddProviderCommand } from "./commands/add-provider";
+import { buildContextReportText } from "./helpers/context-report";
+import { createMarketplaceManager } from "./helpers/marketplace-manager";
+import { handleMcpAcp } from "./helpers/mcp";
+import { commandConsumed, errorMessage, parseSlashCommand, parseSubcommand, usage } from "./helpers/parse";
+import { describeRedeemOutcome, type ResetUsageAccount, toResetUsageAccounts } from "./helpers/reset-usage";
+import { handleSecurityCommand } from "./helpers/security";
+import { matchSessionPinAccounts, toSessionPinAccounts } from "./helpers/session-pin";
+import { handleSshAcp } from "./helpers/ssh";
+import { launchStatsDashboard, parseStatsDashboardArgs } from "./helpers/stats-dashboard";
+import { handleTodoAcp } from "./helpers/todo";
+import { buildUsageReportText } from "./helpers/usage-report";
+import { parseMarketplaceInstallArgs, parsePluginScopeArgs } from "./marketplace-install-parser";
 import type {
 	BuiltinSlashCommand,
 	ParsedSlashCommand,
@@ -52,91 +107,6 @@ function refreshStatusLine(ctx: InteractiveModeContext): void {
 function formatFastModeStatus(session: AgentSession): string {
 	return session.isFastModeEnabled() ? "on" : "off";
 }
-
-/** Detailed, session-effective `/computer status` diagnostics. */
-async function formatComputerUseStatus(session: AgentSession): Promise<string> {
-	const enabled = session.settings.get("computer.enabled");
-	const active = session.getEnabledToolNames().includes("computer");
-	const model = session.model;
-	const modelName = model ? formatModelString(model) : "none";
-	const exposure = !enabled
-		? "not exposed (disabled)"
-		: !active
-			? "not exposed (tool inactive)"
-			: computerExposureMode(model);
-	const configured = {
-		display: session.settings.get("computer.display"),
-		maxWidth: session.settings.get("computer.maxWidth"),
-		maxHeight: session.settings.get("computer.maxHeight"),
-	};
-	const computerTool = active
-		? (session.getToolByName("computer") as Pick<ComputerTool, "capabilities"> | undefined)
-		: undefined;
-	const capabilities = await computerTool?.capabilities();
-	const capabilityStatus = capabilities
-		? [
-				`backend=${capabilities.backend}${capabilities.displayServer ? `/${capabilities.displayServer}` : ""}`,
-				`capture=${capabilities.capture} (${capabilities.capturePermission})`,
-				`input=${capabilities.input} (${capabilities.inputPermission})`,
-				`ax=${capabilities.ax} (${capabilities.axPermission})`,
-				`backgroundWindowInput=${capabilities.backgroundWindowInput}`,
-				`deliveryModes=${capabilities.deliveryModes.join(",") || "none"}`,
-			].join(", ")
-		: "session not started";
-	return [
-		`Computer use: ${enabled ? "enabled" : "disabled"}`,
-		`tool: ${active ? "active" : "inactive"}`,
-		`exposure: ${exposure}`,
-		`model: ${modelName}`,
-		`configured: display=${configured.display}, maxWidth=${configured.maxWidth}, maxHeight=${configured.maxHeight}`,
-		`capabilities: ${capabilityStatus}`,
-	].join(" · ");
-}
-
-/**
- * Apply a session-scoped computer-use toggle: flip the active tool slate first
- * (so a failed enable never leaves a stale settings override), then record the
- * runtime override — never `settings.set`, which would persist to settings.json.
- * Returns the operator feedback line.
- */
-async function applyComputerUseToggle(session: AgentSession, enable: boolean): Promise<string> {
-	const applied = await session.setComputerToolEnabled(enable);
-	if (enable && !applied) {
-		return "Computer use is unavailable in this session.";
-	}
-	session.settings.override("computer.enabled", enable);
-	return enable
-		? `Computer use enabled for this session. ${await formatComputerUseStatus(session)}`
-		: "Computer use disabled for this session.";
-}
-
-/** Session-effective `/vision status` line. */
-function formatVisionStatus(session: AgentSession): string {
-	const { mode, active, model } = session.inspectImageState();
-	const override = session.getInspectImageModeOverride();
-	const modelObj = session.model;
-	const capability = modelObj
-		? modelObj.input.includes("image")
-			? "native image input"
-			: "no native image input"
-		: "no active model";
-	return [
-		`inspect_image: ${active ? "active" : "inactive"}`,
-		`mode: ${mode}${override ? " (session override)" : ""}`,
-		...(override ? [`configured: ${session.settings.get("inspect_image.mode")}`] : []),
-		`model: ${model ?? "none"} (${capability})`,
-	].join(" · ");
-}
-
-/** Applies a `/vision` mode for this session and returns the operator feedback line. */
-async function applyVisionMode(session: AgentSession, mode: InspectImageMode): Promise<string> {
-	const applied = await session.setInspectImageMode(mode);
-	if (!applied) {
-		return "inspect_image is unavailable in this session.";
-	}
-	return `Vision mode: ${mode}. ${formatVisionStatus(session)}`;
-}
-
 const AUTOCOMPLETE_DETAIL_LIMIT = 48;
 
 function shortDetail(value: string, limit = AUTOCOMPLETE_DETAIL_LIMIT): string {
@@ -667,91 +637,6 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<SlashCommandSpec> = [
 				return;
 			}
 			runtime.ctx.showStatus("Usage: /fast [on|off|status]");
-			runtime.ctx.editor.setText("");
-		},
-	},
-	{
-		name: "computer",
-		description: "Toggle the native computer-use tool for this session",
-		acpDescription: "Toggle computer use",
-		acpInputHint: "[on|off|status]",
-		subcommands: [
-			{ name: "on", description: "Enable computer use for this session" },
-			{ name: "off", description: "Disable computer use for this session" },
-			{ name: "status", description: "Show computer use status" },
-		],
-		allowArgs: true,
-		getTuiAutocompleteDescription: runtime =>
-			`Computer: ${runtime.ctx.session.settings.get("computer.enabled") ? "on" : "off"}`,
-		handle: async (command, runtime) => {
-			const arg = command.args.trim().toLowerCase();
-			if (arg === "status") {
-				await runtime.output(await formatComputerUseStatus(runtime.session));
-				return commandConsumed();
-			}
-			if (!arg || arg === "toggle" || arg === "on" || arg === "off") {
-				const enable = arg === "off" ? false : arg === "on" || !runtime.session.settings.get("computer.enabled");
-				await runtime.output(await applyComputerUseToggle(runtime.session, enable));
-				return commandConsumed();
-			}
-			return usage("Usage: /computer [on|off|status]", runtime);
-		},
-		handleTui: async (command, runtime) => {
-			const arg = command.args.trim().toLowerCase();
-			if (arg === "status") {
-				runtime.ctx.showStatus(await formatComputerUseStatus(runtime.ctx.session));
-				runtime.ctx.editor.setText("");
-				return;
-			}
-			if (!arg || arg === "toggle" || arg === "on" || arg === "off") {
-				const enable =
-					arg === "off" ? false : arg === "on" || !runtime.ctx.session.settings.get("computer.enabled");
-				runtime.ctx.showStatus(await applyComputerUseToggle(runtime.ctx.session, enable));
-				runtime.ctx.editor.setText("");
-				return;
-			}
-			runtime.ctx.showStatus("Usage: /computer [on|off|status]");
-			runtime.ctx.editor.setText("");
-		},
-	},
-	{
-		name: "vision",
-		description: "Control the inspect_image vision-delegation tool for this session",
-		acpDescription: "Toggle vision delegation",
-		acpInputHint: "[on|off|auto|status]",
-		subcommands: [
-			{ name: "on", description: "Always expose inspect_image this session" },
-			{ name: "off", description: "Never expose inspect_image this session" },
-			{ name: "auto", description: "Follow inspect_image.mode (auto hides it for vision-capable models)" },
-			{ name: "status", description: "Show inspect_image status" },
-		],
-		allowArgs: true,
-		getTuiAutocompleteDescription: runtime => `Vision: ${runtime.ctx.session.inspectImageState().mode}`,
-		handle: async (command, runtime) => {
-			const arg = command.args.trim().toLowerCase();
-			if (arg === "status") {
-				await runtime.output(formatVisionStatus(runtime.session));
-				return commandConsumed();
-			}
-			if (arg === "on" || arg === "off" || arg === "auto") {
-				await runtime.output(await applyVisionMode(runtime.session, arg));
-				return commandConsumed();
-			}
-			return usage("Usage: /vision [on|off|auto|status]", runtime);
-		},
-		handleTui: async (command, runtime) => {
-			const arg = command.args.trim().toLowerCase();
-			if (arg === "status") {
-				runtime.ctx.showStatus(formatVisionStatus(runtime.ctx.session));
-				runtime.ctx.editor.setText("");
-				return;
-			}
-			if (arg === "on" || arg === "off" || arg === "auto") {
-				runtime.ctx.showStatus(await applyVisionMode(runtime.ctx.session, arg));
-				runtime.ctx.editor.setText("");
-				return;
-			}
-			runtime.ctx.showStatus("Usage: /vision [on|off|auto|status]");
 			runtime.ctx.editor.setText("");
 		},
 	},

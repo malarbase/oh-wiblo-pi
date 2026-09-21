@@ -1,6 +1,7 @@
 import type { ExtensionDashboardRuntime } from "@oh-my-pi/pi-tui/overlays/extensions/extension-dashboard";
 import { getMCPConfigPath } from "@oh-my-pi/pi-utils";
 import { parseRuleAgents, parseRuleConditionAndScope } from "../../../capability/rule";
+import { isProviderEnabled } from "../../../capability";
 import type { Settings } from "../../../config/settings";
 import { getAllProvidersInfo, isForeignUserProvider, isUserSourceEnabled } from "../../../discovery";
 import type { CustomTool } from "../../../extensibility/custom-tools/types";
@@ -34,6 +35,7 @@ export function createExtensionDashboardRuntime(options: {
 		loadExtensions: disabledIds => loadAllExtensions(cwd, disabledIds),
 		toggleProvider,
 		toggleUserSource,
+		isProviderEnabled,
 		async persistMcpToggle(name, enabled, sourcePath) {
 			await setMcpServerEnabled({
 				userPath: getMCPConfigPath("user", cwd),

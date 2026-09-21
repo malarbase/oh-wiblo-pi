@@ -6,10 +6,9 @@
  * master switch is off. Skills can be grouped by directory, tag, repo, or author.
  */
 import { type Component, matchesKey, padding, truncateToWidth, visibleWidth } from "@oh-my-pi/pi-tui";
-import { isProviderEnabled } from "../../../discovery";
-import { theme } from "../../../modes/theme/theme";
-import { matchesSelectDown, matchesSelectUp } from "../../utils/keybinding-matchers";
-import { clampSelection, contentRowWidth, renderScrollableList, searchableChar } from "../selector-helpers";
+import { theme } from "../../theme";
+import { matchesSelectDown, matchesSelectUp } from "../../keybinding-matchers";
+import { clampSelection, contentRowWidth, renderScrollableList, searchableChar } from "../../chrome/selector-helpers";
 import { sanitizeDisplayLine } from "./display-text";
 import {
 	formatExtensionListHint,
@@ -39,6 +38,8 @@ export interface ExtensionListCallbacks {
 	onGroupToggle?: (groupAxis: GroupingAxis, groupValue: string, enabled: boolean) => void;
 	/** Provider ID for master switch (null = no master switch) */
 	masterSwitchProvider?: string | null;
+	/** Provider enablement check (injected: lives app-side in the capability registry) */
+	isProviderEnabled?: (providerId: string) => boolean;
 	mcpSource?: MCPRuntimeSource;
 	toolSource?: ToolRuntimeSource;
 }
@@ -67,6 +68,7 @@ export class ExtensionList implements Component {
 	#searchQuery = "";
 	#focused = false;
 	#masterSwitchProvider: string | null = null;
+	#isProviderEnabled: (providerId: string) => boolean = () => true;
 	#maxVisible: number;
 	#hoveredIndex: number | null = null;
 	#groupingAxis: GroupingAxis = "dir";
@@ -82,6 +84,7 @@ export class ExtensionList implements Component {
 		maxVisible?: number,
 	) {
 		this.#masterSwitchProvider = callbacks.masterSwitchProvider ?? null;
+	this.#isProviderEnabled = callbacks.isProviderEnabled ?? (() => true);
 		this.#mcpSource = callbacks.mcpSource;
 		this.#toolSource = callbacks.toolSource;
 		this.#maxVisible = maxVisible ?? DEFAULT_MAX_VISIBLE;
@@ -182,7 +185,7 @@ export class ExtensionList implements Component {
 		}
 
 		// Determine if master switch is off (for dimming child items)
-		const masterDisabled = this.#masterSwitchProvider !== null && !isProviderEnabled(this.#masterSwitchProvider);
+		const masterDisabled = this.#masterSwitchProvider !== null && !this.#isProviderEnabled(this.#masterSwitchProvider);
 
 		// Calculate visible range
 		const startIdx = this.#scrollOffset;
@@ -443,7 +446,7 @@ export class ExtensionList implements Component {
 
 		if (this.#masterSwitchProvider) {
 			const providerName = filtered[0]?.source.providerName ?? this.#masterSwitchProvider;
-			const enabled = isProviderEnabled(this.#masterSwitchProvider);
+			const enabled = this.#isProviderEnabled(this.#masterSwitchProvider);
 
 			this.#listItems.push({
 				type: "master",
@@ -623,7 +626,7 @@ export class ExtensionList implements Component {
 			// Shadowed same-name rows share the winner's id (`mcp:github`).
 			// Toggling them would mutate whichever config `find(id)` hits first.
 			if (isShadowedExtension(item.item)) return;
-			const masterDisabled = this.#masterSwitchProvider !== null && !isProviderEnabled(this.#masterSwitchProvider);
+			const masterDisabled = this.#masterSwitchProvider !== null && !this.#isProviderEnabled(this.#masterSwitchProvider);
 			if (!masterDisabled) {
 				const newEnabled = item.item.state === "disabled";
 				this.callbacks.onToggle?.(item.item.id, newEnabled);

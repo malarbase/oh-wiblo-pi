@@ -59,6 +59,7 @@ export interface ExtensionDashboardRuntime {
 	loadExtensions(disabledIds: string[]): Promise<Extension[]>;
 	toggleProvider(providerId: string): boolean;
 	toggleUserSource(providerId: string): boolean;
+	isProviderEnabled(providerId: string): boolean;
 	persistMcpToggle(name: string, enabled: boolean, sourcePath?: string): Promise<void>;
 	applyMcpToggle(name: string, enabled: boolean): Promise<void>;
 	subscribeMcpChanges(onChange: () => void): Array<() => void>;
@@ -172,6 +173,7 @@ export class ExtensionDashboard implements Component {
 				onMasterToggle: providerId => this.#handleProviderToggle(providerId),
 				onUserSourceToggle: providerId => this.#handleUserSourceToggle(providerId),
 				masterSwitchProvider: this.#getActiveProviderId(),
+				isProviderEnabled: providerId => this.#runtime.isProviderEnabled(providerId),
 				mcpSource: this.#runtime.mcpSource,
 				toolSource: this.#toolSource,
 			},

@@ -4,7 +4,7 @@ import { TERMINAL } from "@oh-my-pi/pi-tui";
 import { prompt, untilAborted } from "@oh-my-pi/pi-utils";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
 import type { ExtensionUISelectItem } from "../extensibility/extensions";
-import type { Theme } from "../modes/theme/theme";
+import type { Theme } from "@oh-my-pi/pi-tui/theme";
 import askFollowupDescription from "../prompts/tools/ask-followup-question.md" with { type: "text" };
 import { renderStatusLine } from "../tui";
 import type { ToolSession } from ".";

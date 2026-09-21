@@ -7,8 +7,8 @@
  */
 import { Container, Input, matchesKey, type SelectItem, SelectList, Spacer, Text } from "@oh-my-pi/pi-tui";
 import type { WizardField } from "../../config/schema-introspector";
-import { getSelectListTheme, theme } from "../theme/theme";
-import { matchesAppInterrupt } from "../utils/keybinding-matchers";
+import { getSelectListTheme, theme } from "@oh-my-pi/pi-tui/theme";
+import { matchesAppInterrupt } from "@oh-my-pi/pi-tui/keybinding-matchers";
 import { DynamicBorder } from "./dynamic-border";
 
 export interface SchemaWizardResult {

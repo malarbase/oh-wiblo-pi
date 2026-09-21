@@ -10,7 +10,7 @@
  */
 import { Container, matchesKey, padding } from "@oh-my-pi/pi-tui";
 import type { StatusLineSegmentId } from "../../config/settings-schema";
-import { theme } from "../../modes/theme/theme";
+import { theme } from "@oh-my-pi/pi-tui/theme";
 import { matchesAppInterrupt } from "../../modes/utils/keybinding-matchers";
 import { ALL_SEGMENT_IDS } from "./status-line/segments";
 

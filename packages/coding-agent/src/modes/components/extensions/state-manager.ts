@@ -528,7 +528,7 @@ export function filterByProvider(extensions: Extension[], providerId: string): E
 	return extensions.filter(ext => ext.source.provider === providerId);
 }
 
-export { isShadowedExtension } from "./types";
+export { isShadowedExtension } from "@oh-my-pi/pi-tui/overlays/extensions/types";
 
 export function isSkillDisabledByGroup(ext: Partial<Extension>, disabled: Set<string>): boolean {
 	if (ext.kind !== "skill") return false;

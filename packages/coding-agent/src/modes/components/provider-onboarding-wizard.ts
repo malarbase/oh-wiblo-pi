@@ -9,8 +9,8 @@ import { Container, Input, matchesKey, Spacer, Text } from "@oh-my-pi/pi-tui";
 import { ProviderConfigSchema } from "../../config/models-config-schema";
 import { addProviderToModelsConfig } from "../../config/models-config-writer";
 import { introspectSchema, type WizardField } from "../../config/schema-introspector";
-import { theme } from "../theme/theme";
-import { matchesAppInterrupt } from "../utils/keybinding-matchers";
+import { theme } from "@oh-my-pi/pi-tui/theme";
+import { matchesAppInterrupt } from "@oh-my-pi/pi-tui/keybinding-matchers";
 import { DynamicBorder } from "./dynamic-border";
 import { SchemaDrivenWizard } from "./schema-driven-wizard";
 
