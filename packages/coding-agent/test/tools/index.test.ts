@@ -129,7 +129,7 @@ describe("createTools", () => {
 		const tools = await createTools(session, ["read", "lsp", "write"]);
 		const names = tools.map(t => t.name);
 
-		expect(names).toEqual(["read", "write"]);
+		expect(names).toEqual(["read", "write", "switch_mode"]);
 	});
 
 	it("excludes lsp tool when disabled", async () => {
@@ -145,7 +145,7 @@ describe("createTools", () => {
 		const tools = await createTools(session, ["read", "write"]);
 		const names = tools.map(t => t.name);
 
-		expect(names).toEqual(["read", "write"]);
+		expect(names).toEqual(["read", "write", "switch_mode"]);
 	});
 
 	it("creates xd:// presentation state without remounting explicitly requested built-ins", async () => {
@@ -154,7 +154,7 @@ describe("createTools", () => {
 
 		expect(session.xdev).toBeDefined();
 		expect(session.xdev?.mountedNames.size).toBe(0);
-		expect(tools.map(tool => tool.name)).toEqual(["read", "lsp", "write"]);
+		expect(tools.map(tool => tool.name)).toEqual(["read", "lsp", "write", "switch_mode"]);
 	});
 
 	it("grants a device-only xd:// transport write when an explicit list keeps read but omits write", async () => {
@@ -165,9 +165,14 @@ describe("createTools", () => {
 		const session = createTestSession();
 		const tools = await createTools(session, ["read", "lsp"]);
 
+<<<<<<< HEAD
 		expect(session.deviceOnlyWrite).toBe(true);
 		expect(session.xdev).toBeDefined();
 		expect(tools.map(tool => tool.name)).toEqual(["read", "lsp", "write"]);
+=======
+		expect(session.xdev).toBeUndefined();
+		expect(tools.map(tool => tool.name)).toEqual(["read", "lsp", "switch_mode"]);
+>>>>>>> 314d198a7f (feat(owp): OWP coding-agent package)
 	});
 
 	it("lowercases requested tool subset", async () => {
@@ -175,7 +180,7 @@ describe("createTools", () => {
 		const tools = await createTools(session, ["Read", "Write"]);
 		const names = tools.map(t => t.name);
 
-		expect(names).toEqual(["read", "write"]);
+		expect(names).toEqual(["read", "write", "switch_mode"]);
 	});
 
 	it("includes hidden tools when explicitly requested", async () => {
@@ -183,7 +188,7 @@ describe("createTools", () => {
 		const tools = await createTools(session, ["yield"]);
 		const names = tools.map(t => t.name);
 
-		expect(names).toEqual(["yield"]);
+		expect(names).toEqual(["yield", "switch_mode"]);
 	});
 
 	it("includes yield tool when required", async () => {
@@ -254,8 +259,12 @@ describe("createTools", () => {
 			}),
 			["ask", "read"],
 		);
+<<<<<<< HEAD
 		// write joins as the device-only xd:// transport (read granted, ask disabled).
 		expect(requested.map(t => t.name)).toEqual(["read", "write"]);
+=======
+		expect(requested.map(t => t.name)).toEqual(["read", "switch_mode"]);
+>>>>>>> 314d198a7f (feat(owp): OWP coding-agent package)
 	});
 
 	it("includes ask tool when ask.enabled is true and hasUI is true", async () => {
@@ -293,9 +302,13 @@ describe("createTools", () => {
 		expect(names).not.toContain("browser");
 
 		const requestedTools = await createTools(createTestSession({ settings: session.settings }), ["bash", "read"]);
+<<<<<<< HEAD
 		// `write` joins as the device-only xd:// transport: read was granted,
 		// write omitted (see the "device-only xd:// transport write" test).
 		expect(requestedTools.map(t => t.name)).toEqual(["read", "write"]);
+=======
+		expect(requestedTools.map(t => t.name)).toEqual(["read", "switch_mode"]);
+>>>>>>> 314d198a7f (feat(owp): OWP coding-agent package)
 	});
 
 	it("auto-includes goal when goal mode is active", async () => {
@@ -308,8 +321,12 @@ describe("createTools", () => {
 		const tools = await createTools(session, ["read"]);
 		const names = tools.map(t => t.name);
 
+<<<<<<< HEAD
 		// `write` joins last as the device-only xd:// transport (see above).
 		expect(names).toEqual(["read", "goal", "write"]);
+=======
+		expect(names).toEqual(["read", "goal", "switch_mode"]);
+>>>>>>> 314d198a7f (feat(owp): OWP coding-agent package)
 	});
 
 	it("does not widen a restricted explicit tool list for an active goal", async () => {
@@ -446,7 +463,7 @@ describe("createTools", () => {
 		expect(names).toContain("rewind");
 	});
 
-	it("HIDDEN_TOOLS contains yield, goal, and think", () => {
-		expect(Object.keys(HIDDEN_TOOLS).sort()).toEqual(["goal", "think", "yield"]);
+	it("HIDDEN_TOOLS contains expected hidden tools", () => {
+		expect(Object.keys(HIDDEN_TOOLS).sort()).toEqual(["ask_followup_question", "goal", "switch_mode", "yield"]);
 	});
 });

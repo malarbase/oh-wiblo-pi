@@ -56,7 +56,10 @@ function createCtx(overrides?: {
 				stripWorkPrefix: false,
 			},
 		},
-		planMode: null,
+		askMode: null,
+		debugMode: null,
+		planMode: { enabled: false, paused: false },
+		usage: null,
 		loopMode: null,
 		prewalk: null,
 		goalMode: null,
@@ -93,7 +96,6 @@ function createCtx(overrides?: {
 			status: null,
 			pr: null,
 		},
-		usage: null,
 	};
 }
 

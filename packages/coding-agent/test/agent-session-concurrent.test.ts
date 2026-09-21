@@ -842,7 +842,6 @@ describe("AgentSession concurrent prompt guard", () => {
 		});
 		session.setClientBridge({
 			capabilities: {},
-			deferAgentInitiatedTurns: true,
 		});
 
 		await session.prompt("First message");

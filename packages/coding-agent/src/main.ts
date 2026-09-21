@@ -1704,7 +1704,7 @@ export async function runRootCommand(
 			// extension discovery is disabled.
 			const cliExtensions = [...(parsedArgs.extensions ?? []), ...(parsedArgs.hooks ?? [])];
 			injectOmpExtensionCliRoots(cliExtensions, home, getProjectDir(), {
-				mode: parsedArgs.noExtensions ? "explicit-only" : "merge",
+				mode: parsedArgs.noExtensions ? "explicit-only" : "all",
 				replace: true,
 			});
 		}

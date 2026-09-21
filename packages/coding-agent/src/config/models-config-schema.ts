@@ -5,6 +5,7 @@ export const {
 	ModelOverrideSchema,
 	ProviderDiscoverySchema,
 	ProviderAuthSchema,
+	ProviderConfigSchema,
 	ModelsConfigSchema,
 } = getModelsConfigSchemaBundle();
 

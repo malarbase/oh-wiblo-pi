@@ -1,0 +1,21 @@
+export * from "./apply";
+export * from "./block";
+export * from "./diff-preview";
+// Compatibility aliases for OWP tests
+export { buildCompactDiffPreview as buildCompactHashlineDiffPreview } from "./diff-preview";
+export * from "./format";
+export * from "./fs";
+export * from "./input";
+export { Patch as splitHashlineInput, Patch as splitHashlineInputs } from "./input";
+export * from "./messages";
+export * from "./mismatch";
+export { MismatchError as HashlineMismatchError } from "./mismatch";
+export * from "./normalize";
+export * from "./parser";
+export * from "./patcher";
+export * from "./prefixes";
+export * from "./recovery";
+export * from "./snapshots";
+export * from "./stream";
+export * from "./tokenizer";
+export * from "./types";

@@ -1,8 +1,3 @@
-// Ported from NousResearch/hermes-agent (MIT) — tools/tts_tool.py L167-171, L896-959.
-// The xAI Grok Voice path below is preserved intact; a local on-device neural TTS
-// backend (Kokoro-82M via kokoro-js on the shared ONNX worker) is layered on behind
-// the `providers.tts` switch.
-
 import { type } from "@oh-my-pi/omptype";
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { type ApiKey, type FetchImpl, withAuth } from "@oh-my-pi/pi-ai";

@@ -189,6 +189,8 @@ export interface InteractiveModeContext {
 	todoExpanded: boolean;
 	planModeEnabled: boolean;
 	vibeModeEnabled: boolean;
+	askModeEnabled: boolean;
+	debugModeEnabled: boolean;
 	goalModeEnabled: boolean;
 	goalModePaused: boolean;
 	loopModeEnabled: boolean;
@@ -528,6 +530,8 @@ export interface InteractiveModeContext {
 	toggleToolOutputExpansion(): void;
 	setToolsExpanded(expanded: boolean): void;
 	toggleThinkingBlockVisibility(): void;
+	openExternalEditor(): void;
+	registerExtensionShortcuts(): void;
 	handlePlanModeCommand(
 		initialPrompt?: string,
 		input?: Pick<SubmittedUserInput, "images" | "imageLinks">,
@@ -536,6 +540,13 @@ export interface InteractiveModeContext {
 		initialPrompt?: string,
 		input?: Pick<SubmittedUserInput, "images" | "imageLinks">,
 	): Promise<boolean>;
+	handlePlanRunCommand(filePath?: string): Promise<void>;
+	handlePlanListCommand(): Promise<void>;
+	handlePlanLoadCommand(filePath: string): Promise<void>;
+	handleSwitchModeTool(details: unknown): Promise<void>;
+	handleAskModeCommand(): Promise<void>;
+	handleDebugModeCommand(): Promise<void>;
+	cycleAgentMode(): Promise<void>;
 	handleGoalModeCommand(rest?: string, input?: Pick<SubmittedUserInput, "images" | "imageLinks">): Promise<boolean>;
 	handleGuidedGoalCommand(rest?: string, input?: Pick<SubmittedUserInput, "images" | "imageLinks">): Promise<boolean>;
 	handleLoopCommand(args?: string): Promise<string | undefined>;
