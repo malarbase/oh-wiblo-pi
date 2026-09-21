@@ -1338,19 +1338,19 @@ export class EventController {
 				// that already finished, permanently pending.
 				if (!this.ctx.pendingTools.has(content.id) && !this.#toolTimelineComponents.has(content.id)) {
 					this.#resolveDisplaceablePoll(renderToolName);
-this.#resetReadGroup();
-			const component = new ToolExecutionComponent(
-				renderToolName,
-				renderArgs,
-				{
-					useBuiltInRenderer: this.ctx.viewSession.hasBuiltInTool(renderToolName),
-					showImages: settings.get("terminal.showImages"),
-				},
-				tool,
-				this.ctx.ui,
-				this.ctx.sessionManager.getCwd(),
-				content.id,
-			);
+					this.#resetReadGroup();
+					const component = new ToolExecutionComponent(
+						renderToolName,
+						renderArgs,
+						{
+							useBuiltInRenderer: this.ctx.viewSession.hasBuiltInTool(renderToolName),
+							showImages: settings.get("terminal.showImages"),
+						},
+						tool,
+						this.ctx.ui,
+						this.ctx.sessionManager.getCwd(),
+						content.id,
+					);
 					const pendingPreview = this.#pendingStreamPreviews.get(content.id);
 					if (pendingPreview !== undefined) {
 						component.updateStreamPreview(pendingPreview);

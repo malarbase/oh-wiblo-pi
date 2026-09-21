@@ -158,7 +158,13 @@ describe("#setActiveMode no-op short-circuit", () => {
 		const spies = makeSpies();
 		const askMode = { value: true };
 		const store: { current: Mode } = { current: "ask" };
-		await setActiveMode(() => store.current, m => (store.current = m), spies, askMode, "ask");
+		await setActiveMode(
+			() => store.current,
+			m => (store.current = m),
+			spies,
+			askMode,
+			"ask",
+		);
 
 		expect(spies.disableAskMode).not.toHaveBeenCalled();
 		expect(spies.enableAskMode).not.toHaveBeenCalled();
@@ -171,7 +177,13 @@ describe("#setActiveMode no-op short-circuit", () => {
 		const spies = makeSpies();
 		const askMode = { value: false };
 		const store: { current: Mode } = { current: "none" };
-		await setActiveMode(() => store.current, m => (store.current = m), spies, askMode, "ask");
+		await setActiveMode(
+			() => store.current,
+			m => (store.current = m),
+			spies,
+			askMode,
+			"ask",
+		);
 
 		expect(spies.enableAskMode).toHaveBeenCalledTimes(1);
 		expect(spies.appendModeChange.mock.calls[0]?.[0]).toBe("ask");

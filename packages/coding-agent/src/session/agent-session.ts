@@ -6006,7 +6006,7 @@ export class AgentSession {
 		);
 	}
 
-/**
+	/**
 	 * @deprecated Mode context is now injected via the system prompt.
 	 * Kept for extension compatibility. Core mode transitions no longer call this.
 	 */
@@ -8715,7 +8715,7 @@ export class AgentSession {
 	// Message Queue Mode Management
 	// =========================================================================
 
-/**
+	/**
 	 * Set steering mode. Persists to global config by default; pass
 	 * `persist: false` for a session-only change (RPC) that leaves Settings —
 	 * and therefore later sessions and subagents — untouched.
