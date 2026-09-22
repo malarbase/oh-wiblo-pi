@@ -34,6 +34,8 @@ interface Feature {
 	description?: string;
 	owned_paths: string[];
 	obsoleted_fixes?: ObsoletedFix[];
+	/** Test files that must pass for this feature to count as preserved. Run by `--verify`. */
+	protecting_tests?: string[];
 }
 
 interface Divergence {
@@ -59,6 +61,8 @@ interface Registry {
 	divergences: Divergence[];
 	owned_symbols: OwnedSymbolGroup[];
 	removals?: { path: string; reason: string }[];
+	/** Fork commit count recorded at the last verified rebuild/rebase. `commitSurvival` fails if the live count drifts without a registry update. */
+	expected_fork_commit_count?: number;
 }
 
 interface SyncState {
@@ -108,6 +112,13 @@ const doVerify = args.includes("--verify");
 const shouldRevert = args.includes("--revert");
 const shouldStatus = args.includes("--status");
 const shouldTag = args.includes("--tag");
+const doFootprint = args.includes("--footprint");
+const acceptFlagIndex = args.indexOf("--accept");
+const acceptRaw = acceptFlagIndex !== -1 ? args[acceptFlagIndex + 1] : undefined;
+const acceptFile = acceptRaw && !acceptRaw.startsWith("--") ? acceptRaw : undefined; // bare --accept = all files
+const reasonFlagIndex = args.indexOf("--reason");
+const acceptReason = reasonFlagIndex !== -1 && args[reasonFlagIndex + 1] !== undefined ? args[reasonFlagIndex + 1] : "";
+const skipChecks = args.includes("--skip-checks");
 const root = path.resolve(import.meta.dir, "../../..");
 const registryPath = path.resolve(import.meta.dir, "feature-registry.yaml");
 
@@ -393,10 +404,174 @@ function printPreview(report: PreviewReport) {
 
 // ─── Verify mode ────────────────────────────────────────────────────────────
 
+interface FootprintBaseline {
+	generatedAt: string;
+	/** Deliberate re-baseline events (`--accept <file> --reason ...`). */
+	acceptances: { file: string; reason: string; at: string }[];
+	files: Record<string, { total: number; alive: number; ratio: number; hash: string }>;
+}
+
+const FOOTPRINT_BASELINE_PATH = ".omp/skills/sync-upstream/footprint-baseline.json";
+const FOOTPRINT_WARN_RATIO = 0.9;
+const FOOTPRINT_MIN_LINES = 4;
+
+/** Paths that hold fork-modified files which upstream also owns — the loss-audit surface. */
+async function riskFiles(): Promise<string[]> {
+	const diffFiles = (await $`git diff --name-only upstream/main..main`.cwd(root).quiet().text())
+		.trim()
+		.split("\n")
+		.filter(Boolean);
+	const out: string[] = [];
+	for (const f of diffFiles) {
+		if (!f.endsWith(".ts")) continue;
+		if (f.includes("/test/") || /\.test\.ts$/.test(f)) continue;
+		if (f.startsWith(".omp/") || f.startsWith("packages/coding-agent/examples/")) continue;
+		if (!(await gitCatFileExists(`upstream/main:${f}`))) continue; // fork-only file — cannot be overridden
+		out.push(f);
+	}
+	return out.sort();
+}
+
+/** Distinctive fork-attributable code lines of `file`: added lines vs upstream, normalized. */
+async function forkAddedLines(file: string): Promise<string[]> {
+	const diff = await $`git diff upstream/main..main -- ${file}`.cwd(root).quiet().text();
+	const lines = new Set<string>();
+	for (const raw of diff.split("\n")) {
+		if (!raw.startsWith("+") || raw.startsWith("+++")) continue;
+		const line = raw.slice(1).trim();
+		if (line.length < 4) continue;
+		if (/^(\/\/|\*|\/\*|\*\/)/.test(line)) continue; // comments
+		if (/^(import |export \*|} from |export type \*|@)/.test(line)) continue; // import machinery
+		lines.add(line);
+	}
+	return [...lines].sort();
+}
+
+async function computeFootprint(): Promise<{
+	checked: number;
+	warnings: { file: string; ratio: number; total: number; alive: number }[];
+	note?: string;
+}> {
+	const baseline = await readFootprintBaseline();
+	const warnings: { file: string; ratio: number; total: number; alive: number }[] = [];
+	const files = await riskFiles();
+	for (const file of files) {
+		const exists = await Bun.file(`${root}/${file}`).exists();
+		const added = await forkAddedLines(file);
+		const total = added.length;
+		if (total === 0) continue;
+		if (!exists) {
+			warnings.push({ file, ratio: 0, total, alive: 0 });
+			continue;
+		}
+		const content = await Bun.file(`${root}/${file}`).text();
+		let alive = 0;
+		for (const line of added) {
+			if (line.length >= 12 && content.includes(line)) alive++;
+		}
+		const ratio = alive / total;
+		const recorded = baseline?.files[file];
+		// Warn when survival drops below threshold — either vs the absolute
+		// threshold or vs the recorded baseline (whichever the file last
+		// explicitly accepted).
+		const threshold = recorded && recorded.ratio < FOOTPRINT_WARN_RATIO ? recorded.ratio : FOOTPRINT_WARN_RATIO;
+		if (total >= FOOTPRINT_MIN_LINES && ratio < threshold - 0.001) {
+			warnings.push({ file, ratio, total, alive });
+		}
+	}
+	return { checked: files.length, warnings, note: baseline?.acceptances.length ? `${baseline.acceptances.length} accepted re-baseline(s) on record` : undefined };
+}
+
+async function readFootprintBaseline(): Promise<FootprintBaseline | undefined> {
+	try {
+		return (await Bun.file(`${root}/${FOOTPRINT_BASELINE_PATH}`).json()) as FootprintBaseline;
+	} catch {
+		return undefined;
+	}
+}
+
+async function writeFootprintBaseline(baseline: FootprintBaseline): Promise<void> {
+	await Bun.write(`${root}/${FOOTPRINT_BASELINE_PATH}`, `${JSON.stringify(baseline, null, 2)}\n`);
+}
+
+/** Rebuild the baseline entry for one file (or all when file is undefined). */
+async function rebaselineFootprint(file: string | undefined, reason: string): Promise<void> {
+	const baseline = (await readFootprintBaseline()) ?? { generatedAt: new Date().toISOString(), acceptances: [], files: {} };
+	const files = await riskFiles();
+	const targets = file ? files.filter(f => f === file) : files;
+	if (file && targets.length === 0) {
+		print(`ERROR: ${file} is not a current risk file (fork-modified + exists upstream).`);
+		process.exit(1);
+	}
+	for (const target of targets) {
+		const exists = await Bun.file(`${root}/${target}`).exists();
+		const added = await forkAddedLines(target);
+		if (!exists || added.length === 0) {
+			delete baseline.files[target];
+			continue;
+		}
+		const content = await Bun.file(`${root}/${target}`).text();
+		let alive = 0;
+		for (const line of added) {
+			if (line.length >= 12 && content.includes(line)) alive++;
+		}
+		baseline.files[target] = {
+			total: added.length,
+			alive,
+			ratio: Number((alive / added.length).toFixed(4)),
+			hash: new Bun.CryptoHasher("sha1").update(added.join("\n")).digest("hex").slice(0, 12),
+		};
+	}
+	baseline.generatedAt = new Date().toISOString();
+	if (reason) baseline.acceptances.push({ file: file ?? "<all>", reason, at: baseline.generatedAt });
+	await writeFootprintBaseline(baseline);
+	print(`Baseline updated: ${file ?? `${targets.length} files`} (${baseline.acceptances.length} acceptances on record).`);
+}
+
+/** Standalone `--footprint` report: full table, not just warnings. */
+async function printFootprintReport(): Promise<void> {
+	const baseline = await readFootprintBaseline();
+	const files = await riskFiles();
+	print(`Risk files (fork-modified, exists upstream): ${files.length}`);
+	print(`Baseline: ${baseline ? `${Object.keys(baseline.files).length} entries @ ${baseline.generatedAt}` : "NONE — run with --accept to create"}\n`);
+	const rows: { file: string; total: number; alive: number; ratio: number }[] = [];
+	for (const file of files) {
+		const exists = await Bun.file(`${root}/${file}`).exists();
+		const added = await forkAddedLines(file);
+		if (added.length === 0) continue;
+		if (!exists) {
+			rows.push({ file, total: added.length, alive: 0, ratio: 0 });
+			continue;
+		}
+		const content = await Bun.file(`${root}/${file}`).text();
+		let alive = 0;
+		for (const line of added) {
+			if (line.length >= 12 && content.includes(line)) alive++;
+		}
+		rows.push({ file, total: added.length, alive, ratio: alive / added.length });
+	}
+	rows.sort((a, b) => a.ratio - b.ratio);
+	for (const r of rows) {
+		const recorded = baseline?.files[r.file];
+		const threshold = recorded && recorded.ratio < FOOTPRINT_WARN_RATIO ? recorded.ratio : FOOTPRINT_WARN_RATIO;
+		const flag = r.ratio < threshold - 0.001 && r.total >= FOOTPRINT_MIN_LINES ? " ⚠ REVIEW" : recorded && recorded.ratio < FOOTPRINT_WARN_RATIO ? " ✓ accepted" : "";
+		print(`  ${(r.ratio * 100).toFixed(0).padStart(3)}%  ${`${r.alive}/${r.total}`.padStart(9)}  ${r.file}${flag}`);
+	}
+	const warnings = rows.filter(r => {
+		const recorded = baseline?.files[r.file];
+		const threshold = recorded && recorded.ratio < FOOTPRINT_WARN_RATIO ? recorded.ratio : FOOTPRINT_WARN_RATIO;
+		return r.ratio < threshold - 0.001 && r.total >= FOOTPRINT_MIN_LINES;
+	}).length;
+	print(`\n${warnings} file(s) below the ${(FOOTPRINT_WARN_RATIO * 100).toFixed(0)}% review threshold.`);
+	if (warnings > 0) print("Each is either a suspected loss (investigate) or an adapted/superseded change (re-baseline with --accept <file> --reason).");
+}
+
 interface VerifyResult {
 	conflictMarkers: { ok: boolean; found: string[] };
 	symbolHealth: { ok: boolean; results: { symbol: string; file: string; ok: boolean; line?: number }[] };
-	commitSurvival: { ok: boolean; expected: number; actual: number };
+	commitSurvival: { ok: boolean; expected: number; actual: number; emptyCommits: string[]; note?: string };
+	protectingTests: { ok: boolean; results: { file: string; ok: boolean; summary: string }[] };
+	footprint: { checked: number; warnings: { file: string; ratio: number; total: number; alive: number }[]; note?: string };
 	typeCheck: { ok: boolean; output?: string };
 	nativeSentinel: { ok: boolean; expected: string; actual?: string };
 	deletionAudit: { ok: boolean; violations: string[] };
@@ -423,10 +598,49 @@ async function runVerify(registry: Registry): Promise<VerifyResult> {
 		}
 	}
 
-	// 3. Commit survival
-	const expected = Number((await $`git rev-list --count upstream/main..main`.cwd(root).quiet().text()).trim());
-	// After rebase, upstream/main..main should still equal the fork commit count
-	const actual = expected; // if we're post-rebase, this is fine
+	// 3. Commit survival — content-level, not the old count-vs-itself tautology.
+	// (a) every fork commit must still carry a non-empty diff (empty = content
+	//     dropped during rebase), and (b) the fork commit count must match the
+	//     count recorded in the registry at the last verified rebuild.
+	const commitHashes = (await $`git rev-list upstream/main..main`.cwd(root).quiet().text()).trim().split("\n").filter(Boolean);
+	const emptyCommits: string[] = [];
+	for (const hash of commitHashes) {
+		const diffCheck = await $`git diff-tree --quiet --no-commit-id -r ${hash}`.cwd(root).nothrow();
+		if (diffCheck.exitCode === 0) emptyCommits.push(hash);
+	}
+	const actualCount = commitHashes.length;
+	const expectedCount = registry.expected_fork_commit_count ?? actualCount;
+	const commitSurvival = {
+		ok: emptyCommits.length === 0 && actualCount === expectedCount,
+		expected: expectedCount,
+		actual: actualCount,
+		emptyCommits,
+		note:
+			registry.expected_fork_commit_count === undefined
+				? "registry has no expected_fork_commit_count — count check skipped; set it after the next verified rebuild"
+				: undefined,
+	};
+
+	// 3b. Protecting tests — behavioral contracts per feature. A red test is a
+	// feature-loss alarm that survives refactors (unlike symbol greps).
+	const protectingTestFiles = [...new Set(registry.features.flatMap(f => f.protecting_tests ?? []))];
+	const protectingResults: { file: string; ok: boolean; summary: string }[] = [];
+	const hasTimeout = (await $`command -v timeout`.cwd(root).quiet().nothrow()).exitCode === 0;
+	for (const file of protectingTestFiles) {
+		const command = hasTimeout ? ["timeout", "180", "bun", "test", file] : ["bun", "test", file];
+		const proc = Bun.spawnSync(command, { cwd: root, stdout: "pipe", stderr: "pipe" });
+		const output = `${proc.stdout?.toString() ?? ""}\n${proc.stderr?.toString() ?? ""}`;
+		const passMatch = output.match(/(\d+) pass/);
+		const failMatch = output.match(/(\d+) fail/);
+		const summary = proc.exitCode === 0 ? `${passMatch?.[1] ?? "?"} pass` : `exit ${proc.exitCode}: ${failMatch?.[1] ?? "?"} fail`;
+		protectingResults.push({ file, ok: proc.exitCode === 0, summary });
+	}
+	const protectingTests = { ok: protectingResults.every(r => r.ok), results: protectingResults };
+
+	// 3c. Feature footprint — fork-attributable content per shared file vs the
+	// committed baseline. Warn-only here (never gates exit code); `--footprint
+	// --accept` re-baselines deliberately.
+	const footprint = await computeFootprint();
 
 	// 4. Type check
 	const checkProc = await $`bun check:ts`.cwd(root).nothrow();
@@ -474,7 +688,9 @@ async function runVerify(registry: Registry): Promise<VerifyResult> {
 	return {
 		conflictMarkers: { ok: conflictLines.length === 0, found: conflictLines },
 		symbolHealth: { ok: symbolResults.every(r => r.ok), results: symbolResults },
-		commitSurvival: { ok: true, expected, actual },
+		commitSurvival,
+		protectingTests,
+		footprint,
 		typeCheck: { ok: check.exitCode === 0, output: check.text },
 		nativeSentinel,
 		deletionAudit: { ok: deletionViolations.length === 0, violations: deletionViolations },
@@ -506,7 +722,38 @@ function printVerify(result: VerifyResult) {
 
 	print("\n3. Commit survival");
 	print(`   Expected: ${result.commitSurvival.expected}  Actual: ${result.commitSurvival.actual}`);
-	print(`   ${result.commitSurvival.ok ? "PASS" : "FAIL — commit count mismatch"}`);
+	if (result.commitSurvival.note) print(`   Note: ${result.commitSurvival.note}`);
+	if (result.commitSurvival.emptyCommits.length > 0) {
+		print(`   FAIL — ${result.commitSurvival.emptyCommits.length} fork commit(s) have empty diffs (content dropped):`);
+		for (const h of result.commitSurvival.emptyCommits.slice(0, 10)) print(`   ${h.slice(0, 10)}`);
+	} else if (result.commitSurvival.expected !== result.commitSurvival.actual) {
+		print("   FAIL — fork commit count drifted without a registry update.");
+		print("   If intentional (rebuild/rebase), update expected_fork_commit_count in feature-registry.yaml.");
+	} else {
+		print("   PASS");
+	}
+
+	print("\n3b. Protecting tests (feature behavioral contracts)");
+	if (result.protectingTests.results.length === 0) {
+		print("   SKIP — no protecting_tests registered in feature-registry.yaml");
+	} else {
+		for (const r of result.protectingTests.results) {
+			print(`   ${r.ok ? "PASS" : "FAIL"}: ${r.file} (${r.summary})`);
+		}
+	}
+
+	print("\n3c. Feature footprint (fork content per shared file)");
+	print(`   Checked ${result.footprint.checked} risk files.`);
+	if (result.footprint.warnings.length === 0) {
+		print("   PASS — no file below the survival threshold");
+	} else {
+		print(`   WARN — ${result.footprint.warnings.length} file(s) lost fork content vs baseline (warn-only):`);
+		for (const w of result.footprint.warnings.slice(0, 15)) {
+			print(`   ${(w.ratio * 100).toFixed(0)}% (${w.alive}/${w.total}) ${w.file}`);
+		}
+		if (result.footprint.warnings.length > 15) print(`   ... and ${result.footprint.warnings.length - 15} more`);
+		print("   Investigate as suspected loss, or re-baseline: --footprint --accept <file> --reason \"...\"");
+	}
 
 	print("\n4. Type check");
 	if (result.typeCheck.ok) {
@@ -615,12 +862,29 @@ async function main() {
 		process.exit(0);
 	}
 
+	// ─── --footprint ────────────────────────────────────────────────────────
+	if (doFootprint) {
+		const acceptAll = acceptFlagIndex !== -1 && acceptFile === undefined;
+		if (acceptFile !== undefined || acceptAll) {
+			await rebaselineFootprint(acceptFile, acceptReason || "(no reason given)");
+		}
+		await printFootprintReport();
+		process.exit(0);
+	}
+
 	// ─── --verify only ──────────────────────────────────────────────────────
 	if (doVerify && !doContinue) {
 		const result = await runVerify(registry);
 		printVerify(result);
 		process.exit(
-			result.conflictMarkers.ok && result.symbolHealth.ok && result.commitSurvival.ok && result.typeCheck.ok && result.deletionAudit.ok ? 0 : 1,
+			result.conflictMarkers.ok &&
+			result.symbolHealth.ok &&
+			result.commitSurvival.ok &&
+			result.protectingTests.ok &&
+			result.typeCheck.ok &&
+			result.deletionAudit.ok
+				? 0
+				: 1, // footprint is warn-only: it never gates --verify's exit code
 		);
 	}
 
@@ -798,6 +1062,55 @@ async function main() {
 			for (const f of conflicts) print(`  ${f}`);
 			print("Resolve all conflicts, git add, then run --continue again.");
 			process.exit(2);
+		}
+
+		// Blocking pre-continue gates. The Sept 2026 settings-layering loss
+		// fossilized because a resolved tree was committed without checks.
+		// Never continue past a red gate; --skip-checks exists for emergencies
+		// and must be justified in the sync log by the operator.
+		if (!skipChecks) {
+			section("Pre-continue gates");
+			let failed = false;
+
+			const markerGrep = await $`grep -rn '^<<<<<<< ' packages/ crates/ --include='*.ts' --include='*.rs' --include='*.toml' --include='*.tsx'`
+				.cwd(root)
+				.quiet()
+				.nothrow();
+			if (markerGrep.exitCode === 0) {
+				failed = true;
+				print("GATE FAIL — conflict markers remain in committed files:");
+				for (const line of markerGrep.text().trim().split("\n").slice(0, 10)) print(`  ${line}`);
+			} else {
+				print("gate ok: no conflict markers");
+			}
+
+			print("gate: bun run check:ts (this can take a minute)...");
+			const checkProc = await $`bun run check:ts`.cwd(root).nothrow();
+			if (checkProc.exitCode !== 0) {
+				failed = true;
+				print("GATE FAIL — bun check:ts reported errors (first lines):");
+				for (const line of checkProc.text().split("\n").filter(l => l.includes("error")).slice(0, 10)) print(`  ${line}`);
+			} else {
+				print("gate ok: check:ts");
+			}
+
+			const footprint = await computeFootprint();
+			if (footprint.warnings.length > 0) {
+				failed = true;
+				print(`GATE FAIL — ${footprint.warnings.length} risk file(s) lost fork content vs baseline:`);
+				for (const w of footprint.warnings.slice(0, 15)) {
+					print(`  ${(w.ratio * 100).toFixed(0)}% (${w.alive}/${w.total}) ${w.file}`);
+				}
+				print("Investigate as a suspected loss, or accept deliberately:");
+				print('  bun .omp/skills/sync-upstream/sync.ts --footprint --accept <file> --reason "adapted to upstream <what>"');
+			} else {
+				print(`gate ok: footprint (${footprint.checked} risk files)`);
+			}
+
+			if (failed) {
+				print("\nABORTED — fix the failing gates, then run --continue again (or --skip-checks with justification).");
+				process.exit(2);
+			}
 		}
 
 		print("No remaining conflicts. Continuing rebase...");
