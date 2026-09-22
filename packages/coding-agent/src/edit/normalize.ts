@@ -1,24 +1,59 @@
-/**
- * Text normalization utilities for the edit tool.
- *
- * Whitespace, Unicode, and indentation helpers. Line-ending and BOM
- * primitives live in `@oh-my-pi/hashline` and are re-exported here so
- * existing consumers see one stable surface.
- */
-
 import { padding } from "@oh-my-pi/pi-tui";
+export type LineEnding = "\r\n" | "\n";
 
-export {
-	type BomResult,
-	detectLineEnding,
-	type LineEnding,
-	normalizeToLF,
-	restoreLineEndings,
-	stripBom,
-} from "@oh-my-pi/hashline";
+/** Detect the first line-ending style. Defaults to LF. */
+export function detectLineEnding(content: string): LineEnding {
+	const crlfIndex = content.indexOf("\r\n");
+	const lfIndex = content.indexOf("\n");
+	if (lfIndex === -1 || crlfIndex === -1) return "\n";
+	return crlfIndex < lfIndex ? "\r\n" : "\n";
+}
+
+/** Normalize every line ending to LF. */
+export function normalizeToLF(text: string): string {
+	return text.indexOf("\r") === -1 ? text : text.replace(/\r\n?/g, "\n");
+}
+
+/** Re-encode LF text with the requested line ending. */
+export function restoreLineEndings(text: string, ending: LineEnding): string {
+	return ending === "\r\n" ? text.replace(/\n/g, "\r\n") : text;
+}
+
+/** Strip a UTF-8 BOM and preserve it for round-tripping. */
+export function stripBom(content: string): { bom: string; text: string } {
+	return content.startsWith("\uFEFF") ? { bom: "\uFEFF", text: content.slice(1) } : { bom: "", text: content };
+}
+
+const NON_ASCII_RE = /[^\x00-\x7F]/;
+const UNICODE_REPLACEMENT_RE = /[\u00A0\u00BD\u2002-\u200D\u2010-\u201F\u202F\u205F\u2212\u2260\u3000\uFEFF]/g;
+
+function replaceUnicodeCharacter(character: string): string {
+	const codePoint = character.charCodeAt(0);
+	if ((codePoint >= 0x2010 && codePoint <= 0x2015) || codePoint === 0x2212) return "-";
+	if (codePoint >= 0x2018 && codePoint <= 0x201b) return "'";
+	if (codePoint >= 0x201c && codePoint <= 0x201f) return '"';
+	if (
+		codePoint === 0x00a0 ||
+		(codePoint >= 0x2002 && codePoint <= 0x200a) ||
+		codePoint === 0x202f ||
+		codePoint === 0x205f ||
+		codePoint === 0x3000
+	) {
+		return " ";
+	}
+	if (codePoint === 0x2260) return "!=";
+	if (codePoint === 0x00bd) return "1/2";
+	return "";
+}
+
+export function normalizeUnicode(value: string): string {
+	const trimmed = value.trim();
+	if (!NON_ASCII_RE.test(trimmed)) return trimmed;
+	return trimmed.replace(UNICODE_REPLACEMENT_RE, replaceUnicodeCharacter).normalize("NFC");
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Whitespace Utilities
+// Whitespace helpers (fork: MiMo/replace matcher support)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Count leading whitespace characters in a line */
@@ -38,10 +73,6 @@ export function countLeadingWhitespace(line: string): number {
 /** Get the leading whitespace string from a line */
 export function getLeadingWhitespace(line: string): string {
 	return line.slice(0, countLeadingWhitespace(line));
-}
-
-function isNonEmptyLine(line: string): boolean {
-	return line.trim().length > 0;
 }
 
 /** Compute minimum indentation of non-empty lines */
@@ -68,16 +99,88 @@ export function detectIndentChar(text: string): string {
 	return " ";
 }
 
-function gcd(a: number, b: number): number {
-	let x = Math.abs(a);
-	let y = Math.abs(b);
-	while (y !== 0) {
-		const temp = y;
-		y = x % y;
-		x = temp;
-	}
-	return x;
+export function convertLeadingTabsToSpaces(text: string, spacesPerTab: number): string {
+	if (spacesPerTab <= 0) return text;
+	return text
+		.split("\n")
+		.map(line => {
+			const trimmed = line.trimStart();
+			if (trimmed.length === 0) return line;
+			const leading = getLeadingWhitespace(line);
+			if (!leading.includes("\t") || leading.includes(" ")) return line;
+			const converted = padding(leading.length * spacesPerTab);
+			return converted + trimmed;
+		})
+		.join("\n");
 }
+
+/**
+ * Normalize a line for fuzzy comparison.
+ * Trims, collapses whitespace, and normalizes punctuation.
+ */
+export function normalizeForFuzzy(line: string): string {
+	const trimmed = line.trim();
+	if (trimmed.length === 0) return "";
+
+	return trimmed
+		.replace(/[""„‟«»]/g, '"')
+		.replace(/[''‚‛`´]/g, "'")
+		.replace(/[‐‑‒–—−]/g, "-")
+		.replace(/[ \t]+/g, " ");
+}
+
+/**
+ * Adjust newText indentation to match the indentation delta between
+ * what was provided (oldText) and what was actually matched (actualText).
+ *
+ * If oldText has 0 indent but actualText has 12 spaces, we add 12 spaces
+ * to each line in newText.
+ */
+export function adjustIndentation(oldText: string, actualText: string, newText: string): string {
+	// If old text already matches actual text exactly, preserve agent's intended indentation
+	if (oldText === actualText) {
+		return newText;
+	}
+
+	// If the patch is purely an indentation change (same trimmed content), apply exactly as specified
+	if (isIndentationOnlyRewrite(oldText, newText)) {
+		return newText;
+	}
+
+	const oldProfile = buildIndentProfile(oldText);
+	const actualProfile = buildIndentProfile(actualText);
+	const newProfile = buildIndentProfile(newText);
+
+	if (!hasNonEmptyIndentProfiles(oldProfile, actualProfile, newProfile)) {
+		return newText;
+	}
+
+	if (hasMixedIndentation(oldProfile, actualProfile, newProfile)) {
+		return newText;
+	}
+
+	if (oldProfile.char && actualProfile.char && oldProfile.char !== actualProfile.char) {
+		const converted = maybeConvertTabIndentation(oldProfile, actualProfile, newProfile, newText);
+		if (converted !== undefined) {
+			return converted;
+		}
+		return newText;
+	}
+
+	const delta = computeUniformIndentDelta(oldProfile, actualProfile);
+	if (delta === undefined || delta === 0) {
+		return newText;
+	}
+
+	if (newProfile.char && actualProfile.char && newProfile.char !== actualProfile.char) {
+		return newText;
+	}
+
+	const indentChar = actualProfile.char ?? oldProfile.char ?? detectIndentChar(actualText);
+	return applyIndentDelta(newText, delta, indentChar);
+}
+
+// Indentation-profile internals used by adjustIndentation
 
 interface IndentProfile {
 	lines: string[];
@@ -88,6 +191,10 @@ interface IndentProfile {
 	mixed: boolean;
 	unit: number;
 	nonEmptyCount: number;
+}
+
+function isNonEmptyLine(line: string): boolean {
+	return line.trim().length > 0;
 }
 
 function buildIndentProfile(text: string): IndentProfile {
@@ -147,68 +254,6 @@ function buildIndentProfile(text: string): IndentProfile {
 		unit,
 		nonEmptyCount,
 	};
-}
-
-export function convertLeadingTabsToSpaces(text: string, spacesPerTab: number): string {
-	if (spacesPerTab <= 0) return text;
-	return text
-		.split("\n")
-		.map(line => {
-			const trimmed = line.trimStart();
-			if (trimmed.length === 0) return line;
-			const leading = getLeadingWhitespace(line);
-			if (!leading.includes("\t") || leading.includes(" ")) return line;
-			const converted = padding(leading.length * spacesPerTab);
-			return converted + trimmed;
-		})
-		.join("\n");
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Unicode Normalization
-// ═══════════════════════════════════════════════════════════════════════════
-
-const NON_ASCII_RE = /[^\x00-\x7F]/;
-const UNICODE_REPLACEMENT_RE = /[\u00A0\u00BD\u2002-\u200D\u2010-\u201F\u202F\u205F\u2212\u2260\u3000\uFEFF]/g;
-
-function replaceUnicodeCharacter(character: string): string {
-	const codePoint = character.charCodeAt(0);
-	if ((codePoint >= 0x2010 && codePoint <= 0x2015) || codePoint === 0x2212) return "-";
-	if (codePoint >= 0x2018 && codePoint <= 0x201b) return "'";
-	if (codePoint >= 0x201c && codePoint <= 0x201f) return '"';
-	if (
-		codePoint === 0x00a0 ||
-		(codePoint >= 0x2002 && codePoint <= 0x200a) ||
-		codePoint === 0x202f ||
-		codePoint === 0x205f ||
-		codePoint === 0x3000
-	) {
-		return " ";
-	}
-	if (codePoint === 0x2260) return "!=";
-	if (codePoint === 0x00bd) return "1/2";
-	return "";
-}
-
-export function normalizeUnicode(s: string): string {
-	const trimmed = s.trim();
-	if (!NON_ASCII_RE.test(trimmed)) return trimmed;
-	return trimmed.replace(UNICODE_REPLACEMENT_RE, replaceUnicodeCharacter).normalize("NFC");
-}
-
-/**
- * Normalize a line for fuzzy comparison.
- * Trims, collapses whitespace, and normalizes punctuation.
- */
-export function normalizeForFuzzy(line: string): string {
-	const trimmed = line.trim();
-	if (trimmed.length === 0) return "";
-
-	return trimmed
-		.replace(/[""„‟«»]/g, '"')
-		.replace(/[''‚‛`´]/g, "'")
-		.replace(/[‐‑‒–—−]/g, "-")
-		.replace(/[ \t]+/g, " ");
 }
 
 function isIndentationOnlyRewrite(oldText: string, newText: string): boolean {
@@ -292,57 +337,13 @@ function hasMixedIndentation(...profiles: IndentProfile[]): boolean {
 	return profiles.some(profile => profile.mixed);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Indentation Adjustment
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Adjust newText indentation to match the indentation delta between
- * what was provided (oldText) and what was actually matched (actualText).
- *
- * If oldText has 0 indent but actualText has 12 spaces, we add 12 spaces
- * to each line in newText.
- */
-export function adjustIndentation(oldText: string, actualText: string, newText: string): string {
-	// If old text already matches actual text exactly, preserve agent's intended indentation
-	if (oldText === actualText) {
-		return newText;
+function gcd(a: number, b: number): number {
+	let x = Math.abs(a);
+	let y = Math.abs(b);
+	while (y !== 0) {
+		const temp = y;
+		y = x % y;
+		x = temp;
 	}
-
-	// If the patch is purely an indentation change (same trimmed content), apply exactly as specified
-	if (isIndentationOnlyRewrite(oldText, newText)) {
-		return newText;
-	}
-
-	const oldProfile = buildIndentProfile(oldText);
-	const actualProfile = buildIndentProfile(actualText);
-	const newProfile = buildIndentProfile(newText);
-
-	if (!hasNonEmptyIndentProfiles(oldProfile, actualProfile, newProfile)) {
-		return newText;
-	}
-
-	if (hasMixedIndentation(oldProfile, actualProfile, newProfile)) {
-		return newText;
-	}
-
-	if (oldProfile.char && actualProfile.char && oldProfile.char !== actualProfile.char) {
-		const converted = maybeConvertTabIndentation(oldProfile, actualProfile, newProfile, newText);
-		if (converted !== undefined) {
-			return converted;
-		}
-		return newText;
-	}
-
-	const delta = computeUniformIndentDelta(oldProfile, actualProfile);
-	if (delta === undefined || delta === 0) {
-		return newText;
-	}
-
-	if (newProfile.char && actualProfile.char && newProfile.char !== actualProfile.char) {
-		return newText;
-	}
-
-	const indentChar = actualProfile.char ?? oldProfile.char ?? detectIndentChar(actualText);
-	return applyIndentDelta(newText, delta, indentChar);
+	return x;
 }

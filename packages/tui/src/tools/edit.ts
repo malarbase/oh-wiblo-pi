@@ -34,7 +34,7 @@ import { framedToolCard } from "../render/tool-card";
 import { HL_FILE_PREFIX, HL_FILE_SUFFIX, HL_MOVE_KEYWORD, HL_REM_KEYWORD } from "./hashline-format";
 
 /** Edit payload syntax selected by the caller. */
-export type EditMode = "replace" | "patch" | "hashline" | "apply_patch" | "sloppy";
+export type EditMode = "replace" | "patch" | "hashline" | "apply_patch" | "sloppy" | "mimo";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Tool Details Types

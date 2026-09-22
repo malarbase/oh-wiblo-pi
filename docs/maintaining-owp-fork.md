@@ -48,77 +48,78 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `.omp/skills/sync-upstream/generate-skill-md.ts` — do not edit it by hand; run the script instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 67 fork commits on top of `upstream/main`.
+Total: 68 fork commits on top of `upstream/main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
-| `652b2f8592` | feat(owp): Identity | `README.md` | docs only |
-| `27131ec218` | feat(owp): Ask mode | `packages/coding-agent/src/modes/ask-mode/ask-mode-guard.ts`, `packages/coding-agent/src/modes/ask-mode/bash-readonly.ts`, `packages/coding-agent/src/modes/ask-mode/readonly-tools.ts`, `packages/coding-agent/src/modes/ask-mode/state.ts`, `packages/coding-agent/src/modes/ask-mode/tool-guard.ts`, … (3 more) | code |
-| `74db1a5370` | feat(owp): Debug mode | `packages/coding-agent/src/modes/debug-mode/log-server.ts`, `packages/coding-agent/src/modes/debug-mode/state.ts`, `packages/coding-agent/src/prompts/system/debug-mode-context.md` | code |
-| `ca0243400f` | feat(owp): Local discovery + two-level scan | `packages/coding-agent/src/discovery/helpers.ts`, `packages/coding-agent/src/discovery/pi.ts` | code |
-| `f7d5a458fd` | feat(owp): Skill grouping | `packages/coding-agent/src/capability/skill.ts`, `packages/coding-agent/src/modes/components/extensions/state-manager.ts`, `packages/tui/src/overlays/extensions/extension-list.ts`, `packages/tui/src/overlays/extensions/types.ts` | code |
-| `553669d18e` | feat(owp): baseUrl resolution | `packages/coding-agent/src/config/model-registry.ts` | code |
-| `d9381761a3` | feat(owp): Google search provider | `packages/coding-agent/src/config/settings-schema.ts`, `packages/coding-agent/src/web/search/providers/google-ai.ts`, `packages/coding-agent/src/web/search/providers/google.ts` | code |
-| `3a04f29613` | feat(owp): SerpAPI search provider | `packages/coding-agent/src/web/search/provider.ts`, `packages/coding-agent/src/web/search/providers/serpapi.ts`, `packages/coding-agent/src/web/search/types.ts` | code |
-| `88eef908da` | feat(owp): Plan mode /plan load | `packages/coding-agent/src/plan-mode/approved-plan.ts`, `packages/coding-agent/src/plan-mode/resolve-handler.ts`, `packages/coding-agent/src/plan-mode/state.ts`, `packages/coding-agent/src/plan-mode/storage.ts` | code |
-| `c1db13a95f` | feat(owp): Plan storage project path fix | `packages/coding-agent/src/modes/interactive-mode.ts` | code |
-| `2d668e0750` | feat(owp): Provider onboarding wizard | `packages/coding-agent/src/modes/components/provider-onboarding-wizard.ts` | code |
-| `be48aa7f2d` | feat(owp): @mariozechner/* loader aliases | `packages/coding-agent/src/extensibility/custom-commands/loader.ts`, `packages/coding-agent/src/extensibility/extensions/loader.ts` | code |
-| `75e99679fb` | feat(owp): History reorganization tooling | `.omp/commands/reorganize-fork.md`, `.omp/skills/reorganize-history/SKILL.md`, `.omp/skills/reorganize-history/organize.ts` | code |
-| `2f14e0345c` | feat(owp): Test filter scope fix | `packages/coding-agent/test/utils/filter-user-extensions.ts` | code |
-| `d23432bd92` | feat(owp): Unified agent mode cycle (alt+m) | `packages/tui/src/status-line/component.ts`, `packages/tui/src/status-line/segments.ts`, `packages/tui/src/status-line/types.ts` | code |
-| `c185f58944` | feat(owp): Session directory event + jiti loader + authHeader fix | `packages/coding-agent/src/sdk.ts`, `packages/coding-agent/src/session/auth-broker-config.ts` | code |
-| `949ed904c6` | feat(owp): Cache write token tracking + bin/owp switcher | `bin/owp`, `docs/cache-token-tracking.md` | code |
-| `93f8314d53` | feat(owp): Build dist/owp as primary output | `packages/coding-agent/scripts/build-binary.ts` | code |
-| `fd973dabd6` | feat(owp): Fix plan-mode approval UI + omp bin entry + ETXTBSY fix | `packages/coding-agent/package.json`, `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/coding-agent/test/tools/bash-interceptor.test.ts` | code |
-| `e251ffd218` | feat(owp): Google search provider + hashline recovery + mode fixes | `.omp/extensions/pi-peon/config.ts`, `.omp/extensions/pi-peon/index.ts`, `.omp/extensions/pi-peon/install.ts`, `.omp/extensions/pi-peon/pack.ts`, `.omp/extensions/pi-peon/package.json`, … (11 more) | code |
-| `07800e374e` | feat(owp): Upstream-deleted module stubs | `packages/coding-agent/src/edit/file-read-cache.ts` | code |
-| `d742590833` | feat(owp): sync-upstream skill and script | `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/SKILL.md.template`, `.omp/skills/sync-upstream/feature-registry.yaml`, `.omp/skills/sync-upstream/generate-skill-md.ts`, `.omp/skills/sync-upstream/sync.ts` | code |
-| `c0bc408309` | feat(owp): feature-checklist extension | `.omp/extensions/feature-checklist.ts` | code |
-| `0c475ac8df` | feat(owp): mise.toml + native rebuild docs | `.omp/commands/sync-upstream.md`, `mise.toml` | code |
-| `85855f997a` | feat(owp): Bazel build config (hermetic PATH, crate annotations) | `.bazelrc`, `MODULE.bazel` | code |
-| `af48fceb8c` | feat(owp): Add .gitnexus, .claude/, CLAUDE.md to .gitignore | `.gitignore` | code |
-| `dd90f0f370` | feat(owp): Archive skill-group-toggle openspec spec | `openspec/specs/skill-group-toggle/spec.md` | docs only |
-| `e373bd7082` | feat(owp): Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/src/summary.rs` | code |
-| `108bb1a503` | feat(owp): OWP workspace and plans | `.omp/extensions/ask-mode-guard.ts`, `.omp/extensions/plan-report/package.json`, `.omp/extensions/plan-report/plan-report.ts`, `.omp/plans/PLAN_LOAD_SUBCOMMAND_PLAN.md`, `.omp/plans/add_sync_upstream_rollback_tracking_and_persistent_pre_sync_state.md`, … (8 more) | code |
-| `89ca181383` | feat(owp): OWP skills | `.omp/skills/google-ai-research/SKILL.md`, `.omp/skills/onboard-provider/SKILL.md`, `.omp/skills/onboard-provider/probe-provider.ts`, `.omp/skills/skill-installer/SKILL.md`, `.omp/skills/tmux-debug/SKILL.md` | code |
-| `93f01edc29` | feat(owp): OWP documentation | `docs/ask_session.md`, `docs/bugs/ask-mode-switch-tool-missing.md`, `docs/bugs/debug-mode-lifecycle.md`, `docs/bugs/edit-tool-session-gaps.md`, `docs/bugs/explore-subagent-connection-error.md`, … (6 more) | docs only |
-| `f5c4c5a101` | feat(owp): OWP spec docs | `openspec/config.yaml`, `openspec/specs/ask-mode/spec.md`, `openspec/specs/debug-mode/spec.md`, `openspec/specs/dual-mode-extension-loader/spec.md`, `openspec/specs/install-binary-command/spec.md`, … (4 more) | docs only |
-| `26f1c1a63f` | feat(owp): OWP AI package | `packages/ai/src/cli.ts`, `packages/ai/src/index.ts`, `packages/ai/src/stream.ts`, `packages/ai/src/utils/h2-fetch.ts`, `packages/ai/src/utils/schema/normalize-cca.ts`, … (5 more) | code |
-| `937bae2376` | feat(owp): OWP agent package | `packages/agent/src/append-only-context.ts`, `packages/agent/test/otel.test.ts` | code |
-| `f227eec9b6` | feat(owp): OWP coding-agent package | `crates/pi-edit/grammars/mimo.ts`, `packages/coding-agent/scripts/legacy-pi-virtual-module.ts`, `packages/coding-agent/src/cli-commands.ts`, `packages/coding-agent/src/cli/command-help.ts`, `packages/coding-agent/src/commands/install.ts`, … (112 more) | code |
-| `f3cf541aca` | feat(owp): OWP natives package | `packages/natives/native/embedded-addon.js`, `packages/natives/native/index.d.ts`, `packages/natives/native/loader-state.js`, `packages/natives/scripts/embed-native.ts`, `packages/natives/test/windows-staging.test.ts` | code |
-| `7f0cf533d7` | feat(owp): OWP stats package | `packages/stats/src/aggregator.ts`, `packages/stats/src/db.ts` | code |
-| `fa5e060505` | feat(owp): OWP TUI package | `packages/tui/src/autocomplete.ts`, `packages/tui/src/components/settings-list.ts`, `packages/tui/src/symbols.ts`, `packages/tui/src/terminal.ts`, `packages/tui/src/utils.ts`, … (2 more) | code |
-| `7bf8a76195` | feat(owp): OWP scripts | `scripts/eval-bench-runs.ts`, `scripts/session-stats/README.md` | code |
-| `edb46b198b` | chore(owp): retain prefer-ours divergence files | `python/robomp/src/static/assets/index-D-1YFgui.js`, `python/robomp/src/static/assets/style-B9LxyhOi.css`, `python/robomp/src/static/index.html` | chore |
-| `c6b9674418` | chore(owp): remove python/robomp/ — fork does not ship robomp | `python/robomp/.env.example`, `python/robomp/.gitignore`, `python/robomp/AGENTS.md`, `python/robomp/README.md`, `python/robomp/assets/icon.jpg`, … (73 more) | chore |
-| `81c8024c15` | chore(owp): remove packages/coding-agent/test/ — chore(owp): remove upstream-only components | `packages/coding-agent/test/auth-broker-import.test.ts`, `packages/coding-agent/test/compaction-prefer-current-model.test.ts`, `packages/coding-agent/test/discovery/builtin-rules-md.test.ts`, `packages/coding-agent/test/discovery/omp-plugins.test.ts`, `packages/coding-agent/test/edit-patch-unchanged-error.test.ts`, … (47 more) | chore |
-| `a3f1faa9dd` | chore(owp): remove packages/utils/test/ — chore(owp): remove upstream-only components | `packages/utils/test/env.test.ts`, `packages/utils/test/format.test.ts`, `packages/utils/test/install-id.test.ts`, `packages/utils/test/logger-error-serialization.test.ts`, `packages/utils/test/sanitize-text.test.ts` | chore |
-| `7d04940381` | chore(owp): remove Dockerfile.robomp* — chore(owp): remove upstream-only components | `Dockerfile.robomp`, `Dockerfile.robomp.dockerignore` | chore |
-| `30780030ba` | chore(owp): remove Dockerfile.dockerignore — chore(owp): remove upstream-only components | `Dockerfile.dockerignore` | chore |
-| `444faf183b` | chore(owp): remove packages/agent/test/compaction-error-status.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/compaction-error-status.test.ts` | chore |
-| `16fdf1e862` | chore(owp): remove packages/agent/test/compaction-telemetry.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/compaction-telemetry.test.ts` | chore |
-| `aba5da332e` | chore(owp): remove packages/agent/test/compaction-thinking-level.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/compaction-thinking-level.test.ts` | chore |
-| `43faf3799b` | chore(owp): remove packages/agent/test/yield.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/yield.test.ts` | chore |
-| `357665a1aa` | chore(owp): remove packages/coding-agent/examples/sdk/12-redis-sessions.ts — chore(owp): remove upstream-only components | `packages/coding-agent/examples/sdk/12-redis-sessions.ts` | chore |
-| `52d534c7fb` | chore(owp): remove packages/coding-agent/examples/sdk/13-sql-sessions.ts — chore(owp): remove upstream-only components | `packages/coding-agent/examples/sdk/13-sql-sessions.ts` | chore |
-| `04aa40de22` | chore(owp): remove packages/catalog/test/google-vertex-discovery.test.ts — chore(owp): remove upstream-only components | `packages/catalog/test/google-vertex-discovery.test.ts` | chore |
-| `4c618d0cc7` | chore(owp): remove packages/catalog/test/wafer.test.ts — chore(owp): remove upstream-only components | `packages/catalog/test/wafer.test.ts` | chore |
-| `0e6efdc9e9` | docs(owp): update Last Sync Point to eab72e88e4 (18.0.4) | `docs/maintaining-owp-fork.md` | docs only |
-| `09c21accb6` | fix(owp): repair v18 rebase seams found by typecheck and runtime smoke | `bun.lock`, `packages/coding-agent/src/cli-commands.ts`, `packages/coding-agent/src/cli/command-help.ts`, `packages/coding-agent/src/config/settings.ts`, `packages/coding-agent/src/extensibility/custom-commands/loader.ts`, … (11 more) | code |
-| `1280a8eb9e` | chore(owp): track upstream packages/hashline; restore purged cli wiring | `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
-| `09756f743b` | docs(owp): refresh Fork Features table after runtime-fix commits | `docs/maintaining-owp-fork.md` | docs only |
-| `3aa529ac77` | fix(session): reload credential cache in discoverAuthStorage | `packages/coding-agent/src/session/auth-broker-config.ts` | code |
-| `65041e1910` | chore(owp): register packages/hashline as upstream-tracked divergence | `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
-| `0b0aab4c70` | chore(owp): fix biome errors after 18.0.6 sync | `packages/coding-agent/src/discovery/omp-plugins.ts`, `packages/coding-agent/src/web/search/providers/google-ai.ts`, `packages/coding-agent/test/agent-session-concurrent.test.ts`, `packages/coding-agent/test/modes/controllers/omfg-controller.test.ts`, `packages/tui/src/overlays/extensions/extension-list.ts`, … (1 more) | chore |
-| `a1c6e58861` | docs(owp): update Last Sync Point to b4e8e856ad (18.0.6) | `docs/maintaining-owp-fork.md` | docs only |
-| `1dc6b8ca34` | chore(owp): regenerate native index.d.ts from current pi-natives source | `packages/natives/native/index.d.ts` | chore |
-| `94ece77991` | chore(owp): local changes before sync | `.omp/extensions/plan-report/plan-report.ts`, `.omp/skills/google-ai-research/SKILL.md`, `packages/coding-agent/src/extensibility/custom-commands/bundled/install-binary/index.ts`, `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/test/modes/interactive-mode/handle-switch-mode-noop.test.ts`, … (3 more) | chore |
-| `d2996ccc3a` | chore(owp): regenerate native index.d.ts after rebuild | `packages/natives/native/index.d.ts` | chore |
-| `92d76a4e81` | docs(owp): update Fork Features table and feature registry after sync | `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md` | docs only |
-| `aa714fe3b2` | chore(owp): local changes before sync attempt | `bun.lock`, `packages/coding-agent/src/config/settings.ts`, `packages/coding-agent/src/discovery/omp-extension-roots.ts`, `packages/coding-agent/src/edit/hashline/diff.ts`, `packages/coding-agent/src/edit/hashline/filesystem.ts`, … (62 more) | chore |
-| `0ec6545278` | chore(owp): register 7 tui test removals in feature registry (triage seed) | `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
+| `865ec3be0b` | feat(owp): Identity | `README.md` | docs only |
+| `3c05496337` | feat(owp): Ask mode | `packages/coding-agent/src/modes/ask-mode/ask-mode-guard.ts`, `packages/coding-agent/src/modes/ask-mode/bash-readonly.ts`, `packages/coding-agent/src/modes/ask-mode/readonly-tools.ts`, `packages/coding-agent/src/modes/ask-mode/state.ts`, `packages/coding-agent/src/modes/ask-mode/tool-guard.ts`, … (3 more) | code |
+| `2cded52c61` | feat(owp): Debug mode | `packages/coding-agent/src/modes/debug-mode/log-server.ts`, `packages/coding-agent/src/modes/debug-mode/state.ts`, `packages/coding-agent/src/prompts/system/debug-mode-context.md` | code |
+| `9e57f675be` | feat(owp): Local discovery + two-level scan | `packages/coding-agent/src/discovery/helpers.ts`, `packages/coding-agent/src/discovery/pi.ts` | code |
+| `020da5ac97` | feat(owp): Skill grouping | `packages/coding-agent/src/capability/skill.ts`, `packages/coding-agent/src/modes/components/extensions/state-manager.ts` | code |
+| `15c5de2b38` | feat(owp): baseUrl resolution | `packages/coding-agent/src/config/model-registry.ts` | code |
+| `851dc625f3` | feat(owp): Google search provider | `packages/coding-agent/src/config/settings-schema.ts`, `packages/coding-agent/src/web/search/providers/google-ai.ts`, `packages/coding-agent/src/web/search/providers/google.ts` | code |
+| `b3b395fa6b` | feat(owp): SerpAPI search provider | `packages/coding-agent/src/web/search/provider.ts`, `packages/coding-agent/src/web/search/providers/serpapi.ts`, `packages/coding-agent/src/web/search/types.ts` | code |
+| `4d3e49d07c` | feat(owp): Plan mode /plan load | `packages/coding-agent/src/plan-mode/approved-plan.ts`, `packages/coding-agent/src/plan-mode/resolve-handler.ts`, `packages/coding-agent/src/plan-mode/state.ts`, `packages/coding-agent/src/plan-mode/storage.ts` | code |
+| `6f8bde1d5c` | feat(owp): Plan storage project path fix | `packages/coding-agent/src/modes/interactive-mode.ts` | code |
+| `664eb517e0` | feat(owp): Provider onboarding wizard | `packages/coding-agent/src/modes/components/provider-onboarding-wizard.ts` | code |
+| `467347c6e9` | feat(owp): @mariozechner/* loader aliases | `packages/coding-agent/src/extensibility/custom-commands/loader.ts`, `packages/coding-agent/src/extensibility/extensions/loader.ts` | code |
+| `bc37502bde` | feat(owp): History reorganization tooling | `.omp/commands/reorganize-fork.md`, `.omp/skills/reorganize-history/SKILL.md`, `.omp/skills/reorganize-history/organize.ts` | code |
+| `0a4f71e8b0` | feat(owp): Test filter scope fix | `packages/coding-agent/test/utils/filter-user-extensions.ts` | code |
+| `46c976c8f4` | feat(owp): Session directory event + jiti loader + authHeader fix | `packages/coding-agent/src/sdk.ts`, `packages/coding-agent/src/session/auth-broker-config.ts` | code |
+| `960374d830` | feat(owp): Cache write token tracking + bin/owp switcher | `bin/owp`, `docs/cache-token-tracking.md` | code |
+| `d27bebd6c4` | feat(owp): Build dist/owp as primary output | `packages/coding-agent/scripts/build-binary.ts` | code |
+| `07ad73e52a` | feat(owp): Fix plan-mode approval UI + omp bin entry + ETXTBSY fix | `packages/coding-agent/package.json`, `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/coding-agent/test/tools/bash-interceptor.test.ts` | code |
+| `1187cf3c1a` | feat(owp): Google search provider + hashline recovery + mode fixes | `.omp/extensions/pi-peon/config.ts`, `.omp/extensions/pi-peon/index.ts`, `.omp/extensions/pi-peon/install.ts`, `.omp/extensions/pi-peon/pack.ts`, `.omp/extensions/pi-peon/package.json`, … (11 more) | code |
+| `84f87435b6` | feat(owp): Upstream-deleted module stubs | `packages/coding-agent/src/edit/file-read-cache.ts`, `packages/coding-agent/src/edit/hashline/diff.ts`, `packages/coding-agent/src/edit/hashline/filesystem.ts`, `packages/coding-agent/src/edit/hashline/params.ts` | code |
+| `47dea03ba3` | feat(owp): sync-upstream skill and script | `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/SKILL.md.template`, `.omp/skills/sync-upstream/feature-registry.yaml`, `.omp/skills/sync-upstream/generate-skill-md.ts`, `.omp/skills/sync-upstream/sync.ts` | code |
+| `83a4e6593f` | feat(owp): feature-checklist extension | `.omp/extensions/feature-checklist.ts` | code |
+| `c3c7c32921` | feat(owp): mise.toml + native rebuild docs | `.omp/commands/sync-upstream.md`, `mise.toml` | code |
+| `bdafedf328` | feat(owp): Bazel build config (hermetic PATH, crate annotations) | `.bazelrc`, `MODULE.bazel` | code |
+| `61e380a354` | feat(owp): Add .gitnexus, .claude/, CLAUDE.md to .gitignore | `.gitignore` | code |
+| `b747cc19f7` | feat(owp): MiMo-Code edit mode | `crates/pi-edit/grammars/mimo.ts` | code |
+| `cb144b59af` | feat(owp): Archive skill-group-toggle openspec spec | `openspec/specs/skill-group-toggle/spec.md` | docs only |
+| `d1b53acf20` | feat(owp): Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/src/summary.rs` | code |
+| `d1b5ad290f` | feat(owp): OWP workspace and plans | `.omp/extensions/ask-mode-guard.ts`, `.omp/extensions/plan-report/package.json`, `.omp/extensions/plan-report/plan-report.ts`, `.omp/plans/PLAN_LOAD_SUBCOMMAND_PLAN.md`, `.omp/plans/add_sync_upstream_rollback_tracking_and_persistent_pre_sync_state.md`, … (8 more) | code |
+| `468800cc1d` | feat(owp): OWP skills | `.omp/skills/google-ai-research/SKILL.md`, `.omp/skills/onboard-provider/SKILL.md`, `.omp/skills/onboard-provider/probe-provider.ts`, `.omp/skills/skill-installer/SKILL.md`, `.omp/skills/tmux-debug/SKILL.md` | code |
+| `aaa41af5be` | feat(owp): OWP documentation | `docs/ask_session.md`, `docs/bugs/ask-mode-switch-tool-missing.md`, `docs/bugs/debug-mode-lifecycle.md`, `docs/bugs/edit-tool-session-gaps.md`, `docs/bugs/explore-subagent-connection-error.md`, … (6 more) | docs only |
+| `30c8c51e5d` | feat(owp): OWP spec docs | `openspec/config.yaml`, `openspec/specs/ask-mode/spec.md`, `openspec/specs/debug-mode/spec.md`, `openspec/specs/dual-mode-extension-loader/spec.md`, `openspec/specs/install-binary-command/spec.md`, … (4 more) | docs only |
+| `1cb2596dc2` | feat(owp): OWP AI package | `packages/ai/src/cli.ts`, `packages/ai/src/index.ts`, `packages/ai/src/stream.ts`, `packages/ai/src/utils/h2-fetch.ts`, `packages/ai/src/utils/schema/normalize-cca.ts`, … (5 more) | code |
+| `315407e148` | feat(owp): OWP agent package | `packages/agent/src/append-only-context.ts`, `packages/agent/test/otel.test.ts` | code |
+| `ed42f80ef5` | feat(owp): OWP coding-agent package | `packages/coding-agent/scripts/legacy-pi-virtual-module.ts`, `packages/coding-agent/src/commands/install.ts`, `packages/coding-agent/src/config/file-lock.ts`, `packages/coding-agent/src/config/model-discovery.ts`, `packages/coding-agent/src/config/models-config-schema-bundle.ts`, … (93 more) | code |
+| `a55b637664` | feat(owp): OWP natives package | `packages/natives/native/embedded-addon.js`, `packages/natives/native/index.d.ts`, `packages/natives/native/loader-state.js`, `packages/natives/scripts/embed-native.ts`, `packages/natives/test/windows-staging.test.ts` | code |
+| `7dbe0ccb66` | feat(owp): OWP stats package | `packages/stats/src/aggregator.ts`, `packages/stats/src/db.ts` | code |
+| `26301a1d33` | feat(owp): OWP TUI package | `packages/tui/src/app-keybindings.ts`, `packages/tui/src/autocomplete.ts`, `packages/tui/src/components/settings-list.ts`, `packages/tui/src/overlays/extensions/extension-list.ts`, `packages/tui/src/overlays/extensions/extension-list.ts.bak`, … (14 more) | code |
+| `30fe14abbf` | feat(owp): OWP scripts | `scripts/eval-bench-runs.ts`, `scripts/session-stats/README.md` | code |
+| `2cccb2c80b` | chore(owp): retain prefer-ours divergence files | `packages/hashline/LICENSE`, `packages/hashline/README.md`, `packages/hashline/bench/recovery-session-chain.ts`, `packages/hashline/package.json`, `packages/hashline/src/apply.ts`, … (38 more) | chore |
+| `053bfd5e43` | chore(owp): remove python/robomp/ — fork does not ship robomp | `python/robomp/.env.example`, `python/robomp/.gitignore`, `python/robomp/AGENTS.md`, `python/robomp/README.md`, `python/robomp/assets/icon.jpg`, … (73 more) | chore |
+| `5c18fb8546` | chore(owp): remove packages/coding-agent/test/ — chore(owp): remove upstream-only components | `packages/coding-agent/test/auth-broker-import.test.ts`, `packages/coding-agent/test/compaction-prefer-current-model.test.ts`, `packages/coding-agent/test/discovery/builtin-rules-md.test.ts`, `packages/coding-agent/test/discovery/omp-plugins.test.ts`, `packages/coding-agent/test/edit-patch-unchanged-error.test.ts`, … (40 more) | chore |
+| `c8198d9ea8` | chore(owp): remove packages/utils/test/ — chore(owp): remove upstream-only components | `packages/utils/test/env.test.ts`, `packages/utils/test/format.test.ts`, `packages/utils/test/install-id.test.ts`, `packages/utils/test/logger-error-serialization.test.ts`, `packages/utils/test/sanitize-text.test.ts` | chore |
+| `596e6689d1` | chore(owp): remove Dockerfile.robomp* — chore(owp): remove upstream-only components | `Dockerfile.robomp`, `Dockerfile.robomp.dockerignore` | chore |
+| `f947e0eeab` | chore(owp): remove Dockerfile.dockerignore — chore(owp): remove upstream-only components | `Dockerfile.dockerignore` | chore |
+| `c230ada3d9` | chore(owp): remove packages/agent/test/compaction-error-status.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/compaction-error-status.test.ts` | chore |
+| `f255e83887` | chore(owp): remove packages/agent/test/compaction-telemetry.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/compaction-telemetry.test.ts` | chore |
+| `d47a19e4be` | chore(owp): remove packages/agent/test/compaction-thinking-level.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/compaction-thinking-level.test.ts` | chore |
+| `8c7bdb154e` | chore(owp): remove packages/agent/test/yield.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/yield.test.ts` | chore |
+| `91ed8c2f9a` | chore(owp): remove packages/coding-agent/examples/sdk/12-redis-sessions.ts — chore(owp): remove upstream-only components | `packages/coding-agent/examples/sdk/12-redis-sessions.ts` | chore |
+| `3ee85a7558` | chore(owp): remove packages/coding-agent/examples/sdk/13-sql-sessions.ts — chore(owp): remove upstream-only components | `packages/coding-agent/examples/sdk/13-sql-sessions.ts` | chore |
+| `a5548ffd6b` | chore(owp): remove packages/catalog/test/google-vertex-discovery.test.ts — chore(owp): remove upstream-only components | `packages/catalog/test/google-vertex-discovery.test.ts` | chore |
+| `6009578013` | chore(owp): remove packages/catalog/test/wafer.test.ts — chore(owp): remove upstream-only components | `packages/catalog/test/wafer.test.ts` | chore |
+| `e453f2da69` | chore(owp): remove packages/tui/test/emoji-autocomplete.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/emoji-autocomplete.test.ts` | chore |
+| `b00e2288a9` | chore(owp): remove packages/tui/test/hyperlink.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/hyperlink.test.ts` | chore |
+| `38d360101d` | chore(owp): remove packages/tui/test/raw-sse-pretty.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/raw-sse-pretty.test.ts` | chore |
+| `e7487be09a` | chore(owp): remove packages/tui/test/settings-list-theme.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/settings-list-theme.test.ts` | chore |
+| `6616073269` | chore(owp): remove packages/tui/test/shimmer.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/shimmer.test.ts` | chore |
+| `72f08c2706` | chore(owp): remove packages/tui/test/status-line-cache-hit.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/status-line-cache-hit.test.ts` | chore |
+| `17c18bbecf` | chore(owp): remove packages/tui/test/task-nested-live-render.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/task-nested-live-render.test.ts` | chore |
+| `d3d06ec9d8` | chore(owp): reconcile bun.lock after rebuild (hashline workspace + owp bin) | `bun.lock` | chore |
+| `5a740e1869` | fix(owp): repair bad-merge artifacts inherited from pre-rebase tree | `packages/coding-agent/src/session/agent-session.ts`, `packages/coding-agent/test/settings-manager.test.ts`, `packages/coding-agent/test/tools/index.test.ts`, `packages/tui/src/overlays/extensions/extension-list.ts.bak` | code |
+| `3109cfffce` | style(owp): oxfmt files inherited unformatted from pre-rebase tree | `packages/coding-agent/src/edit/modes/apply-patch.ts`, `packages/coding-agent/src/internal-urls/docs-index.generated.ts`, `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/coding-agent/src/session/agent-session.ts`, `packages/coding-agent/test/modes/interactive-mode/handle-switch-mode-noop.test.ts`, … (2 more) | code |
+| `7e5bfd1d26` | fix(coding-agent): repair runtime seams after history rebuild | `packages/coding-agent/src/edit/apply-patch/index.ts`, `packages/coding-agent/src/edit/apply-patch/parser.ts`, `packages/coding-agent/src/edit/blackbox.ts`, `packages/coding-agent/src/edit/diff.ts`, `packages/coding-agent/src/edit/edit-clipboard.ts`, … (49 more) | code |
+| `006af00eb4` | fix(owp): reconcile fork type surface and test seams after rebuild | `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`, `packages/coding-agent/src/config/settings-schema.ts`, `packages/coding-agent/src/edit/file-snapshot-store.ts`, `packages/coding-agent/src/edit/hashline/diff.ts`, `packages/coding-agent/src/edit/hashline/filesystem.ts`, … (34 more) | code |
+| `452876d13b` | fix(coding-agent): replace fragile runtime require() shims with static imports | `packages/coding-agent/src/modes/controllers/selector-controller.ts` | code |
+| `776208b65a` | feat(coding-agent): restore settings layering (project/global scope + revert) | `packages/coding-agent/src/config/settings-ui.ts`, `packages/coding-agent/src/config/settings.ts`, `packages/tui/src/overlays/settings-defs.ts`, `packages/tui/src/overlays/settings-selector.ts` | code |
+| `dfdb2f5277` | feat(owp): rebuild sync verification net — real commit survival, protecting tests, footprint | `.omp/skills/sync-upstream/feature-registry.yaml`, `.omp/skills/sync-upstream/footprint-baseline.json`, `.omp/skills/sync-upstream/sync.ts` | code |
 
 > **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `bun .omp/skills/sync-upstream/generate-skill-md.ts`, never by hand.
 <!-- GENERATED:fork-commits:end -->

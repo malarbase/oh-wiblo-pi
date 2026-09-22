@@ -44,9 +44,12 @@ export function resolveEditMode(session: EditModeSessionLike): EditMode {
 	const mode = settingsMode ?? DEFAULT_EDIT_MODE;
 	if (mode === "hashline" && !$flag("PI_STRICT_EDIT_MODE") && activeModel) {
 		const identity = classifyModel("", activeModel, { lenient: true });
+		// MiMo models get the fork's MiMo-Code replacement mode (exact-match
+		// replacer chain ported from MiMo-Code); other weak-fuzzy models degrade
+		// to plain replace.
+		if (identity.class === "mimo") return "mimo";
 		if (
 			identity.class === "kimi" ||
-			identity.class === "mimo" ||
 			identity.class === "minimax" ||
 			identity.class === "deepseek" ||
 			identity.class === "stepfun" ||

@@ -19,7 +19,8 @@ import { enforcePlanModeWrite, resolvePlanPath } from "../../tools/plan-mode-gua
 import { generateDiffString } from "../diff";
 import { detectLineEnding, normalizeToLF, restoreLineEndings, stripBom } from "../normalize";
 import { readEditFileText, serializeEditFileText } from "../read-file";
-import type { EditToolDetails, LspBatchRequest } from "../renderer";
+import type { EditToolDetails } from "@oh-my-pi/pi-tui/tools/edit";
+import type { LspBatchRequest } from "../../lsp/batch";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Schema

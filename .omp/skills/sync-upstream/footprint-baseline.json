@@ -1,10 +1,30 @@
 {
-  "generatedAt": "2026-09-22T03:00:51.711Z",
+  "generatedAt": "2026-09-22T05:29:03.630Z",
   "acceptances": [
     {
       "file": "<all>",
       "reason": "initial baseline after settings-layering restore; 8 files queued for Phase C triage",
       "at": "2026-09-22T03:00:51.711Z"
+    },
+    {
+      "file": "packages/coding-agent/src/edit/blackbox.ts",
+      "reason": "Phase B edit-pipeline adoption: took upstream structure, kept fork mimo mode + helpers (deliberate)",
+      "at": "2026-09-22T05:28:59.935Z"
+    },
+    {
+      "file": "packages/coding-agent/src/edit/index.ts",
+      "reason": "Phase B edit-pipeline adoption: took upstream structure, kept fork mimo mode + helpers (deliberate)",
+      "at": "2026-09-22T05:29:01.153Z"
+    },
+    {
+      "file": "packages/coding-agent/src/edit/normalize.ts",
+      "reason": "Phase B edit-pipeline adoption: took upstream structure, kept fork mimo mode + helpers (deliberate)",
+      "at": "2026-09-22T05:29:02.396Z"
+    },
+    {
+      "file": "packages/coding-agent/src/tools/index.ts",
+      "reason": "Phase B edit-pipeline adoption: took upstream structure, kept fork mimo mode + helpers (deliberate)",
+      "at": "2026-09-22T05:29:03.630Z"
     }
   ],
   "files": {
@@ -100,20 +120,20 @@
     },
     "packages/coding-agent/src/edit/blackbox.ts": {
       "total": 5,
-      "alive": 5,
-      "ratio": 1,
+      "alive": 0,
+      "ratio": 0,
       "hash": "95fdddddedd6"
     },
     "packages/coding-agent/src/edit/index.ts": {
       "total": 332,
-      "alive": 303,
-      "ratio": 0.9127,
+      "alive": 51,
+      "ratio": 0.1536,
       "hash": "62d45c49e900"
     },
     "packages/coding-agent/src/edit/normalize.ts": {
       "total": 174,
-      "alive": 156,
-      "ratio": 0.8966,
+      "alive": 149,
+      "ratio": 0.8563,
       "hash": "9693b79fa455"
     },
     "packages/coding-agent/src/extensibility/custom-commands/loader.ts": {
@@ -226,8 +246,8 @@
     },
     "packages/coding-agent/src/tools/index.ts": {
       "total": 7,
-      "alive": 7,
-      "ratio": 1,
+      "alive": 3,
+      "ratio": 0.4286,
       "hash": "d24d3a6658a1"
     },
     "packages/coding-agent/src/tools/resolve.ts": {

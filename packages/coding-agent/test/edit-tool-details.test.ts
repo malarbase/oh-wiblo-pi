@@ -3,7 +3,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
-import { EditTool, getFileSnapshotStore } from "@oh-my-pi/pi-coding-agent/edit";
+import { EditTool, getEditStore } from "@oh-my-pi/pi-coding-agent/edit";
 import { type EditToolDetails } from "@oh-my-pi/pi-tui/tools/edit";
 import type { EditMode } from "@oh-my-pi/pi-tui/tools/edit";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
@@ -95,7 +95,7 @@ describe("EditTool details", () => {
 		] as const) {
 			const absolute = path.join(tempDir, name);
 			await Bun.write(absolute, before);
-			const tag = getFileSnapshotStore(session).record(absolute, before);
+			const tag = getEditStore(session).recordSnapshot(absolute, before);
 			sections.push(`[${name}#${tag}]`, "PUT 1-1:", `+${after}`);
 		}
 
@@ -197,19 +197,12 @@ const inspectionCases: Array<{
 	{
 		mode: "sloppy",
 		args: {
-			input: [
-				'<SM:EDIT path="sloppy.ts">',
-				"<SM:FIND>",
-				"old",
-				"</SM:FIND>",
-				"<SM:PUT>",
-				"sloppy",
-				"</SM:PUT>",
-				"</SM:EDIT>",
-			].join("\n"),
+			// Native sloppy payload (fork's legacy <SM:EDIT> XML form is not
+			// parseable by the native engine's inspector).
+			input: ["*** SM:EDIT sloppy.ts", "«", "old", "»", "sloppy"].join("\n"),
 		},
 		path: "sloppy.ts",
-		digest: "«\nold\n»\nsloppy",
+		digest: "«\n«\nold\n»\nsloppy",
 	},
 ];
 

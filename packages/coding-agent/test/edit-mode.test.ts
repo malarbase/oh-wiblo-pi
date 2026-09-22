@@ -48,10 +48,10 @@ describe("resolveEditMode", () => {
 		expect(resolveEditMode(createSession({ activeModel: "openrouter/moonshotai/Kimi-K2-Instruct" }))).toBe("replace");
 	});
 
-	test("falls back from hashline to replace for MiMo models", () => {
+	test("selects the fork's mimo mode for MiMo models", () => {
 		delete Bun.env.PI_EDIT_VARIANT;
 
-		expect(resolveEditMode(createSession({ activeModel: "xiaomi/MiMo-V2.5-Pro" }))).toBe("replace");
+		expect(resolveEditMode(createSession({ activeModel: "xiaomi/MiMo-V2.5-Pro" }))).toBe("mimo");
 	});
 
 	test("falls back from hashline to replace for DeepSeek models", () => {

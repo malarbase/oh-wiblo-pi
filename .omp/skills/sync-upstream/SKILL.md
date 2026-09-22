@@ -151,6 +151,7 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 
 | Feature | Owned files |
 |---------|------------|
+| Settings layering (project/global scope + revert) | `packages/coding-agent/src/config/settings.ts`, `packages/coding-agent/src/config/settings-ui.ts`, `packages/tui/src/overlays/settings-defs.ts`, `packages/tui/src/overlays/settings-selector.ts` |
 | Identity | `README.md` |
 | Ask mode | `packages/coding-agent/src/modes/ask-mode/`, `packages/coding-agent/src/session/agent-session.ts`, `packages/coding-agent/src/slash-commands/builtin-registry.ts`, `packages/coding-agent/src/prompts/system/ask-mode-context.md` |
 | Debug mode | `packages/coding-agent/src/modes/debug-mode/`, `packages/coding-agent/src/prompts/system/debug-mode-context.md` |
@@ -168,15 +169,15 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | @mariozechner/* loader aliases | `packages/coding-agent/src/extensibility/extensions/loader.ts`, `packages/coding-agent/src/extensibility/custom-commands/loader.ts` |
 | History reorganization tooling | `.omp/skills/reorganize-history/`, `.omp/commands/reorganize-fork.md` |
 | Test filter scope fix | `packages/coding-agent/test/utils/filter-user-extensions.ts` |
-| Unified agent mode cycle (alt+m) | `packages/coding-agent/src/modes/components/status-line/`, `packages/coding-agent/src/config/settings-schema.ts` |
+| Unified agent mode cycle (alt+k) | `packages/coding-agent/src/modes/components/status-line/`, `packages/coding-agent/src/config/settings-schema.ts` |
 | Session directory event + jiti loader + authHeader fix | `packages/coding-agent/src/sdk.ts`, `packages/coding-agent/src/session/`, `packages/coding-agent/src/capability/`, `packages/coding-agent/src/extensibility/extensions/loader.ts` |
 | Cache write token tracking + bin/owp switcher | `packages/ai/src/providers/openai-completions.ts`, `bin/owp`, `docs/cache-token-tracking.md` |
 | Use jiti with virtualModules in custom command loader | `packages/coding-agent/src/extensibility/custom-commands/loader.ts` |
 | Fix isBunBinary in compiled binary | `packages/coding-agent/src/config.ts` |
 | Build dist/owp as primary output | `packages/coding-agent/scripts/build-binary.ts` |
 | Fix plan-mode approval UI + omp bin entry + ETXTBSY fix | `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/coding-agent/package.json`, `.omp/commands/install-binary/index.ts`, `packages/coding-agent/test/tools/bash-interceptor.test.ts` |
-| Google search provider + hashline recovery + mode fixes | `.omp/extensions/pi-peon/`, `.omp/skills/owp-developer/`, `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/web/search/`, `packages/coding-agent/test/core/hashline.test.ts` |
-| Upstream-deleted module stubs | `packages/coding-agent/src/edit/file-read-cache.ts`, `packages/coding-agent/src/edit/file-snapshot-store.ts`, `packages/coding-agent/src/edit/hashline/`, `packages/coding-agent/src/hashline-compat.ts`, `packages/coding-agent/src/tools/approval.ts`, `packages/coding-agent/src/tools/exit-plan-mode.ts`, `packages/coding-agent/src/tools/output-schema-validator.ts`, `packages/utils/src/install-id.ts`, `packages/utils/src/sanitize-text.ts` |
+| Google search provider + hashline recovery + mode fixes | `.omp/extensions/pi-peon/`, `.omp/skills/owp-developer/`, `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/web/search/` |
+| Upstream-deleted module stubs | `packages/coding-agent/src/tools/approval.ts`, `packages/coding-agent/src/tools/exit-plan-mode.ts`, `packages/coding-agent/src/tools/output-schema-validator.ts`, `packages/utils/src/install-id.ts`, `packages/utils/src/sanitize-text.ts` |
 | sync-upstream skill and script | `.omp/skills/sync-upstream/` |
 | feature-checklist extension | `.omp/extensions/feature-checklist.ts` |
 | Cast node Blob to Web Blob for tsgo | `packages/utils/src/streams.ts` |
@@ -186,7 +187,7 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | Deduplicate slash command autocomplete | `packages/coding-agent/src/modes/interactive-mode.ts` |
 | Add serpapi, gemini, codex to settings-defs | `packages/coding-agent/src/modes/components/settings-defs.ts` |
 | Add /refresh-models slash command | `packages/coding-agent/src/slash-commands/builtin-registry.ts` |
-| MiMo-Code edit mode | `crates/pi-edit/grammars/mimo.ts` |
+| MiMo-Code edit mode | `packages/coding-agent/src/edit/modes/mimo.ts`, `packages/coding-agent/src/edit/index.ts`, `packages/coding-agent/src/utils/edit-mode.ts`, `packages/tui/src/tools/edit.ts` |
 | Archive skill-group-toggle openspec spec | `openspec/specs/skill-group-toggle/spec.md` |
 | Rediscover skills on /new after ECC toggles | `packages/coding-agent/src/sdk.ts`, `packages/coding-agent/src/capability/skill.ts` |
 | Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/` |
@@ -223,172 +224,294 @@ When a conflict occurs in a file shared with upstream, the Feature Stack tells y
 but doesn't tell you *which lines are ours*. This section lists the exact symbols each feature
 owns inside shared files.
 
-### sdk.ts (packages/coding-agent/src/sdk.ts)
+### agent-session.ts (packages/coding-agent/src/session/agent-session.ts)
 
 | Feature | Symbol | Location | Description |
 |---------|--------|----------|-------------|
-| makeSkillDiscoverer() | Top of createAgentSession, before provider preferences | Factory returning async fn that re-discovers skills |
-| skillsOverride | rebuildSystemPrompt signature (3rd param) | Optional Skill[] override for /new |
-| skillsOverride ?? skills | buildSystemPromptInternal call inside rebuildSystemPrompt | Passes override if provided |
-| disabledExtensions | skillsSettings object in rebuildSystemPrompt | { ...settings.getGroup('skills'), disabledExtensions: ... } |
-| let sessionManager | Near top of createAgentSession | let (not const) to allow override by session_directory handlers |
-| systemPrompt: options.systemPrompt | buildSystemPromptInternal call when typeof options.systemPrompt === 'string' | Only in the string-typed branch |
+| storage | — | Fork graft (auto-derived from live diff) |
+| finalPlanFilePath | — | Fork graft (auto-derived from live diff) |
+| sessionLike | — | Fork graft (auto-derived from live diff) |
 
-### settings-schema.ts (packages/coding-agent/src/config/settings-schema.ts)
+### builtin-registry.ts (packages/coding-agent/src/slash-commands/builtin-registry.ts)
 
 | Feature | Symbol | Location | Description |
 |---------|--------|----------|-------------|
-| "agent_mode" | — | Replaces upstream's 'plan_mode' in StatusLineSegmentId |
-| "session_name" | — | Added to StatusLineSegmentId union |
-| skills.rediscoverOnNewSession | — | Boolean setting definition |
-| "google" | — | New provider id in SearchProviderId union and isSearchProviderId() |
-| "google" | — | In providers.webSearch enum values and UI options |
+| refreshStatusLine | — | Fork graft (auto-derived from live diff) |
+| formatFastModeStatus | — | Fork graft (auto-derived from live diff) |
+| AUTOCOMPLETE_DETAIL_LIMIT | — | Fork graft (auto-derived from live diff) |
+| shortDetail | — | Fork graft (auto-derived from live diff) |
+| singleLine | — | Fork graft (auto-derived from live diff) |
+| formatTokenCount | — | Fork graft (auto-derived from live diff) |
+| collabWebLinkClickable | — | Fork graft (auto-derived from live diff) |
+| display | — | Fork graft (auto-derived from live diff) |
 
-### model-registry.ts (packages/coding-agent/src/config/model-registry.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| import { resolveConfigValue } | — | Import from ./resolve-config-value |
-| #customProviderBaseUrls | — | Map<string, string> for raw baseUrl configs |
-| #resolvedCommandBaseUrls | — | Map<string, string> for resolved values |
-| #resolvedCommandApiKeys | — | Map<string, string> for resolved API keys |
-| resolveApiKeyConfigAsync | — | Async version using resolveConfigValue |
-| resolveApiKeyConfigSync | — | Sync version using Bun.spawnSync |
-| #resolveCommandApiKeys | — | Async method on ModelRegistry |
-| #resolveCommandBaseUrls | — | Async method on ModelRegistry |
-| #rewriteProviderBaseUrl | — | Rewrites baseUrl on cached models |
-| #eagerResolveCommandApiKeys | — | Sync eager resolution in constructor |
-| #eagerResolveCommandBaseUrls | — | Sync eager resolution in constructor |
-| "openai-compatible" | — | Added to Type.Union in ProviderDiscoverySchema |
-| #discoverOpenAICompatibleModels | — | Full discovery method |
-| case "openai-compatible" | — | Switch case in #discoverModelsByProviderType |
-| LiteLLMModelInfo | — | Type for LiteLLM model info fields |
-| #fetchLiteLLMModelInfo | — | Fetches LiteLLM's /v1/model/info |
-| disableStrictTools | — | Field in ProviderConfigSchema |
-| disableStrictTools? | — | Field in CustomModelOverlay |
-| providerDisableStrictTools | — | Param in buildCustomModelOverlay() |
-| disableStrictTools | — | In finalizeCustomModel() |
-| return keyConfig | — | In fallbackResolver — returns literal API keys |
-
-### presets.ts (packages/coding-agent/src/modes/components/status-line/presets.ts)
+### build-binary.ts (packages/coding-agent/scripts/build-binary.ts)
 
 | Feature | Symbol | Location | Description |
 |---------|--------|----------|-------------|
-| "agent_mode" | — | Replaces 'plan_mode' in leftSegments of all 7 presets |
-| "session_name" | — | Added to rightSegments of all 7 presets |
+| owpPath | — | Fork graft (auto-derived from live diff) |
+| fs | — | Fork graft (auto-derived from live diff) |
+| ompPath | — | Fork graft (auto-derived from live diff) |
 
-### status-line-segment-editor.ts (packages/coding-agent/src/modes/components/status-line-segment-editor.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| agent_mode | — | { label: 'Mode', short: 'active mode (plan/ask/debug)' } |
-| session_name | — | { label: 'Session Name', short: 'named session' } |
-
-### segments.ts (packages/coding-agent/src/modes/components/status-line/segments.ts)
+### event-controller.ts (packages/coding-agent/src/modes/controllers/event-controller.ts)
 
 | Feature | Symbol | Location | Description |
 |---------|--------|----------|-------------|
-| agentModeSegment | — | Renderer implementation |
-| sessionNameSegment | — | Renderer implementation |
+| approval | — | Fork graft (auto-derived from live diff) |
+| details | — | Fork graft (auto-derived from live diff) |
+| planDetails | — | Fork graft (auto-derived from live diff) |
 
-### types.ts (packages/ai/src/types.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| disableStrictTools? | — | Optional boolean field on Model<TApi> |
-
-### anthropic.ts (packages/ai/src/providers/anthropic.ts)
+### index.ts (packages/coding-agent/src/web/search/index.ts)
 
 | Feature | Symbol | Location | Description |
 |---------|--------|----------|-------------|
-| userBetaOverride | — | Reads Anthropic-Beta from modelHeaders; overrides defaults |
-| betaHeaderEntry | — | Header entry built from beta override |
-| model.disableStrictTools === true | — | Adds to the disableStrictTools condition alongside github-copilot guard |
+| captchaBehavior | — | Fork graft (auto-derived from live diff) |
+| configuredBehavior | — | Fork graft (auto-derived from live diff) |
+| captchaTimeout | — | Fork graft (auto-derived from live diff) |
+| configuredTimeout | — | Fork graft (auto-derived from live diff) |
 
-### types.ts (packages/agent/src/types.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| ToolApproval | — | Stub type alias after upstream deletion |
-| ToolTier | — | Stub type alias after upstream deletion |
-| EventLoopKeepalive | — | Stub type alias after upstream deletion |
-
-### agent-loop.ts (packages/agent/src/agent-loop.ts)
+### google.ts (packages/coding-agent/src/web/search/providers/google.ts)
 
 | Feature | Symbol | Location | Description |
 |---------|--------|----------|-------------|
-| instrumentedCompleteSimple | — | Stub function after upstream deletion |
-
-### dirs.ts (packages/utils/src/dirs.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| hashPath | — | Restored after upstream deletion |
-
-### skill.ts (packages/coding-agent/src/capability/skill.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| author, repo, tags, group | — | Skill interface metadata fields for grouping and group-toggle operations |
+| signal | — | Fork graft (auto-derived from live diff) |
 
 ### helpers.ts (packages/coding-agent/src/discovery/helpers.ts)
 
 | Feature | Symbol | Location | Description |
 |---------|--------|----------|-------------|
-| scanSkillsFromDir metadata parsing | — | Parses author, repo, tags, and group from skill frontmatter into Skill objects |
-
-### types.ts (packages/coding-agent/src/modes/components/extensions/types.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| Extension metadata fields | — | Author, repo, tags, and group properties on Extension interface |
-
-### state-manager.ts (packages/coding-agent/src/modes/components/extensions/state-manager.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| toggleGroup | — | Bulk toggles skill extensions by tag, directory group, repo, or author |
-| isSkillDisabledByGroup | — | Checks if a skill extension matches any synthetic group disabled keys |
-| toggleExtensionState | — | Toggles single extension state and clears synthetic group keys when re-enabling skills |
-| createExtensionSettingsAdapter | — | Adapts Settings instance to ExtensionSettingsManager interface for group toggling |
-
-### extension-dashboard.ts (packages/coding-agent/src/modes/components/extensions/extension-dashboard.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| g keybinding & EXT_FOOTER hint | — | Keyboard shortcut g to toggle skill grouping and footer keybindings display |
-
-### extension-list.ts (packages/coding-agent/src/modes/components/extensions/extension-list.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| Skill group badge rendering | — | Displays skill group tag in item row preview |
-
-### inspector-panel.ts (packages/coding-agent/src/modes/components/extensions/inspector-panel.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| Grouping & Metadata panel | — | Renders Group, Author, Repo, and Tags in extension detail inspector |
-
-### theme.ts (packages/coding-agent/src/modes/theme/theme.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| layerBadge | — | Badge renderer formatting [O], [P], and [G] layer indicators |
-
-### settings-selector.ts (packages/coding-agent/src/modes/components/settings-selector.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| #scope | — | Target scope state ('global' | 'project') for setting mutations |
-| defToItem layer mapping | — | Attaches provenance layer from settings.getLayer to SettingItem |
-| s and c keybindings | — | Scope toggle and clear override key handling in handleInput |
+| rawMeta | — | Fork graft (auto-derived from live diff) |
+| author | — | Fork graft (auto-derived from live diff) |
+| repo | — | Fork graft (auto-derived from live diff) |
+| tags | — | Fork graft (auto-derived from live diff) |
+| group | — | Fork graft (auto-derived from live diff) |
 
 ### settings-list.ts (packages/tui/src/components/settings-list.ts)
 
 | Feature | Symbol | Location | Description |
 |---------|--------|----------|-------------|
-| layerBadge rendering | — | Renders item row layer badges using theme hook in #renderItemRow |
+| defaultLayerBadge | — | Fork graft (auto-derived from live diff) |
+| item | — | Fork graft (auto-derived from live diff) |
+| labelPadded | — | Fork graft (auto-derived from live diff) |
+| hasAnyLayer | — | Fork graft (auto-derived from live diff) |
+| badgeWidth | — | Fork graft (auto-derived from live diff) |
+| badge | — | Fork graft (auto-derived from live diff) |
+| layer | — | Fork graft (auto-derived from live diff) |
+| valueMaxWidth | — | Fork graft (auto-derived from live diff) |
+
+### extension-list.ts (packages/tui/src/overlays/extensions/extension-list.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| order | — | Fork graft (auto-derived from live diff) |
+| nextIdx | — | Fork graft (auto-derived from live diff) |
+| item | — | Fork graft (auto-derived from live diff) |
+| searchText | — | Fork graft (auto-derived from live diff) |
+| startIdx | — | Fork graft (auto-derived from live diff) |
+| endIdx | — | Fork graft (auto-derived from live diff) |
+| rowWidth | — | Fork graft (auto-derived from live diff) |
+| listItem | — | Fork graft (auto-derived from live diff) |
+
+### settings-selector.ts (packages/tui/src/overlays/settings-selector.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| selected | — | Fork graft (auto-derived from live diff) |
+| def | — | Fork graft (auto-derived from live diff) |
+
+### segments.ts (packages/tui/src/status-line/segments.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| ask | — | Fork graft (auto-derived from live diff) |
+| content | — | Fork graft (auto-derived from live diff) |
+| debug | — | Fork graft (auto-derived from live diff) |
+| pauseSuffix | — | Fork graft (auto-derived from live diff) |
+
+### utils.ts (packages/tui/src/utils.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| fileHyperlink | — | Fork graft (auto-derived from live diff) |
+| tryResolveInternalUrlSync | — | Fork graft (auto-derived from live diff) |
+
+### settings-ui.ts (packages/coding-agent/src/config/settings-ui.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| layer | — | Fork graft (auto-derived from live diff) |
+
+### settings.ts (packages/coding-agent/src/config/settings.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| deleteByPath | — | Fork graft (auto-derived from live diff) |
+| current | — | Fork graft (auto-derived from live diff) |
+| i | — | Fork graft (auto-derived from live diff) |
+| next | — | Fork graft (auto-derived from live diff) |
+| segments | — | Fork graft (auto-derived from live diff) |
+| scope | — | Fork graft (auto-derived from live diff) |
+| prev | — | Fork graft (auto-derived from live diff) |
+| hook | — | Fork graft (auto-derived from live diff) |
+
+### omp-plugins.ts (packages/coding-agent/src/discovery/omp-plugins.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| roots | — | Fork graft (auto-derived from live diff) |
+
+### blackbox.ts (packages/coding-agent/src/edit/blackbox.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| sourceParses | — | Fork graft (auto-derived from live diff) |
+| parseSource | — | Fork graft (auto-derived from live diff) |
+| introducedParseFailure | — | Fork graft (auto-derived from live diff) |
+
+### index.ts (packages/coding-agent/src/edit/index.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| resolveEditPath | — | Fork graft (auto-derived from live diff) |
+| match | — | Fork graft (auto-derived from live diff) |
+| dedup | — | Fork graft (auto-derived from live diff) |
+| executeApplyPatchPerFile | — | Fork graft (auto-derived from live diff) |
+| perFileResults | — | Fork graft (auto-derived from live diff) |
+| contentTexts | — | Fork graft (auto-derived from live diff) |
+| hasError | — | Fork graft (auto-derived from live diff) |
+| i | — | Fork graft (auto-derived from live diff) |
+
+### normalize.ts (packages/coding-agent/src/edit/normalize.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| countLeadingWhitespace | — | Fork graft (auto-derived from live diff) |
+| count | — | Fork graft (auto-derived from live diff) |
+| i | — | Fork graft (auto-derived from live diff) |
+| char | — | Fork graft (auto-derived from live diff) |
+| getLeadingWhitespace | — | Fork graft (auto-derived from live diff) |
+| isNonEmptyLine | — | Fork graft (auto-derived from live diff) |
+| minIndent | — | Fork graft (auto-derived from live diff) |
+| lines | — | Fork graft (auto-derived from live diff) |
+
+### input-controller.ts (packages/coding-agent/src/modes/controllers/input-controller.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| cycleModeKeys | — | Fork graft (auto-derived from live diff) |
+
+### auto-generated-guard.ts (packages/coding-agent/src/tools/auto-generated-guard.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| CHECK_BYTE_COUNT | — | Fork graft (auto-derived from live diff) |
+| HEADER_LINE_LIMIT | — | Fork graft (auto-derived from live diff) |
+| KNOWN_GENERATOR_PATTERN | — | Fork graft (auto-derived from live diff) |
+| AUTO_GENERATED_HEADER_MARKERS | — | Fork graft (auto-derived from live diff) |
+| COMMENT_STYLES_BY_EXTENSION | — | Fork graft (auto-derived from live diff) |
+| COMMENT_STYLES_BY_BASENAME | — | Fork graft (auto-derived from live diff) |
+| AUTO_GENERATED_FILENAME_PATTERNS | — | Fork graft (auto-derived from live diff) |
+| stripBom | — | Fork graft (auto-derived from live diff) |
+
+### builtin-names.ts (packages/coding-agent/src/tools/builtin-names.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| HIDDEN_TOOL_NAMES | — | Fork graft (auto-derived from live diff) |
+
+### checkpoint.ts (packages/coding-agent/src/tools/checkpoint.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| askBlock | — | Fork graft (auto-derived from live diff) |
+
+### resolve.ts (packages/coding-agent/src/tools/resolve.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| runResolveInvocation | — | Fork graft (auto-derived from live diff) |
+
+### embed-native.ts (packages/natives/scripts/embed-native.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| embeddedAddonTypedefs | — | Fork graft (auto-derived from live diff) |
+| reset | — | Fork graft (auto-derived from live diff) |
+| outputPath | — | Fork graft (auto-derived from live diff) |
+| packageJsonPath | — | Fork graft (auto-derived from live diff) |
+| nativeDir | — | Fork graft (auto-derived from live diff) |
+| fileExists | — | Fork graft (auto-derived from live diff) |
+| validateAddonSentinel | — | Fork graft (auto-derived from live diff) |
+| isCurrentPlatform | — | Fork graft (auto-derived from live diff) |
+
+### eval-bench-runs.ts (scripts/eval-bench-runs.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| cleaned | — | Fork graft (auto-derived from live diff) |
+| segs | — | Fork graft (auto-derived from live diff) |
+
+### db.ts (packages/stats/src/db.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| getModelTimeSeries | — | Fork graft (auto-derived from live diff) |
+| rows | — | Fork graft (auto-derived from live diff) |
+| getModelPerformanceSeries | — | Fork graft (auto-derived from live diff) |
+
+### approved-plan.ts (packages/coding-agent/src/plan-mode/approved-plan.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| resolvePlanLikePath | — | Fork graft (auto-derived from live diff) |
+| normalized | — | Fork graft (auto-derived from live diff) |
+| renameApprovedPlanFile | — | Fork graft (auto-derived from live diff) |
+| resolveOptions | — | Fork graft (auto-derived from live diff) |
+| resolvedSource | — | Fork graft (auto-derived from live diff) |
+| resolvedDestination | — | Fork graft (auto-derived from live diff) |
+| destinationStat | — | Fork graft (auto-derived from live diff) |
+
+### interactive-mode.ts (packages/coding-agent/src/modes/interactive-mode.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| loadedFrom | — | Fork graft (auto-derived from live diff) |
+| targetPlanPath | — | Fork graft (auto-derived from live diff) |
+| ctx | — | Fork graft (auto-derived from live diff) |
+| plans | — | Fork graft (auto-derived from live diff) |
+| items | — | Fork graft (auto-derived from live diff) |
+| choice | — | Fork graft (auto-derived from live diff) |
+| resolved | — | Fork graft (auto-derived from live diff) |
+| preserveContext | — | Fork graft (auto-derived from live diff) |
+
+### types.ts (packages/coding-agent/src/web/search/types.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| SEARCH_PROVIDER_OPTIONS | — | Fork graft (auto-derived from live diff) |
+| SEARCH_PROVIDER_LABELS | — | Fork graft (auto-derived from live diff) |
+
+### auth-broker-config.ts (packages/coding-agent/src/session/auth-broker-config.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| getAuthBrokerTokenFilePath | — | Fork graft (auto-derived from live diff) |
+| discoverAuthStorage | — | Fork graft (auto-derived from live diff) |
+| dbPath | — | Fork graft (auto-derived from live diff) |
+| storage | — | Fork graft (auto-derived from live diff) |
+
+### state-manager.ts (packages/coding-agent/src/modes/components/extensions/state-manager.ts)
+
+| Feature | Symbol | Location | Description |
+|---------|--------|----------|-------------|
+| createExtensionSettingsAdapter | — | Fork graft (auto-derived from live diff) |
+| skillMeta | — | Fork graft (auto-derived from live diff) |
+| author | — | Fork graft (auto-derived from live diff) |
+| repo | — | Fork graft (auto-derived from live diff) |
+| tags | — | Fork graft (auto-derived from live diff) |
+| group | — | Fork graft (auto-derived from live diff) |
+| isDisabled | — | Fork graft (auto-derived from live diff) |
+| isShadowed | — | Fork graft (auto-derived from live diff) |
 
 ## Upstream Divergences (take upstream)
 
@@ -410,7 +533,7 @@ These omp files exist but owp intentionally doesn't override them. Always take u
 - `Dockerfile.robomp` — Fork removes upstream robomp Docker builder.
 - `Dockerfile.robomp.dockerignore` — Fork removes upstream robomp Docker builder context.
 - `python/robomp/` — Fork removes upstream robomp GitHub triage bot.
-- `packages/hashline/` — Fork-local workspace package @oh-my-pi/hashline; upstream dropped the package at 18.2.6 (native impl in coding-agent), but fork edit/ code still imports it.
+- `packages/hashline/` — Upstream nativized hashline into crates/pi-edit (18.2.x) and dropped the JS package; the fork adopted the native engine and retired its JS pipeline (2026-09-21).
 
 > **WARNING:** The divergence list exists because these files are considered upstream-owned. If you add an owp feature that modifies one of these files, the feature will be silently lost on the next sync (the decision tree will "prefer upstream"). You must either:
 > 1. Move the feature out of these files, or
@@ -425,6 +548,19 @@ No upstream-obsoleted fixes are currently tracked.
 These upstream paths are intentionally absent from owp. `sync.ts --verify` fails if any other upstream file goes missing.
 
 - `python/robomp/` — fork does not ship robomp
+- `packages/hashline/` — JS hashline retired — upstream native engine (crates/pi-edit) adopted
+- `packages/coding-agent/src/hashline/` — legacy ¶-era hashline module — superseded by native engine
+- `packages/coding-agent/src/edit/hashline/` — JS hashline executor retired — native engine adopted
+- `packages/coding-agent/src/edit/sloppy.ts` — JS sloppy executor retired — native modes/sloppy adopted
+- `packages/coding-agent/src/edit/streaming.ts` — JS streaming preview retired — native EditSession.openArgStream adopted
+- `packages/coding-agent/src/edit/renderer.ts` — fork renderer retired — EditToolDetails from pi-tui/tools/edit
+- `packages/coding-agent/src/edit/result.ts` — fork result plumbing retired with JS executors
+- `packages/coding-agent/src/edit/snapshot-details.ts` — fork snapshot-details retired with JS executors
+- `packages/coding-agent/src/edit/file-read-cache.ts` — superseded by native EditStore snapshots for anchor recovery
+- `packages/coding-agent/src/edit/edit-clipboard.ts` — superseded by native EditStore clipboard registers
+- `packages/coding-agent/src/edit/file-snapshot-store.ts` — superseded by native EditStore snapshot store
+- `packages/coding-agent/test/core/block-replace.test.ts` — JS hashline block-op tests retired — native block ops covered by crates/pi-edit tests + read-edit suite
+- `packages/coding-agent/test/edit-streaming-preview.test.ts` — JS streaming preview tests retired — native openArgStream covered by streaming-edit-abort.test.ts
 - `packages/coding-agent/test/` — chore(owp): remove upstream-only components
 - `packages/utils/test/` — chore(owp): remove upstream-only components
 - `Dockerfile.robomp*` — chore(owp): remove upstream-only components

@@ -6,14 +6,6 @@
  */
 
 import { type } from "@oh-my-pi/omptype";
-import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import type { FileDiagnosticsResult, WritethroughCallback, WritethroughDeferredHandle } from "../../lsp";
-import { enforceAskModeGuard } from "../../modes/ask-mode/ask-mode-guard";
-import type { ToolSession } from "../../tools";
-import { routeWriteThroughBridge } from "../../tools/acp-bridge";
-import { invalidateFsScanAfterWrite } from "../../tools/fs-cache-invalidation";
-import { enforcePlanModeWrite, resolvePlanPath } from "../../tools/plan-mode-guard";
-import type { AppliedEditObserver } from "../blackbox";
 import { generateDiffString, replaceText } from "../diff";
 import {
 	countLeadingWhitespace,
@@ -24,9 +16,7 @@ import {
 	restoreLineEndings,
 	stripBom,
 } from "../normalize";
-import { readEditFileText, serializeEditFileText } from "../read-file";
-import type { EditToolDetails, LspBatchRequest } from "../renderer";
-import { createEditResult, toEditToolResult } from "../result";
+import type { LspBatchRequest } from "../../lsp/batch";
 
 export interface FuzzyMatch {
 	actualText: string;
@@ -1083,132 +1073,4 @@ export function findContextLine(
 	}
 
 	return { index: undefined, confidence: bestScore };
-}
-
-export const replaceEditSchema = type({
-	path: "string",
-	old_string: "string",
-	new_string: "string",
-	"replace_all?": "boolean",
-});
-
-export type ReplaceParams = typeof replaceEditSchema.infer;
-
-/**
- * Internal batch form of {@link ReplaceParams}, produced only by the Cursor
- * exec bridge: a `pi_edit` frame carries several replacements against one
- * path but must run as a single tool lifecycle with one aggregate result.
- * Never advertised to the model — the agent loop validates model calls
- * against {@link replaceEditSchema}, which has no `edits` field.
- */
-export interface ReplaceBatchParams {
-	path: string;
-	edits: Omit<ReplaceParams, "path">[];
-}
-
-export interface ExecuteReplaceOptions {
-	session: ToolSession;
-	path: string;
-	params: Omit<ReplaceParams, "path">;
-	signal?: AbortSignal;
-	batchRequest?: LspBatchRequest;
-	allowFuzzy: boolean;
-	fuzzyThreshold: number;
-	writethrough: WritethroughCallback;
-	beginDeferredDiagnosticsForPath: (path: string) => WritethroughDeferredHandle;
-	/** Observes a committed content transition before result snapshots are pruned. */
-	onApplied?: AppliedEditObserver;
-}
-
-export async function executeReplace(
-	options: ExecuteReplaceOptions,
-): Promise<AgentToolResult<EditToolDetails, ReplaceParams>> {
-	const {
-		session,
-		path,
-		params,
-		signal,
-		batchRequest,
-		allowFuzzy,
-		fuzzyThreshold,
-		writethrough,
-		beginDeferredDiagnosticsForPath,
-		onApplied,
-	} = options;
-	const { old_string, new_string, replace_all } = params;
-
-	const askBlock = enforceAskModeGuard(session, "edit", { path, ...params });
-	if (askBlock) return askBlock;
-	enforcePlanModeWrite(session, path);
-
-	if (old_string.length === 0) {
-		throw new Error("old_string must not be empty.");
-	}
-
-	const absolutePath = resolvePlanPath(session, path);
-	const rawContent = await readEditFileText(absolutePath, path);
-	const { bom, text: content } = stripBom(rawContent);
-	const originalEnding = detectLineEnding(content);
-	const normalizedContent = normalizeToLF(content);
-	const normalizedOldText = normalizeToLF(old_string);
-	const normalizedNewText = normalizeToLF(new_string);
-
-	const result = replaceText(normalizedContent, normalizedOldText, normalizedNewText, {
-		fuzzy: allowFuzzy,
-		all: replace_all ?? false,
-		threshold: fuzzyThreshold,
-	});
-
-	if (result.count === 0) {
-		const matchOutcome = findMatch(normalizedContent, normalizedOldText, {
-			allowFuzzy,
-			threshold: fuzzyThreshold,
-		});
-
-		if (matchOutcome.occurrences && matchOutcome.occurrences > 1) {
-			throw new Error(formatOccurrenceError(path, matchOutcome));
-		}
-
-		throw new EditMatchError(path, normalizedOldText, matchOutcome.closest, {
-			allowFuzzy,
-			threshold: fuzzyThreshold,
-			fuzzyMatches: matchOutcome.fuzzyMatches,
-		});
-	}
-
-	if (normalizedContent === result.content) {
-		throw new Error(`Edits to ${path} resulted in no changes being made.`);
-	}
-
-	const finalContent = await serializeEditFileText(
-		absolutePath,
-		path,
-		bom + restoreLineEndings(result.content, originalEnding),
-	);
-
-	// Route through ACP bridge when available; skips internal artifacts.
-	let diagnostics: FileDiagnosticsResult | undefined;
-	if (await routeWriteThroughBridge(session, path, absolutePath, finalContent, signal)) {
-		// bridge handled the write; diagnostics not available via writethrough
-	} else {
-		diagnostics = (
-			await writethrough(absolutePath, finalContent, signal, Bun.file(absolutePath), batchRequest, dst =>
-				dst === absolutePath ? beginDeferredDiagnosticsForPath(absolutePath) : undefined,
-			)
-		).diagnostics;
-		invalidateFsScanAfterWrite(absolutePath);
-	}
-
-	const diffResult = generateDiffString(normalizedContent, result.content, undefined, { path });
-	await onApplied?.({ path: absolutePath, prev: rawContent, next: finalContent });
-	const editResult = createEditResult({
-		displayPath: path,
-		resultPath: absolutePath,
-		diff: diffResult.diff,
-		firstChangedLine: diffResult.firstChangedLine,
-		diagnostics,
-		oldText: rawContent,
-		newText: finalContent,
-	});
-	return toEditToolResult(editResult);
 }

@@ -18,7 +18,7 @@
 # Fork commit count at the last verified rebuild/rebase. `--verify` fails if
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
-expected_fork_commit_count: 67
+expected_fork_commit_count: 69
 
 features:
   - name: "Settings layering (project/global scope + revert)"
@@ -165,20 +165,16 @@ features:
       - "packages/coding-agent/test/tools/bash-interceptor.test.ts"
 
   - name: "Google search provider + hashline recovery + mode fixes"
+    description: "Hashline editing itself was nativized upstream (crates/pi-edit modes/hashline) — the fork's JS pipeline (packages/hashline + edit/hashline executors) was retired in favor of the native engine; the fork keeps the MiMo edit mode on top of it."
     owned_paths:
       - ".omp/extensions/pi-peon/"
       - ".omp/skills/owp-developer/"
       - "packages/coding-agent/src/modes/interactive-mode.ts"
       - "packages/coding-agent/src/web/search/"
-      - "packages/coding-agent/test/core/hashline.test.ts"
 
   - name: "Upstream-deleted module stubs"
     description: "Minimal stubs for upstream-deleted modules required by OWP features"
     owned_paths:
-      - "packages/coding-agent/src/edit/file-read-cache.ts"
-      - "packages/coding-agent/src/edit/file-snapshot-store.ts"
-      - "packages/coding-agent/src/edit/hashline/"
-      - "packages/coding-agent/src/hashline-compat.ts"
       - "packages/coding-agent/src/tools/approval.ts"
       - "packages/coding-agent/src/tools/exit-plan-mode.ts"
       - "packages/coding-agent/src/tools/output-schema-validator.ts"
@@ -225,8 +221,17 @@ features:
       - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
 
   - name: "MiMo-Code edit mode"
+    description: "Fork-only edit mode (exact-match replacer chain ported from MiMo-Code), running as a JS branch inside the upstream-native edit tool; mimo-model auto-selection in resolveEditMode"
     owned_paths:
-      - "crates/pi-edit/grammars/mimo.ts"
+      - "packages/coding-agent/src/edit/modes/mimo.ts"
+      - "packages/coding-agent/src/edit/index.ts"
+      - "packages/coding-agent/src/utils/edit-mode.ts"
+      - "packages/tui/src/tools/edit.ts"
+    protecting_tests:
+      - "test/edit-mode.test.ts"
+      - "test/edit-tool-details.test.ts"
+      - "test/edit-blackbox.test.ts"
+      - "test/read-edit-seen-lines.test.ts"
 
   - name: "Archive skill-group-toggle openspec spec"
     owned_paths:
@@ -468,13 +473,39 @@ divergences:
     resolution: "prefer_ours"
 
   - path: "packages/hashline/"
-    reason: "Fork-local workspace package @oh-my-pi/hashline; upstream dropped the package at 18.2.6 (native impl in coding-agent), but fork edit/ code still imports it."
-    resolution: "prefer_ours"
+    reason: "Upstream nativized hashline into crates/pi-edit (18.2.x) and dropped the JS package; the fork adopted the native engine and retired its JS pipeline (2026-09-21)."
+    resolution: "prefer_upstream"
 
 # Intentional deletions — upstream files absent from owp on purpose.
 removals:
   - path: "python/robomp/"
     reason: "fork does not ship robomp"
+  - path: "packages/hashline/"
+    reason: "JS hashline retired — upstream native engine (crates/pi-edit) adopted"
+  - path: "packages/coding-agent/src/hashline/"
+    reason: "legacy ¶-era hashline module — superseded by native engine"
+  - path: "packages/coding-agent/src/edit/hashline/"
+    reason: "JS hashline executor retired — native engine adopted"
+  - path: "packages/coding-agent/src/edit/sloppy.ts"
+    reason: "JS sloppy executor retired — native modes/sloppy adopted"
+  - path: "packages/coding-agent/src/edit/streaming.ts"
+    reason: "JS streaming preview retired — native EditSession.openArgStream adopted"
+  - path: "packages/coding-agent/src/edit/renderer.ts"
+    reason: "fork renderer retired — EditToolDetails from pi-tui/tools/edit"
+  - path: "packages/coding-agent/src/edit/result.ts"
+    reason: "fork result plumbing retired with JS executors"
+  - path: "packages/coding-agent/src/edit/snapshot-details.ts"
+    reason: "fork snapshot-details retired with JS executors"
+  - path: "packages/coding-agent/src/edit/file-read-cache.ts"
+    reason: "superseded by native EditStore snapshots for anchor recovery"
+  - path: "packages/coding-agent/src/edit/edit-clipboard.ts"
+    reason: "superseded by native EditStore clipboard registers"
+  - path: "packages/coding-agent/src/edit/file-snapshot-store.ts"
+    reason: "superseded by native EditStore snapshot store"
+  - path: "packages/coding-agent/test/core/block-replace.test.ts"
+    reason: "JS hashline block-op tests retired — native block ops covered by crates/pi-edit tests + read-edit suite"
+  - path: "packages/coding-agent/test/edit-streaming-preview.test.ts"
+    reason: "JS streaming preview tests retired — native openArgStream covered by streaming-edit-abort.test.ts"
   # Seeded from triage: deleting commit 9c659a2ec "chore(owp): remove upstream-only components".
   # Deletions from 606f850d6 (docs sync commit, 43 files) stay unregistered — auto-restored.
   - path: "packages/coding-agent/test/"
