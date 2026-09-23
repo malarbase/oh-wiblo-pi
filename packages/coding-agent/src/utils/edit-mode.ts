@@ -10,6 +10,7 @@ export const DEFAULT_EDIT_MODE: EditMode = "hashline";
 const EDIT_MODE_IDS = {
 	apply_patch: "apply_patch",
 	hashline: "hashline",
+	mimo: "mimo",
 	patch: "patch",
 	replace: "replace",
 	sloppy: "sloppy",
