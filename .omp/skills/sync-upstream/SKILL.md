@@ -175,6 +175,7 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | Use jiti with virtualModules in custom command loader | `packages/coding-agent/src/extensibility/custom-commands/loader.ts` |
 | Fix isBunBinary in compiled binary | `packages/coding-agent/src/config.ts` |
 | Build dist/owp as primary output | `packages/coding-agent/scripts/build-binary.ts` |
+| Compiled-binary boot fixes (bytecode ESM + addon archive extraction) | `packages/coding-agent/scripts/compile-binary.ts`, `packages/natives/native/loader-state.js`, `scripts/ci-release-build-binaries.test.ts` |
 | Fix plan-mode approval UI + omp bin entry + ETXTBSY fix | `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/coding-agent/package.json`, `.omp/commands/install-binary/index.ts`, `packages/coding-agent/test/tools/bash-interceptor.test.ts` |
 | Google search provider + hashline recovery + mode fixes | `.omp/extensions/pi-peon/`, `.omp/skills/owp-developer/`, `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/web/search/` |
 | Upstream-deleted module stubs | `packages/coding-agent/src/tools/approval.ts`, `packages/coding-agent/src/tools/exit-plan-mode.ts`, `packages/coding-agent/src/tools/output-schema-validator.ts`, `packages/utils/src/install-id.ts`, `packages/utils/src/sanitize-text.ts` |
@@ -541,7 +542,14 @@ These omp files exist but owp intentionally doesn't override them. Always take u
 
 ## Obsoleted Fixes
 
-No upstream-obsoleted fixes are currently tracked.
+These commits were previously part of the fork but became empty during rebase because upstream independently applied the same fix (or made it unnecessary). They are tracked here so sync.ts can suppress false-positive dropped-commit warnings.
+
+### Compiled-binary boot fixes (bytecode ESM + addon archive extraction)
+
+| Pre-rebase hash | Description | Upstream obsoleted in |
+|-----------------|-------------|-----------------------|
+| `64c020a8185329f64ea9610ab9a37c89c6187662` | retain ESM semantics in compiled bytecode | `020ed9fdc1f3e997f5175c3748a82482893e8d59` |
+| `64c020a8185329f64ea9610ab9a37c89c6187662` | extract embedded native addon from tar.gz archive | `cc258b1757` |
 
 ## Intentional Removals (deleted vs upstream)
 
@@ -559,6 +567,10 @@ These upstream paths are intentionally absent from owp. `sync.ts --verify` fails
 - `packages/coding-agent/src/edit/file-read-cache.ts` — superseded by native EditStore snapshots for anchor recovery
 - `packages/coding-agent/src/edit/edit-clipboard.ts` — superseded by native EditStore clipboard registers
 - `packages/coding-agent/src/edit/file-snapshot-store.ts` — superseded by native EditStore snapshot store
+- `packages/coding-agent/test/auth-broker-migrate.test.ts` — fork stubs resolveAuthBrokerConfig to null (no auth-broker) — broker-migration tests cannot pass by design
+- `packages/coding-agent/test/auth-broker-snapshot-cache.test.ts` — fork stubs resolveAuthBrokerConfig to null — broker snapshot-cache tests cannot pass by design
+- `packages/coding-agent/test/auth-gateway-account-pool.test.ts` — fork does not ship the auth gateway broker
+- `packages/coding-agent/test/issue-8096-broker-unreachable-startup.test.ts` — broker-unreachable startup paths are unreachable with the fork's null broker config; describeAuthBrokerStartupError is retained defensively
 - `packages/coding-agent/test/core/block-replace.test.ts` — JS hashline block-op tests retired — native block ops covered by crates/pi-edit tests + read-edit suite
 - `packages/coding-agent/test/edit-streaming-preview.test.ts` — JS streaming preview tests retired — native openArgStream covered by streaming-edit-abort.test.ts
 - `packages/coding-agent/test/` — chore(owp): remove upstream-only components

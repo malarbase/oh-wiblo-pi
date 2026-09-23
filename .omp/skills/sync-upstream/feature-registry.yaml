@@ -18,7 +18,7 @@
 # Fork commit count at the last verified rebuild/rebase. `--verify` fails if
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
-expected_fork_commit_count: 69
+expected_fork_commit_count: 74
 
 features:
   - name: "Settings layering (project/global scope + revert)"
@@ -156,6 +156,20 @@ features:
   - name: "Build dist/owp as primary output"
     owned_paths:
       - "packages/coding-agent/scripts/build-binary.ts"
+
+  - name: "Compiled-binary boot fixes (bytecode ESM + addon archive extraction)"
+    description: "Fork-side ports of upstream fixes that landed without syncing: 020ed9fdc1 (compile with format:\"esm\" so import.meta.resolve in bundled deps survives bytecode lowering) and cc258b1757 (tar.gz embedded-addon extraction in loader-state.js). Both converge with upstream at next sync."
+    owned_paths:
+      - "packages/coding-agent/scripts/compile-binary.ts"
+      - "packages/natives/native/loader-state.js"
+      - "scripts/ci-release-build-binaries.test.ts"
+    obsoleted_fixes:
+      - pre_rebase_hash: "64c020a8185329f64ea9610ab9a37c89c6187662"
+        description: "retain ESM semantics in compiled bytecode"
+        upstream_obsoleted_in: "020ed9fdc1f3e997f5175c3748a82482893e8d59"
+      - pre_rebase_hash: "64c020a8185329f64ea9610ab9a37c89c6187662"
+        description: "extract embedded native addon from tar.gz archive"
+        upstream_obsoleted_in: "cc258b1757"
 
   - name: "Fix plan-mode approval UI + omp bin entry + ETXTBSY fix"
     owned_paths:

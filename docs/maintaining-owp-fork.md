@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `.omp/skills/sync-upstream/generate-skill-md.ts` — do not edit it by hand; run the script instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 70 fork commits on top of `upstream/main`.
+Total: 74 fork commits on top of `upstream/main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -122,6 +122,10 @@ Total: 70 fork commits on top of `upstream/main`.
 | `dfdb2f5277` | feat(owp): rebuild sync verification net — real commit survival, protecting tests, footprint | `.omp/skills/sync-upstream/feature-registry.yaml`, `.omp/skills/sync-upstream/footprint-baseline.json`, `.omp/skills/sync-upstream/sync.ts` | code |
 | `1ef85e092c` | feat(coding-agent): adopt upstream-native edit pipeline, retire JS hashline (Phase B) | `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, `.omp/skills/sync-upstream/footprint-baseline.json`, `bun.lock`, `docs/maintaining-owp-fork.md`, … (100 more) | code |
 | `64c020a818` | fix(owp): port upstream build+natives sync misses that broke compiled binaries | `packages/coding-agent/CHANGELOG.md`, `packages/coding-agent/scripts/compile-binary.ts`, `packages/natives/native/loader-state.js`, `scripts/ci-release-build-binaries.test.ts` | code |
+| `08b7c57c99` | chore(owp): register crates/pi-edit/grammars/mimo.ts, regenerate feature docs | `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
+| `9dbf147f9e` | test(owp): retire auth-broker/gateway suites incompatible with fork stubs | `.omp/skills/sync-upstream/feature-registry.yaml`, `packages/coding-agent/test/auth-broker-migrate.test.ts`, `packages/coding-agent/test/auth-broker-snapshot-cache.test.ts`, `packages/coding-agent/test/auth-gateway-account-pool.test.ts`, `packages/coding-agent/test/issue-8096-broker-unreachable-startup.test.ts` | code |
+| `50c2137e1c` | fix(coding-agent): restore goal-mode draft images when the handler does not submit | `packages/coding-agent/src/slash-commands/builtin-registry.ts` | code |
+| `d60619574c` | feat(coding-agent): add /memory queue and sync verbs | `packages/coding-agent/src/slash-commands/builtin-registry.ts` | code |
 
 > **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `bun .omp/skills/sync-upstream/generate-skill-md.ts`, never by hand.
 <!-- GENERATED:fork-commits:end -->
