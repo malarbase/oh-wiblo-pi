@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `.omp/skills/sync-upstream/generate-skill-md.ts` — do not edit it by hand; run the script instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 68 fork commits on top of `upstream/main`.
+Total: 70 fork commits on top of `upstream/main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -120,6 +120,8 @@ Total: 68 fork commits on top of `upstream/main`.
 | `452876d13b` | fix(coding-agent): replace fragile runtime require() shims with static imports | `packages/coding-agent/src/modes/controllers/selector-controller.ts` | code |
 | `776208b65a` | feat(coding-agent): restore settings layering (project/global scope + revert) | `packages/coding-agent/src/config/settings-ui.ts`, `packages/coding-agent/src/config/settings.ts`, `packages/tui/src/overlays/settings-defs.ts`, `packages/tui/src/overlays/settings-selector.ts` | code |
 | `dfdb2f5277` | feat(owp): rebuild sync verification net — real commit survival, protecting tests, footprint | `.omp/skills/sync-upstream/feature-registry.yaml`, `.omp/skills/sync-upstream/footprint-baseline.json`, `.omp/skills/sync-upstream/sync.ts` | code |
+| `1ef85e092c` | feat(coding-agent): adopt upstream-native edit pipeline, retire JS hashline (Phase B) | `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, `.omp/skills/sync-upstream/footprint-baseline.json`, `bun.lock`, `docs/maintaining-owp-fork.md`, … (100 more) | code |
+| `64c020a818` | fix(owp): port upstream build+natives sync misses that broke compiled binaries | `packages/coding-agent/CHANGELOG.md`, `packages/coding-agent/scripts/compile-binary.ts`, `packages/natives/native/loader-state.js`, `scripts/ci-release-build-binaries.test.ts` | code |
 
 > **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `bun .omp/skills/sync-upstream/generate-skill-md.ts`, never by hand.
 <!-- GENERATED:fork-commits:end -->

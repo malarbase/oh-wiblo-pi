@@ -187,7 +187,7 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | Deduplicate slash command autocomplete | `packages/coding-agent/src/modes/interactive-mode.ts` |
 | Add serpapi, gemini, codex to settings-defs | `packages/coding-agent/src/modes/components/settings-defs.ts` |
 | Add /refresh-models slash command | `packages/coding-agent/src/slash-commands/builtin-registry.ts` |
-| MiMo-Code edit mode | `packages/coding-agent/src/edit/modes/mimo.ts`, `packages/coding-agent/src/edit/index.ts`, `packages/coding-agent/src/utils/edit-mode.ts`, `packages/tui/src/tools/edit.ts` |
+| MiMo-Code edit mode | `packages/coding-agent/src/edit/modes/mimo.ts`, `packages/coding-agent/src/edit/index.ts`, `packages/coding-agent/src/utils/edit-mode.ts`, `crates/pi-edit/grammars/mimo.ts`, `packages/tui/src/tools/edit.ts` |
 | Archive skill-group-toggle openspec spec | `openspec/specs/skill-group-toggle/spec.md` |
 | Rediscover skills on /new after ECC toggles | `packages/coding-agent/src/sdk.ts`, `packages/coding-agent/src/capability/skill.ts` |
 | Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/` |

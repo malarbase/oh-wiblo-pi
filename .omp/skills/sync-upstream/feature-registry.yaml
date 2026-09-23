@@ -226,6 +226,7 @@ features:
       - "packages/coding-agent/src/edit/modes/mimo.ts"
       - "packages/coding-agent/src/edit/index.ts"
       - "packages/coding-agent/src/utils/edit-mode.ts"
+      - "crates/pi-edit/grammars/mimo.ts"
       - "packages/tui/src/tools/edit.ts"
     protecting_tests:
       - "test/edit-mode.test.ts"
