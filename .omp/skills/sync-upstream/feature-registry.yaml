@@ -18,7 +18,7 @@
 # Fork commit count at the last verified rebuild/rebase. `--verify` fails if
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
-expected_fork_commit_count: 76
+expected_fork_commit_count: 77
 
 features:
   - name: "Settings layering (project/global scope + revert)"
@@ -763,33 +763,15 @@ owned_symbols:
       - name: "roots"
         description: "Fork graft (auto-derived from live diff)"
   - file: "packages/coding-agent/src/edit/blackbox.ts"
-    feature: "OWP coding-agent package"
+    feature: "Edit-mode test harness"
     symbols:
-      - name: "sourceParses"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "parseSource"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "introducedParseFailure"
-        description: "Fork graft (auto-derived from live diff)"
+      - name: "createEditBlackboxRecorder"
+        description: "Fork graft (black-box edit recorder shared by churn tests)"
   - file: "packages/coding-agent/src/edit/index.ts"
-    feature: "OWP coding-agent package"
+    feature: "MiMo edit mode"
     symbols:
-      - name: "resolveEditPath"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "match"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "dedup"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "executeApplyPatchPerFile"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "perFileResults"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "contentTexts"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "hasError"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "i"
-        description: "Fork graft (auto-derived from live diff)"
+      - name: "openArgStream"
+        description: "Fork graft (description streaming reused by upstream EditTool)"
   - file: "packages/coding-agent/src/edit/normalize.ts"
     feature: "OWP coding-agent package"
     symbols:

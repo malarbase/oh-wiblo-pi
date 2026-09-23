@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 import * as readline from "node:readline";
-import { SqliteAuthCredentialStore } from "./auth-storage";
+import { AuthStorage, SqliteAuthCredentialStore } from "./auth-storage";
 import { getOAuthProviders } from "./registry/oauth";
-import type { OAuthAuthInfo, OAuthCredentials, OAuthPrompt, OAuthProvider } from "./registry/oauth/types";
+import { getAgentDbPath } from "@oh-my-pi/pi-utils";
+import type { OAuthAuthInfo, OAuthPrompt, OAuthProvider } from "./registry/oauth/types";
 
 const PROVIDERS = getOAuthProviders();
 
@@ -58,287 +59,28 @@ function prompt(rl: readline.Interface, question: string): Promise<string> {
 
 async function login(provider: OAuthProvider): Promise<void> {
 	const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-
 	const promptFn = (msg: string) => prompt(rl, `${msg} `);
-	const storage = await SqliteAuthCredentialStore.open();
+	const storage = await AuthStorage.create(getAgentDbPath());
 
 	try {
-		let credentials: OAuthCredentials;
-
-		switch (provider) {
-			case "anthropic": {
-				const { loginAnthropic } = await import("./registry/oauth/anthropic");
-				credentials = await loginAnthropic({
-					onAuth(info) {
-						const { url } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}\n`);
-					},
-					onProgress(message) {
-						console.log(message);
-					},
-				});
-				break;
-			}
-
-			case "github-copilot": {
-				const { loginGitHubCopilot } = await import("./registry/oauth/github-copilot");
-				credentials = await loginGitHubCopilot({
-					onAuth(url, instructions) {
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-					async onPrompt(p) {
-						return await promptFn(`${p.message}${p.placeholder ? ` (${p.placeholder})` : ""}:`);
-					},
-				});
-				break;
-			}
-
-			case "google-gemini-cli": {
-				const { loginGeminiCli } = await import("./registry/oauth/google-gemini-cli");
-				credentials = await loginGeminiCli({
-					onAuth(info) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-				});
-				break;
-			}
-
-			case "google-antigravity": {
-				const { loginAntigravity } = await import("./registry/oauth/google-antigravity");
-				credentials = await loginAntigravity({
-					onAuth(info) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-				});
-				break;
-			}
-			case "openai-codex": {
-				const { loginOpenAICodex } = await import("./registry/oauth/openai-codex");
-				credentials = await loginOpenAICodex({
-					onAuth(info) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-					async onPrompt(p) {
-						return await promptFn(`${p.message}${p.placeholder ? ` (${p.placeholder})` : ""}:`);
-					},
-				});
-				break;
-			}
-
-			case "kimi-code": {
-				const { loginKimi } = await import("./registry/oauth/kimi");
-				credentials = await loginKimi({
-					onAuth(info) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-				});
-				break;
-			}
-			case "kilo": {
-				const { loginKilo } = await import("./registry/kilo");
-				credentials = await loginKilo({
-					onAuth(info: OAuthAuthInfo) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-				});
-				break;
-			}
-			case "kagi": {
-				const { loginKagi } = await import("./registry/kagi");
-				const apiKey = await loginKagi({
-					onAuth(info: OAuthAuthInfo) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-					onPrompt(p: OAuthPrompt) {
-						return promptFn(`${p.message}${p.placeholder ? ` (${p.placeholder})` : ""}:`);
-					},
-				});
-				storage.saveApiKey(provider, apiKey);
-				console.log(`\nAPI key saved to ~/.omp/agent/agent.db`);
-				return;
-			}
-			case "tavily": {
-				const { loginTavily } = await import("./registry/tavily");
-				const apiKey = await loginTavily({
-					onAuth(info: OAuthAuthInfo) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-					onPrompt(p: OAuthPrompt) {
-						return promptFn(`${p.message}${p.placeholder ? ` (${p.placeholder})` : ""}:`);
-					},
-				});
-				storage.saveApiKey(provider, apiKey);
-				console.log(`\nAPI key saved to ~/.omp/agent/agent.db`);
-				return;
-			}
-			case "parallel": {
-				const { loginParallel } = await import("./registry/parallel");
-				const apiKey = await loginParallel({
-					onAuth(info: OAuthAuthInfo) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-					onPrompt(p: OAuthPrompt) {
-						return promptFn(`${p.message}${p.placeholder ? ` (${p.placeholder})` : ""}:`);
-					},
-				});
-				storage.saveApiKey(provider, apiKey);
-				console.log(`\nAPI key saved to ~/.omp/agent/agent.db`);
-				return;
-			}
-
-			case "cursor": {
-				const { loginCursor } = await import("./registry/oauth/cursor");
-				credentials = await loginCursor(
-					url => {
-						console.log(`\nOpen this URL in your browser:\n${url}\n`);
-					},
-					() => {
-						console.log("Waiting for browser authentication...");
-					},
+		const identity = await storage.login(provider, {
+			onAuth(info: OAuthAuthInfo) {
+				const { url } = info;
+				console.log(`\nOpen this URL in your browser:\n${url}\n`);
+			},
+			onProgress(message: string) {
+				console.log(message);
+			},
+			async onPrompt(promptRequest: OAuthPrompt) {
+				return await promptFn(
+					`${promptRequest.message}${promptRequest.placeholder ? ` (${promptRequest.placeholder})` : ""}:`,
 				);
-				break;
-			}
+			},
+		});
 
-			case "zai": {
-				const { loginZai } = await import("./registry/zai");
-				const apiKey = await loginZai({
-					onAuth(info: OAuthAuthInfo) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-					onPrompt(p: OAuthPrompt) {
-						return promptFn(`${p.message}${p.placeholder ? ` (${p.placeholder})` : ""}:`);
-					},
-				});
-				storage.saveApiKey(provider, apiKey);
-				console.log(`\nAPI key saved to ~/.omp/agent/agent.db`);
-				return;
-			}
-
-			case "nanogpt": {
-				const { loginNanoGPT } = await import("./registry/nanogpt");
-				const apiKey = await loginNanoGPT({
-					onAuth(info: OAuthAuthInfo) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-					onPrompt(p: OAuthPrompt) {
-						return promptFn(`${p.message}${p.placeholder ? ` (${p.placeholder})` : ""}:`);
-					},
-				});
-				storage.saveApiKey(provider, apiKey);
-				console.log(`\nAPI key saved to ~/.omp/agent/agent.db`);
-				return;
-			}
-
-			case "zenmux": {
-				const { loginZenMux } = await import("./registry/zenmux");
-				const apiKey = await loginZenMux({
-					onAuth(info: OAuthAuthInfo) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-					onPrompt(p: OAuthPrompt) {
-						return promptFn(`${p.message}${p.placeholder ? ` (${p.placeholder})` : ""}:`);
-					},
-				});
-				storage.saveApiKey(provider, apiKey);
-				console.log(`\nAPI key saved to ~/.omp/agent/agent.db`);
-				return;
-			}
-			case "ollama-cloud": {
-				const { loginOllamaCloud } = await import("./registry/ollama-cloud");
-				const apiKey = await loginOllamaCloud({
-					onAuth(info: OAuthAuthInfo) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-					onPrompt(p: OAuthPrompt) {
-						return promptFn(`${p.message}${p.placeholder ? ` (${p.placeholder})` : ""}:`);
-					},
-				});
-				storage.saveApiKey(provider, apiKey);
-				console.log(`\nAPI key saved to ~/.omp/agent/agent.db`);
-				return;
-			}
-
-			case "minimax-code": {
-				const { loginMiniMaxCode } = await import("./registry/oauth/minimax-code");
-				const apiKey = await loginMiniMaxCode({
-					onAuth(info) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-					onPrompt(p) {
-						return promptFn(`${p.message}${p.placeholder ? ` (${p.placeholder})` : ""}:`);
-					},
-				});
-				storage.saveApiKey(provider, apiKey);
-				console.log(`\nAPI key saved to ~/.omp/agent/agent.db`);
-				return;
-			}
-
-			case "minimax-code-cn": {
-				const { loginMiniMaxCodeCn } = await import("./registry/oauth/minimax-code");
-				const apiKey = await loginMiniMaxCodeCn({
-					onAuth(info) {
-						const { url, instructions } = info;
-						console.log(`\nOpen this URL in your browser:\n${url}`);
-						if (instructions) console.log(instructions);
-						console.log();
-					},
-					onPrompt(p) {
-						return promptFn(`${p.message}${p.placeholder ? ` (${p.placeholder})` : ""}:`);
-					},
-				});
-				storage.saveApiKey(provider, apiKey);
-				console.log(`\nAPI key saved to ~/.omp/agent/agent.db`);
-				return;
-			}
-
-			default:
-				throw new Error(`Unknown provider: ${provider}`);
-		}
-
-		storage.saveOAuth(provider, credentials);
-
-		console.log(`\nCredentials saved to ~/.omp/agent/agent.db`);
+		console.log("\nCredentials saved to ~/.omp/agent/agent.db");
+		if (identity?.email) console.log(`  Account: ${identity.email}`);
+		if (identity?.orgName) console.log(`  Org: ${identity.orgName}`);
 	} finally {
 		storage.close();
 		rl.close();
