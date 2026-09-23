@@ -12,7 +12,7 @@ import type {
 import type { Model, ToolExample } from "@oh-my-pi/pi-ai";
 import {
 	EditSession,
-	editDescription,
+	editDescription as nativeEditDescription,
 	editGrammar,
 	editInspect,
 	type EditFileOutcome,
@@ -22,6 +22,7 @@ import {
 	type EditWriteResponse,
 } from "@oh-my-pi/pi-natives";
 import { isEnoent, logger, prompt } from "@oh-my-pi/pi-utils";
+import mimoDescription from "../prompts/tools/mimo.md" with { type: "text" };
 import { resolveLocalRoot } from "../internal-urls";
 import { cachedVaultRoots, isVaultEnabled } from "../internal-urls/vault-protocol";
 import { createLspWritethrough, flushLspWritethroughBatch, type WritethroughCallback, writethroughNoop } from "../lsp";
@@ -156,6 +157,12 @@ export function editDescriptionCompact(mode: EditMode): string | undefined {
 		default:
 			return undefined;
 	}
+}
+
+/** JS-side description, overriding the native table for fork-only modes. */
+export function editDescription(mode: EditMode): string {
+	if (mode === "mimo") return mimoDescription;
+	return nativeEditDescription(mode);
 }
 
 /**
