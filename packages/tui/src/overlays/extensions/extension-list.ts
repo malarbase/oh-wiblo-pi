@@ -672,12 +672,15 @@ export class ExtensionList implements Component {
 	}
 
 	handleInput(data: string): void {
-		if (matchesSelectUp(data) || matchesKey(data, "k")) {
+		// Bare j/k are plain search characters here (the filter is always
+		// active) — navigation stays on arrow keys / tui.select.up|down
+		// (fork fix 148635ba7f, issue #11350).
+		if (matchesSelectUp(data)) {
 			this.#moveSelectionUp();
 			return;
 		}
 
-		if (matchesSelectDown(data) || matchesKey(data, "j")) {
+		if (matchesSelectDown(data)) {
 			this.#moveSelectionDown();
 			return;
 		}

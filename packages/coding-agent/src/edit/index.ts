@@ -68,7 +68,6 @@ import {
 	sloppyEditSchema,
 } from "./schemas";
 import { getEditStore } from "./store";
-import mimoDescription from "../prompts/tools/mimo.md" with { type: "text" };
 import { executeMimoSingle, type MimoEditParams, mimoEditSchema } from "./modes/mimo";
 
 export type {

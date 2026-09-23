@@ -5,18 +5,7 @@
  * fallback strategies for finding text in files.
  */
 
-import { type } from "@oh-my-pi/omptype";
-import { generateDiffString, replaceText } from "../diff";
-import {
-	countLeadingWhitespace,
-	detectLineEnding,
-	normalizeForFuzzy,
-	normalizeToLF,
-	normalizeUnicode,
-	restoreLineEndings,
-	stripBom,
-} from "../normalize";
-import type { LspBatchRequest } from "../../lsp/batch";
+import { countLeadingWhitespace, normalizeForFuzzy, normalizeUnicode } from "../normalize";
 
 export interface FuzzyMatch {
 	actualText: string;
@@ -123,15 +112,6 @@ function findFirstDifferentLine(oldLines: string[], newLines: string[]): { oldLi
 		}
 	}
 	return { oldLine: oldLines[0] ?? "", newLine: newLines[0] ?? "" };
-}
-
-function formatOccurrenceError(path: string, matchOutcome: MatchOutcome): string {
-	const previews = matchOutcome.occurrencePreviews?.join("\n\n") ?? "";
-	const moreMsg =
-		matchOutcome.occurrences && matchOutcome.occurrences > MAX_RECORDED_MATCHES
-			? ` (showing first ${MAX_RECORDED_MATCHES} of ${matchOutcome.occurrences})`
-			: "";
-	return `Found ${matchOutcome.occurrences} occurrences in ${path}${moreMsg}:\n\n${previews}\n\nAdd more context lines to disambiguate.`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

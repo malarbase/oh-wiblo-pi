@@ -8,7 +8,9 @@ function createRuntime() {
 	const handlePlanListCommand = vi.fn().mockResolvedValue(undefined);
 	const handlePlanLoadCommand = vi.fn().mockResolvedValue(undefined);
 	const setText = vi.fn();
+	const clearDraftSpy = vi.fn();
 	return {
+		clearDraftSpy,
 		handlePlanModeCommand,
 		handlePlanRunCommand,
 		handlePlanListCommand,
@@ -16,7 +18,12 @@ function createRuntime() {
 		setText,
 		runtime: {
 			ctx: {
-				editor: { setText } as unknown as InteractiveModeContext["editor"],
+				editor: {
+					setText,
+					clearDraft: clearDraftSpy,
+					pendingImages: [],
+					pendingImageLinks: [],
+				} as unknown as InteractiveModeContext["editor"],
 				handlePlanModeCommand,
 				handlePlanRunCommand,
 				handlePlanListCommand,
@@ -36,20 +43,20 @@ describe("/plan slash command", () => {
 		const h = createRuntime();
 		const handled = await executeBuiltinSlashCommand("/plan", h.runtime);
 		expect(handled).toBe(true);
-		expect(h.handlePlanModeCommand).toHaveBeenCalledWith(undefined);
+		expect(h.handlePlanModeCommand).toHaveBeenCalledWith(undefined, undefined);
 		expect(h.handlePlanRunCommand).not.toHaveBeenCalled();
 		expect(h.handlePlanListCommand).not.toHaveBeenCalled();
-		expect(h.setText).toHaveBeenCalledWith("");
+		expect(h.clearDraftSpy).toHaveBeenCalledWith();
 	});
 
 	it("non-subcommand args → calls handlePlanModeCommand with full args string", async () => {
 		const h = createRuntime();
 		const handled = await executeBuiltinSlashCommand("/plan some initial prompt", h.runtime);
 		expect(handled).toBe(true);
-		expect(h.handlePlanModeCommand).toHaveBeenCalledWith("some initial prompt");
+		expect(h.handlePlanModeCommand).toHaveBeenCalledWith("some initial prompt", undefined);
 		expect(h.handlePlanRunCommand).not.toHaveBeenCalled();
 		expect(h.handlePlanListCommand).not.toHaveBeenCalled();
-		expect(h.setText).toHaveBeenCalledWith("");
+		expect(h.clearDraftSpy).toHaveBeenCalledWith();
 	});
 
 	it("/plan run FOO_PLAN → calls handlePlanRunCommand('FOO_PLAN')", async () => {
@@ -59,7 +66,7 @@ describe("/plan slash command", () => {
 		expect(h.handlePlanRunCommand).toHaveBeenCalledWith("FOO_PLAN");
 		expect(h.handlePlanModeCommand).not.toHaveBeenCalled();
 		expect(h.handlePlanListCommand).not.toHaveBeenCalled();
-		expect(h.setText).toHaveBeenCalledWith("");
+		expect(h.clearDraftSpy).toHaveBeenCalledWith();
 	});
 
 	it("/plan run FOO_PLAN --keep → calls handlePlanRunCommand('FOO_PLAN --keep')", async () => {
@@ -69,7 +76,7 @@ describe("/plan slash command", () => {
 		expect(h.handlePlanRunCommand).toHaveBeenCalledWith("FOO_PLAN --keep");
 		expect(h.handlePlanModeCommand).not.toHaveBeenCalled();
 		expect(h.handlePlanListCommand).not.toHaveBeenCalled();
-		expect(h.setText).toHaveBeenCalledWith("");
+		expect(h.clearDraftSpy).toHaveBeenCalledWith();
 	});
 
 	it("/plan list → calls handlePlanListCommand()", async () => {
@@ -79,7 +86,7 @@ describe("/plan slash command", () => {
 		expect(h.handlePlanListCommand).toHaveBeenCalledTimes(1);
 		expect(h.handlePlanModeCommand).not.toHaveBeenCalled();
 		expect(h.handlePlanRunCommand).not.toHaveBeenCalled();
-		expect(h.setText).toHaveBeenCalledWith("");
+		expect(h.clearDraftSpy).toHaveBeenCalledWith();
 	});
 
 	it("/plan load FOO_PLAN → calls handlePlanLoadCommand('FOO_PLAN')", async () => {
@@ -90,7 +97,7 @@ describe("/plan slash command", () => {
 		expect(h.handlePlanModeCommand).not.toHaveBeenCalled();
 		expect(h.handlePlanRunCommand).not.toHaveBeenCalled();
 		expect(h.handlePlanListCommand).not.toHaveBeenCalled();
-		expect(h.setText).toHaveBeenCalledWith("");
+		expect(h.clearDraftSpy).toHaveBeenCalledWith();
 	});
 
 	it("/plan load FOO_PLAN add an extra step → calls handlePlanLoadCommand with full trailing text", async () => {
@@ -101,7 +108,7 @@ describe("/plan slash command", () => {
 		expect(h.handlePlanModeCommand).not.toHaveBeenCalled();
 		expect(h.handlePlanRunCommand).not.toHaveBeenCalled();
 		expect(h.handlePlanListCommand).not.toHaveBeenCalled();
-		expect(h.setText).toHaveBeenCalledWith("");
+		expect(h.clearDraftSpy).toHaveBeenCalledWith();
 	});
 
 	it("/plan load (no name) → calls handlePlanLoadCommand('')", async () => {
@@ -112,6 +119,6 @@ describe("/plan slash command", () => {
 		expect(h.handlePlanModeCommand).not.toHaveBeenCalled();
 		expect(h.handlePlanRunCommand).not.toHaveBeenCalled();
 		expect(h.handlePlanListCommand).not.toHaveBeenCalled();
-		expect(h.setText).toHaveBeenCalledWith("");
+		expect(h.clearDraftSpy).toHaveBeenCalledWith();
 	});
 });

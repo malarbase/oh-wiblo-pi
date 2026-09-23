@@ -18,7 +18,7 @@
 # Fork commit count at the last verified rebuild/rebase. `--verify` fails if
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
-expected_fork_commit_count: 74
+expected_fork_commit_count: 76
 
 features:
   - name: "Settings layering (project/global scope + revert)"
@@ -585,6 +585,25 @@ removals:
     reason: "chore(owp): remove upstream-only components"
 
 # Owned symbols inside shared files. During rebase, take upstream structure, graft these symbols.
+  - name: "Command dispatch composition"
+    description: "Upstream satellite command arrays spread into the registry; fork deltas stay inline (last-wins) for add-provider/refresh-models/drop/agent/ask"
+    owned_paths:
+      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
+      - "packages/coding-agent/src/slash-commands/builtin-modes.ts"
+      - "packages/coding-agent/src/modes/controllers/event-controller.ts"
+      - "packages/tui/src/overlays/extensions/extension-list.ts"
+    protecting_tests:
+      - "test/slash-commands/plan-subcommands.test.ts"
+      - "test/slash-commands/mode-attachments.test.ts"
+      - "test/input-controller-followup-image.test.ts"
+      - "test/acp-builtins.test.ts"
+      - "test/available-commands.test.ts"
+      - "test/interactive-mode-working-accent.test.ts"
+      - "test/sharpshooter-backend.test.ts"
+      - "test/goals/goal-mode-integration.test.ts"
+      - "test/input-controller-followup-image.test.ts"
+      - "test/keybindings-selector-navigation.test.ts"
+
 owned_symbols:
   - file: "packages/coding-agent/src/session/agent-session.ts"
     feature: "Ask mode"
@@ -598,22 +617,12 @@ owned_symbols:
   - file: "packages/coding-agent/src/slash-commands/builtin-registry.ts"
     feature: "Ask mode"
     symbols:
-      - name: "refreshStatusLine"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "formatFastModeStatus"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "AUTOCOMPLETE_DETAIL_LIMIT"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "shortDetail"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "singleLine"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "formatTokenCount"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "collabWebLinkClickable"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "display"
-        description: "Fork graft (auto-derived from live diff)"
+      - name: "agent"
+        description: "Fork command def (/agent) in inline registry block"
+      - name: "drop"
+        description: "Fork command def (/drop) in inline registry block"
+      - name: "ask"
+        description: "Fork command def (/ask) in inline registry block"
   - file: "packages/coding-agent/scripts/build-binary.ts"
     feature: "Build dist/owp as primary output"
     symbols:

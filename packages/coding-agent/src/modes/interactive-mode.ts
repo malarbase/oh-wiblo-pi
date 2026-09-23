@@ -3804,7 +3804,9 @@ export class InteractiveMode implements InteractiveModeContext {
 			throw error;
 		}
 		this.session.setPlanProposalHandler?.(title => this.session.preparePlanForReview(title));
-		// Mode context is now in the system prompt, no need for steer injection
+		if (this.session.isStreaming) {
+			await this.session.sendPlanModeContext({ deliverAs: "steer" });
+		}
 		this.#planModeHasEntered = true;
 		// Session loading already restored the model recorded in the journal.
 		// Reapplying today's plan role here would replace a CLI/session-specific
@@ -3988,7 +3990,9 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.goalModeEnabled = true;
 		this.#resetGoalContinuationSuppression();
 		this.#updateGoalModeStatus();
-		// Mode context is now in the system prompt, no need for steer injection
+		if (this.session.isStreaming) {
+			await this.session.sendGoalModeContext({ deliverAs: "steer" });
+		}
 		if (!options.silent) {
 			this.showStatus(options.resume ? "Goal mode resumed." : "Goal mode enabled.");
 		}
@@ -5441,8 +5445,7 @@ export class InteractiveMode implements InteractiveModeContext {
 
 	async #replaceGoalFromObjective(
 		objective: string,
-		// OWP-FORK: no steer injection — mode context lives in the system prompt.
-		_input?: Pick<SubmittedUserInput, "images" | "imageLinks">,
+		input?: Pick<SubmittedUserInput, "images" | "imageLinks">,
 	): Promise<boolean> {
 		const state = await this.session.goalRuntime.replaceGoal({ objective });
 		this.session.setGoalModeState(state);
@@ -5450,9 +5453,23 @@ export class InteractiveMode implements InteractiveModeContext {
 		this.goalModePaused = false;
 		this.#resetGoalContinuationSuppression();
 		this.#updateGoalModeStatus();
-		// Mode context is now in the system prompt, no need for steer injection
+		if (this.session.isStreaming) {
+			await this.session.sendGoalModeContext({ deliverAs: "steer" });
+			const images = input?.images?.length ? input.images : undefined;
+			await this.withLocalSubmission(
+				objective,
+				() =>
+					this.session.prompt(objective, {
+						streamingBehavior: "steer",
+						images,
+					}),
+				{ imageCount: images?.length ?? 0 },
+			);
+			return true;
+		}
 		if (this.onInputCallback) {
-			this.onInputCallback(this.startPendingSubmission({ text: objective }));
+			this.onInputCallback(this.startPendingSubmission({ text: objective, ...input }, { preserveDraft: true }));
+			return true;
 		}
 		return false;
 	}
