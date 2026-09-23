@@ -457,8 +457,18 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<SlashCommandSpec> = [
 			return state ? `Goal: ${state.goal.status} (${shortDetail(state.goal.objective)})` : "Goal: off";
 		},
 		handleTui: async (command, runtime) => {
-			await runtime.ctx.handleGoalModeCommand(command.args || undefined);
-			runtime.ctx.editor.setText("");
+			// Detach the draft (clearing pending images) before dispatch, then
+			// restore it if the handler did not submit — upstream mode-command
+			// contract (runWithDetachedModeDraft).
+			if (!runtime.draftDetached) runtime.ctx.editor.clearDraft();
+			const submitted = await runtime.ctx.handleGoalModeCommand(command.args || undefined, runtime.input);
+			if (!submitted && ((runtime.input?.images?.length ?? 0) > 0 || (runtime.input?.imageLinks?.length ?? 0) > 0)) {
+				runtime.ctx.editor.pendingImages = [...(runtime.input?.images ?? []), ...runtime.ctx.editor.pendingImages];
+				runtime.ctx.editor.pendingImageLinks = [
+					...(runtime.input?.imageLinks ?? runtime.input?.images?.map(() => undefined) ?? []),
+					...runtime.ctx.editor.pendingImageLinks,
+				];
+			}
 		},
 	},
 	{
