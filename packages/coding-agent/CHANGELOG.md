@@ -17,6 +17,7 @@
 - Fixed Edit previews and application panicking on Unicode no-op edits and overlapping duplicate matches.
 - Fixed live subagent messages getting stuck behind persisted-agent discovery, and roster discovery looping on dot-named transcripts.
 - Fixed llama.cpp discovery of PrismML Bonsai 2 27B GGUFs: built-in and custom-named providers now share catalog rules for chat-completions routing and the Qwen 3.8 thinking ladder (`low`/`medium`/`xhigh`), including cached models.
+- Fixed compiled binaries crashing at startup on Linux with `TypeError: Expected CommonJS module to have a function wrapper`: the bytecode build now retains ESM semantics for bundled dependencies that use `import.meta.resolve`.
 
 ## [18.2.6] - 2026-09-18
 
