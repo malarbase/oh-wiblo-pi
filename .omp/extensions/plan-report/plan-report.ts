@@ -97,25 +97,34 @@ async function processPlanCompletion(
 	// Idempotency guard: skip if the .done.md already exists (plan was already processed)
 	if (await Bun.file(projectDonePath).exists().catch(() => false)) return false;
 
-	// Session storage: local://<fileName>
-	const sessionPlanPath = artifactsDir ? resolveLocalPath(planInfo.planPath, artifactsDir) : null;
-
-	// Find the actual plan file — project first, then session
+	// Find the actual plan file. `local://` names a file in the session's
+	// artifacts dir; anything else is a filesystem path. Resolving the path the
+	// prompt actually carried — rather than re-deriving a basename and guessing
+	// a directory — is what keeps a similarly named sibling in `.omp/plans/`
+	// from being picked in its place. The project copy is the fallback.
+	const sourcePath = planInfo.planPath.startsWith("local://")
+		? artifactsDir
+			? resolveLocalPath(planInfo.planPath, artifactsDir)
+			: null
+		: path.isAbsolute(planInfo.planPath)
+			? planInfo.planPath
+			: path.resolve(cwd, planInfo.planPath);
 	let resolvedPlanPath: string | null = null;
 
-	try {
-		await Bun.file(projectPlanPath).text();
-		resolvedPlanPath = projectPlanPath;
-	} catch {
-		if (sessionPlanPath) {
-			try {
-				await Bun.file(sessionPlanPath).text();
-				resolvedPlanPath = sessionPlanPath;
-			} catch {
-				// Plan file not found anywhere — skip
-				return false;
-			}
-		} else {
+	if (sourcePath) {
+		try {
+			await Bun.file(sourcePath).text();
+			resolvedPlanPath = sourcePath;
+		} catch {
+			// Referenced copy is gone (renamed session, cleaned artifacts).
+		}
+	}
+	if (!resolvedPlanPath) {
+		try {
+			await Bun.file(projectPlanPath).text();
+			resolvedPlanPath = projectPlanPath;
+		} catch {
+			// Plan file not found anywhere — skip
 			return false;
 		}
 	}

@@ -50,7 +50,6 @@ const HARVEST_PROMPT = "hi";
 
 /** Fallback location when `opencode` is not on PATH (mise-managed install). */
 const OPENCODE_FALLBACK_PATHS = [
-	"/var/home/user/.local/share/mise/installs/opencode/latest/opencode",
 	`${Bun.env.HOME ?? ""}/.local/share/mise/installs/opencode/latest/opencode`,
 ];
 
@@ -144,11 +143,11 @@ async function readFlagFromConfig(): Promise<boolean> {
 	}
 }
 
-function resolveOpenCodeBinary(): string | null {
+async function resolveOpenCodeBinary(): Promise<string | null> {
 	const onPath = Bun.which("opencode");
 	if (onPath) return onPath;
 	for (const candidate of OPENCODE_FALLBACK_PATHS) {
-		if (candidate && Bun.file(candidate).exists()) return candidate;
+		if (candidate && (await Bun.file(candidate).exists())) return candidate;
 	}
 	return null;
 }
@@ -214,7 +213,7 @@ export default async function (_pi: ExtensionAPI) {
 	const state = globalThis as unknown as Record<symbol, unknown>;
 	if (state[INSTALLED]) return;
 
-	const binary = resolveOpenCodeBinary();
+	const binary = await resolveOpenCodeBinary();
 	if (!binary) {
 		console.error(
 			"[opencode-zen-free-tier] disabled: `opencode` binary not found on PATH or in the mise install dir",
