@@ -34,9 +34,15 @@ function detectPlanCompletion(entries: SessionEntry[]) {
 
 		if (!text.includes("Plan approved.")) continue;
 
-		// Match both old ("You MUST read") and new ("MUST read") prompt templates,
-		// and both "before executing" and "before execution".
-		const pathMatch = /(?:You )?MUST read `(.+?)` before execut/.exec(text);
+		// The approved-plan prompt has been rewritten twice in this fork. Anchors, most
+		// stable first: the <plan path="…"> attribute (machine-readable, present since the
+		// plan-inlining commit), the "durable copy at" prose marker from the same
+		// template, then the pre-inline "MUST read … before execution" wording so older
+		// transcripts still resolve.
+		const pathMatch =
+			/<plan path="(.+?)">/.exec(text) ??
+			/durable copy at `(.+?)`/.exec(text) ??
+			/(?:You )?MUST read `(.+?)` before execut/.exec(text);
 		if (!pathMatch) continue;
 
 		const planPath = pathMatch[1];
