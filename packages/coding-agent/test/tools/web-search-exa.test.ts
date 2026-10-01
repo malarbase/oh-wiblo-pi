@@ -369,7 +369,13 @@ describe("searchExa", () => {
 	it("aborts while waiting for the configured Exa request delay", async () => {
 		resetSettingsForTest();
 		resetExaSearchThrottleForTest();
-		await Settings.init({ inMemory: true, overrides: { "exa.searchDelayMs": 1_000 } });
+		// A delay far beyond anything the event loop can stall: a wait the abort
+		// fails to interrupt cannot drain inside the test timeout, so a green
+		// test proves the abort cut the wait short rather than the delay lapsing.
+		// Real-timer integration by intent — the throttle races the platform
+		// clock in production; fake timers cannot exercise that race, and this
+		// test never actually waits the configured delay out.
+		await Settings.init({ inMemory: true, overrides: { "exa.searchDelayMs": 60_000 } });
 		let fetchCount = 0;
 		const fetchMock: FetchImpl = () => {
 			fetchCount += 1;
@@ -383,20 +389,29 @@ describe("searchExa", () => {
 
 		await searchExa({ query: "first request", fetch: fetchMock });
 		const controller = new AbortController();
-		const startedAt = Date.now();
 		const pending = searchExa({ query: "cancelled request", fetch: fetchMock, signal: controller.signal });
 		await Bun.sleep(0);
+		// Anchor the clock at the abort, not at submission: Settings.init and
+		// the sleep above are event-loop dependent and inflate under full-suite
+		// load, while abort → settled runs purely on microtasks, so the bound
+		// below measures the contract (abort interrupts the wait promptly).
+		const settled = Promise.withResolvers<void>();
+		pending.then(() => settled.resolve(), () => settled.resolve());
+		const abortedAt = Date.now();
 		controller.abort(new Error("cancelled Exa throttle wait"));
+		await settled.promise;
 
+		expect(Date.now() - abortedAt).toBeLessThan(250);
 		await expect(pending).rejects.toThrow("cancelled Exa throttle wait");
-		expect(Date.now() - startedAt).toBeLessThan(250);
 		expect(fetchCount).toBe(1);
 	});
 
 	it("aborts while queued behind another Exa throttle wait", async () => {
 		resetSettingsForTest();
 		resetExaSearchThrottleForTest();
-		await Settings.init({ inMemory: true, overrides: { "exa.searchDelayMs": 1_000 } });
+		// Same rationale as above: 60s outruns any scheduler stall, so passing
+		// proves both queued waits died from their aborts, not from the delay.
+		await Settings.init({ inMemory: true, overrides: { "exa.searchDelayMs": 60_000 } });
 		let fetchCount = 0;
 		const fetchMock: FetchImpl = () => {
 			fetchCount += 1;
@@ -412,13 +427,16 @@ describe("searchExa", () => {
 		const secondController = new AbortController();
 		const thirdController = new AbortController();
 		const second = searchExa({ query: "second request", fetch: fetchMock, signal: secondController.signal });
-		const startedAt = Date.now();
 		const third = searchExa({ query: "third request", fetch: fetchMock, signal: thirdController.signal });
 		await Bun.sleep(0);
+		const thirdSettled = Promise.withResolvers<void>();
+		third.then(() => thirdSettled.resolve(), () => thirdSettled.resolve());
+		const abortedAt = Date.now();
 		thirdController.abort(new Error("cancelled queued Exa throttle wait"));
+		await thirdSettled.promise;
 
+		expect(Date.now() - abortedAt).toBeLessThan(250);
 		await expect(third).rejects.toThrow("cancelled queued Exa throttle wait");
-		expect(Date.now() - startedAt).toBeLessThan(250);
 		expect(fetchCount).toBe(1);
 
 		secondController.abort(new Error("cleanup second Exa throttle wait"));

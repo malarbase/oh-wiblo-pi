@@ -260,6 +260,11 @@ export const SEARCH_PROVIDER_OPTIONS = [
 		description: "Automatically uses the first configured web-search provider",
 	},
 	{
+		value: "parallel",
+		label: "Parallel",
+		description: "Uses API auth when configured; otherwise searches through the keyless public MCP",
+	},
+	{
 		value: "perplexity",
 		label: "Perplexity",
 		description: "Uses auth when configured; explicit selection falls back to anonymous search",
@@ -304,7 +309,6 @@ export const SEARCH_PROVIDER_OPTIONS = [
 		description:
 			"Kimi Code search (requires a Kimi Code Console key via KIMI_SEARCH_API_KEY/MOONSHOT_SEARCH_API_KEY or /login kimi-code; not MOONSHOT_API_KEY)",
 	},
-	{ value: "parallel", label: "Parallel", description: "Requires PARALLEL_API_KEY" },
 	{ value: "synthetic", label: "Synthetic", description: "Requires SYNTHETIC_API_KEY" },
 	{ value: "ollama", label: "Ollama", description: "Requires OLLAMA_CLOUD_API_KEY" },
 	{ value: "searxng", label: "SearXNG", description: "Requires SEARXNG_ENDPOINT or searxng.endpoint" },

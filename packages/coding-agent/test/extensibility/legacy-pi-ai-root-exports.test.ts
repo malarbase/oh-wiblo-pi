@@ -7,7 +7,7 @@ import {
 	parseJsonWithRepair,
 	parseStreamingJson,
 	repairJson,
-	streamOpenAIResponses,
+	streamSimpleOpenAIResponses,
 } from "@oh-my-pi/pi-coding-agent/extensibility/legacy-pi-ai-shim";
 
 // Issue #6859: pi extensions import runtime helpers from the `@earendil-works/pi-ai`
@@ -89,15 +89,16 @@ describe("legacy pi-ai shim root exports", () => {
 			maxTokens: 16_384,
 		});
 
-		const result = await streamOpenAIResponses(
+		const result = await streamSimpleOpenAIResponses(
 			model,
 			{ messages: [{ role: "user", content: "hello", timestamp: 0 }] },
 			{
 				apiKey: "test-key",
 				reasoning: Effort.High,
+				hideThinkingSummary: true,
 				fetch: fetchMock,
-				onPayload: (request: unknown) => {
-					requests.push(request as Record<string, unknown>);
+				onPayload: request => {
+					requests.push(request);
 				},
 			},
 		).result();

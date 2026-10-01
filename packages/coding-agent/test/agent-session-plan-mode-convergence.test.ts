@@ -130,6 +130,9 @@ describe("AgentSession plan-mode convergence", () => {
 			await session?.dispose();
 		} finally {
 			session = undefined;
+			// Leave no cached global bus behind: a later file that resets the
+			// registry without resetting the bus would orphan it for its peers.
+			IrcBus.resetGlobalForTests();
 			await tempDir?.remove();
 		}
 	});
@@ -288,6 +291,13 @@ describe("AgentSession plan-mode convergence", () => {
 		const registry = AgentRegistry.global();
 		registry.register({ id: "peer", displayName: "peer", kind: "sub", session: null, status: "running" });
 		try {
+			// The global bus caches the AgentRegistry instance it was first built
+			// against, while other test files replace AgentRegistry.global() with
+			// resetGlobalForTests() without resetting the bus. Rebind so the bus
+			// resolves "peer" against the registry this test registers into —
+			// otherwise the auto-reply's send misses the waiter and the infinite
+			// wait below never settles.
+			IrcBus.resetGlobalForTests();
 			const bus = IrcBus.global();
 			const replyPromise = bus.wait("peer", { from: "me" }, 0);
 			const msg: IrcMessage = { id: "m2", from: "peer", to: "me", body: "blocked on you — status?", ts: Date.now() };
