@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `.omp/skills/sync-upstream/generate-skill-md.ts` — do not edit it by hand; run the script instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 74 fork commits on top of `upstream/main`.
+Total: 85 fork commits on top of `upstream/main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -126,6 +126,17 @@ Total: 74 fork commits on top of `upstream/main`.
 | `9dbf147f9e` | test(owp): retire auth-broker/gateway suites incompatible with fork stubs | `.omp/skills/sync-upstream/feature-registry.yaml`, `packages/coding-agent/test/auth-broker-migrate.test.ts`, `packages/coding-agent/test/auth-broker-snapshot-cache.test.ts`, `packages/coding-agent/test/auth-gateway-account-pool.test.ts`, `packages/coding-agent/test/issue-8096-broker-unreachable-startup.test.ts` | code |
 | `50c2137e1c` | fix(coding-agent): restore goal-mode draft images when the handler does not submit | `packages/coding-agent/src/slash-commands/builtin-registry.ts` | code |
 | `d60619574c` | feat(coding-agent): add /memory queue and sync verbs | `packages/coding-agent/src/slash-commands/builtin-registry.ts` | code |
+| `16f154232b` | chore(owp): register compiled-binary boot-fix ports, refresh fork tables | `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
+| `93e09cd0b6` | fix(owp): adopt upstream command composition, restore lost dispatch contracts | `.omp/skills/sync-upstream/feature-registry.yaml`, `packages/coding-agent/src/edit/index.ts`, `packages/coding-agent/src/edit/modes/replace.ts`, `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/coding-agent/src/modes/interactive-mode.ts`, … (4 more) | code |
+| `9dc5c515ba` | fix(ai): rewrite CLI login to drive registered OAuth providers via AuthStorage.login | `.omp/skills/sync-upstream/feature-registry.yaml`, `packages/ai/src/cli.ts` | code |
+| `bba18e42bd` | fix(coding-agent): accept mimo in edit.mode enums so per-model variant configs resolve | `.omp/skills/sync-upstream/feature-registry.yaml`, `packages/coding-agent/src/utils/edit-mode.ts` | code |
+| `31f688fee8` | fix(coding-agent): JS mimo edit-description routes before the native table | `.omp/skills/sync-upstream/feature-registry.yaml`, `packages/coding-agent/src/edit/index.ts` | code |
+| `99b6988cc2` | fix(owp): resolve plan path from the inlined-plan template; sync extensions | `.omp/extensions/opencode-zen-free-tier.ts`, `.omp/extensions/plan-report/plan-report.ts` | code |
+| `44d64fbc08` | fix(owp): resolve plans by their real path; await the binary existence check | `.omp/extensions/opencode-zen-free-tier.ts`, `.omp/extensions/plan-report/plan-report.ts` | code |
+| `de187836a3` | fix(coding-agent): restore fork features lost in the Sep 21 history rebuild | `crates/pi-edit/grammars/mimo.ts`, `docs/bugs/debug-mode-lifecycle.md`, `packages/ai/src/stream.ts`, `packages/coding-agent/CHANGELOG.md`, `packages/coding-agent/src/config/settings-schema.ts`, … (28 more) | code |
+| `57c6b233e6` | fix(owp): compiled binary boot — drop Bun bytecode, retarget the ESM guard | `docs/bugs/bytecode-childprocess-binding.md`, `packages/coding-agent/CHANGELOG.md`, `packages/coding-agent/scripts/compile-binary.ts`, `scripts/ci-release-build-binaries.test.ts` | code |
+| `4e02c62a5b` | chore(owp): refresh robomp web bundle assets | `python/robomp/src/static/assets/index-B0Qocx5T.js`, `python/robomp/src/static/assets/index-BCntletT.js`, `python/robomp/src/static/index.html` | chore |
+| `55b9a03226` | chore(owp): repair feature registry against the current tree | `.gitignore`, `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, `Dockerfile`, `docs/maintaining-owp-fork.md` | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `bun .omp/skills/sync-upstream/generate-skill-md.ts`, never by hand.
 <!-- GENERATED:fork-commits:end -->

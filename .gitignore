@@ -94,3 +94,8 @@ packages/coding-agent/bench/boot-baseline.json
 /bazel-oh-wiblo-pi
 /.bazelrc.user
 .parity/
+
+# Agent tooling installed locally by the skill installer (not repo content)
+.agents/
+.claude/
+skills-lock.json

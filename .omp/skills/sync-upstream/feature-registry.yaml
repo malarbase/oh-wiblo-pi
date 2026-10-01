@@ -18,7 +18,7 @@
 # Fork commit count at the last verified rebuild/rebase. `--verify` fails if
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
-expected_fork_commit_count: 79
+expected_fork_commit_count: 85
 
 features:
   - name: "Settings layering (project/global scope + revert)"
@@ -43,22 +43,44 @@ features:
       - "packages/coding-agent/src/session/agent-session.ts"
       - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
       - "packages/coding-agent/src/prompts/system/ask-mode-context.md"
+    protecting_tests:
+      - "test/modes/ask-mode/"
+
+  - name: "switch_mode tool"
+    description: "Agent-initiated mode switch; always active at top level, never xd://-mounted"
+    owned_paths:
+      - "packages/coding-agent/src/tools/switch-mode.ts"
+      - "packages/coding-agent/src/tools/index.ts"
+      - "packages/coding-agent/src/prompts/tools/switch-mode.md"
+    protecting_tests:
+      - "test/tools/switch-mode.test.ts"
+      - "test/tools/index.test.ts"
 
   - name: "Debug mode"
+    description: "Mode directive is appended by AgentSession.getModeContextPrompt(); the log server is started in enableDebugMode and stopped on disable/dispose"
     owned_paths:
       - "packages/coding-agent/src/modes/debug-mode/"
       - "packages/coding-agent/src/prompts/system/debug-mode-context.md"
+      - "packages/coding-agent/src/session/agent-session.ts"
+      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
+    protecting_tests:
+      - "test/modes/debug-mode/"
+      - "test/slash-commands/debug.test.ts"
 
   - name: "Local discovery + two-level scan"
+    description: "Providers self-register on import; discovery/index.ts is the only trigger and MUST keep importing ./pi"
     owned_paths:
       - "packages/coding-agent/src/discovery/pi.ts"
       - "packages/coding-agent/src/discovery/helpers.ts"
+      - "packages/coding-agent/src/discovery/index.ts"
+    protecting_tests:
+      - "test/discovery/pi-provider.test.ts"
 
   - name: "Skill grouping"
     owned_paths:
-      - "packages/coding-agent/src/modes/components/extensions/extension-list.ts"
+      - "packages/tui/src/overlays/extensions/extension-list.ts"
+      - "packages/tui/src/overlays/extensions/extension-dashboard.ts"
       - "packages/coding-agent/src/modes/components/extensions/state-manager.ts"
-      - "packages/coding-agent/src/modes/components/extensions/types.ts"
       - "packages/coding-agent/src/capability/skill.ts"
     protecting_tests:
       - "test/extensions/skill-grouping.test.ts"
@@ -84,10 +106,14 @@ features:
       - "packages/coding-agent/src/config/settings-schema.ts"
 
   - name: "SerpAPI search provider"
+    description: "Scraper-backed provider; its credential key (LEGACY_ENV_KEYS) lives in the AI package, so a conflict there silently kills availability"
     owned_paths:
       - "packages/coding-agent/src/web/search/providers/serpapi.ts"
       - "packages/coding-agent/src/web/search/types.ts"
       - "packages/coding-agent/src/web/search/provider.ts"
+      - "packages/ai/src/stream.ts"
+    protecting_tests:
+      - "test/tools/web-search-serpapi.test.ts"
 
   - name: "Plan mode /plan load"
     owned_paths:
@@ -102,18 +128,24 @@ features:
     description: "Forward finalPlanFilePath in approve/save paths so plan.storage=project saves to .omp/plans/"
     owned_paths:
       - "packages/coding-agent/src/modes/interactive-mode.ts"
+      - "packages/coding-agent/src/plan-mode/storage.ts"
+      - "packages/coding-agent/src/plan-mode/approved-plan.ts"
+      - "packages/coding-agent/src/plan-mode/resolve-handler.ts"
+      - "packages/coding-agent/src/modes/controllers/event-controller.ts"
 
   - name: "Provider onboarding wizard"
     owned_paths:
       - "packages/coding-agent/src/modes/components/provider-onboarding-wizard.ts"
-      - "packages/coding-agent/src/modes/components/settings-defs.ts"
+      - "packages/tui/src/overlays/settings-defs.ts"
 
   - name: "Install-binary custom command"
     owned_paths:
-      - ".omp/commands/install-binary/"
+      - "packages/coding-agent/src/extensibility/custom-commands/bundled/install-binary/"
 
   - name: "@mariozechner/* loader aliases"
+    description: "Alias graph + bunfs virtual modules relocated upstream into legacy-pi-compat.ts; the loaders only install it"
     owned_paths:
+      - "packages/coding-agent/src/extensibility/plugins/legacy-pi-compat.ts"
       - "packages/coding-agent/src/extensibility/extensions/loader.ts"
       - "packages/coding-agent/src/extensibility/custom-commands/loader.ts"
 
@@ -129,7 +161,9 @@ features:
     obsoleted_fixes: []
   - name: "Unified agent mode cycle (alt+k)"
     owned_paths:
-      - "packages/coding-agent/src/modes/components/status-line/"
+      - "packages/tui/src/status-line/"
+      - "packages/tui/src/app-keybindings.ts"
+      - "packages/coding-agent/src/modes/controllers/input-controller.ts"
       - "packages/coding-agent/src/config/settings-schema.ts"
 
   - name: "Session directory event + jiti loader + authHeader fix"
@@ -139,6 +173,8 @@ features:
       - "packages/coding-agent/src/capability/"
       - "packages/coding-agent/src/extensibility/extensions/loader.ts"
 
+    protecting_tests:
+      - "test/sdk-session-directory-event.test.ts"
   - name: "Cache write token tracking + bin/owp switcher"
     owned_paths:
       - "packages/ai/src/providers/openai-completions.ts"
@@ -150,8 +186,9 @@ features:
       - "packages/coding-agent/src/extensibility/custom-commands/loader.ts"
 
   - name: "Fix isBunBinary in compiled binary"
+    description: "Predicate relocated upstream to isCompiledBinary() in pi-utils; config.ts never carried it at the pre-rebuild tip either"
     owned_paths:
-      - "packages/coding-agent/src/config.ts"
+      - "packages/utils/src/env.ts"
     obsoleted_fixes: []
   - name: "Build dist/owp as primary output"
     owned_paths:
@@ -175,7 +212,7 @@ features:
     owned_paths:
       - "packages/coding-agent/src/modes/controllers/event-controller.ts"
       - "packages/coding-agent/package.json"
-      - ".omp/commands/install-binary/index.ts"
+      - "packages/coding-agent/src/extensibility/custom-commands/bundled/install-binary/index.ts"
       - "packages/coding-agent/test/tools/bash-interceptor.test.ts"
 
   - name: "Google search provider + hashline recovery + mode fixes"
@@ -190,9 +227,7 @@ features:
     description: "Minimal stubs for upstream-deleted modules required by OWP features"
     owned_paths:
       - "packages/coding-agent/src/tools/approval.ts"
-      - "packages/coding-agent/src/tools/exit-plan-mode.ts"
       - "packages/coding-agent/src/tools/output-schema-validator.ts"
-      - "packages/utils/src/install-id.ts"
       - "packages/utils/src/sanitize-text.ts"
 
   - name: "sync-upstream skill and script"
@@ -228,7 +263,7 @@ features:
 
   - name: "Add serpapi, gemini, codex to settings-defs"
     owned_paths:
-      - "packages/coding-agent/src/modes/components/settings-defs.ts"
+      - "packages/tui/src/overlays/settings-defs.ts"
 
   - name: "Add /refresh-models slash command"
     owned_paths:
@@ -240,7 +275,6 @@ features:
       - "packages/coding-agent/src/edit/modes/mimo.ts"
       - "packages/coding-agent/src/edit/index.ts"
       - "packages/coding-agent/src/utils/edit-mode.ts"
-      - "crates/pi-edit/grammars/mimo.ts"
       - "packages/tui/src/tools/edit.ts"
     protecting_tests:
       - "test/edit-mode.test.ts"
@@ -253,9 +287,14 @@ features:
       - "openspec/specs/skill-group-toggle/spec.md"
 
   - name: "Rediscover skills on /new after ECC toggles"
+    description: "newSession() re-runs discovery through the existing refresh seam, gated on skills.rediscoverOnNewSession"
     owned_paths:
       - "packages/coding-agent/src/sdk.ts"
+      - "packages/coding-agent/src/session/agent-session.ts"
+      - "packages/coding-agent/src/config/settings-schema.ts"
       - "packages/coding-agent/src/capability/skill.ts"
+    protecting_tests:
+      - "test/session/skill-rediscovery-new-session.test.ts"
 
   - name: "Work around zlob/zig build failure on macOS 26"
     owned_paths:
@@ -285,7 +324,6 @@ features:
       - ".omp/commands/release.md"
       - ".omp/commands/triage.md"
       - ".omp/commands/sync-upstream.md"
-      - ".omp/commands/install-binary.md"
 
   - name: "OWP documentation"
     owned_paths:
@@ -426,6 +464,9 @@ divergences:
   - path: "packages/*/CHANGELOG.md"
     reason: "Upstream owns release notes; owp never modifies changelog files."
     resolution: "prefer_upstream"
+  - path: "crates/pi-edit/grammars/mimo.ts"
+    reason: "Fork-only pre-repair duplicate of the live mimo mode (packages/coding-agent/src/edit/modes/mimo.ts); its imports never resolved from the crate dir and nothing referenced it. Deleted 2026-10-01 — native pi-edit owns grammars/*.lark."
+    resolution: "prefer_upstream"
 
   - path: "bun.lock"
     reason: "Lockfile is authoritative upstream; run bun install if deps differ."
@@ -475,6 +516,10 @@ divergences:
     reason: "Generated Turbo cache artifacts; should not be tracked."
     resolution: "prefer_upstream"
 
+  - path: "python/robomp/"
+    reason: "Fork KEEPS the robomp triage bot (59 tracked files, python/robomp/web workspace in package.json, robomp:* scripts, Dockerfile COPY). Resolved 2026-10-01: the earlier § removals rows contradicted the tree and would have let a sync delete it."
+    resolution: "prefer_ours"
+
   - path: "Dockerfile.robomp"
     reason: "Fork removes upstream robomp Docker builder."
     resolution: "prefer_ours"
@@ -483,8 +528,6 @@ divergences:
     reason: "Fork removes upstream robomp Docker builder context."
     resolution: "prefer_ours"
 
-  - path: "python/robomp/"
-    reason: "Fork removes upstream robomp GitHub triage bot."
     resolution: "prefer_ours"
 
   - path: "packages/hashline/"
@@ -493,14 +536,18 @@ divergences:
 
 # Intentional deletions — upstream files absent from owp on purpose.
 removals:
-  - path: "python/robomp/"
-    reason: "fork does not ship robomp"
   - path: "packages/hashline/"
     reason: "JS hashline retired — upstream native engine (crates/pi-edit) adopted"
   - path: "packages/coding-agent/src/hashline/"
     reason: "legacy ¶-era hashline module — superseded by native engine"
   - path: "packages/coding-agent/src/edit/hashline/"
     reason: "JS hashline executor retired — native engine adopted"
+  - path: "packages/coding-agent/src/edit/modes/patch.ts"
+    reason: "JS patch executor retired — native crates/pi-edit/src/modes/patch.rs adopted (Phase B, 1ef85e092c)"
+  - path: "packages/coding-agent/src/edit/modes/apply-patch.ts"
+    reason: "JS apply-patch executor retired — native crates/pi-edit/src/modes/apply_patch.rs adopted (Phase B, 1ef85e092c)"
+  - path: "packages/tui/src/overlays/extensions/extension-list.ts.bak"
+    reason: "stale fork backup copy of extension-list.ts; the live overlay is upstream-owned under packages/tui/"
   - path: "packages/coding-agent/src/edit/sloppy.ts"
     reason: "JS sloppy executor retired — native modes/sloppy adopted"
   - path: "packages/coding-agent/src/edit/streaming.ts"
