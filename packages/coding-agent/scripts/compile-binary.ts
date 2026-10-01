@@ -46,11 +46,24 @@ export async function compileCodingAgent(options: CodingAgentCompileOptions): Pr
 				"process.env.PI_TINY_TRANSFORMERS_VERSION": JSON.stringify(options.transformersVersion),
 				"process.env.PI_DOCS_EMBED": JSON.stringify((await buildDocsIndexPayload()).payload),
 			},
-			// Precompiled bytecode skips parsing the ~20 MB bundle at boot:
-			// `omp --version` 256 ms -> 30 ms on M4 Max (+52 MB binary).
-			// Keep import.meta.resolve in bundled dependencies valid under bytecode.
+			// Precompiled bytecode would skip parsing the ~20 MB bundle at boot
+			// (`omp --version` 256 ms -> 30 ms on M4 Max, ~+160 MB binary), but it
+			// is a known defect on Bun 1.3.x: the bytecode compiler drops the
+			// runtime binding for the default import of `child_process` inside
+			// @puppeteer/browsers/lib/launch.js. Every spawn through
+			// launchHeadlessBrowser then throws "childProcess is not defined",
+			// breaking web_search and the browser tool's fresh-launch path. A/B
+			// verified bytecode:false works and bytecode:true fails.
+			// Do not re-enable until a Bun upgrade is proven by the same A/B:
+			// build with bytecode:true and confirm `owp search --provider=google-ai
+			// <query>` returns real sources, and that the browser tool's
+			// fresh-launch path works (both go through launchHeadlessBrowser).
+			// Also pin the exact Bun version used for releases; mise.toml says
+			// 1.3.12 while PATH resolved 1.3.14, so the broken artifact was not
+			// reproducible by inspection. See
+			// docs/bugs/bytecode-childprocess-binding.md.
 			format: "esm",
-			bytecode: true,
+			bytecode: false,
 			minify: {
 				identifiers: options.minifyIdentifiers ?? false,
 				keepNames: true,

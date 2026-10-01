@@ -12,6 +12,8 @@
 
 ### Fixed
 
+- Fixed `web_search` and the browser tool's fresh-launch path failing in compiled binaries with `ReferenceError: childProcess is not defined`. Bun 1.3.x bytecode compilation dropped the runtime binding for the `child_process` default import inside `@puppeteer/browsers`, so precompiled bytecode is now disabled until a Bun upgrade is proven by A/B. Compiled binaries boot slower (~820 ms vs ~30 ms here) but are ~160 MB smaller.
+
 - Fixed Ask mode entering without its directive: the read-only instructions and the `switch_mode` escape hatch are appended to the rebuilt system prompt on every mode transition, so the agent-requested `switch_mode` path gets them too and no stale copy survives leaving the mode.
 - Fixed the `switch_mode` tool being absent from the default tool set, which left the Ask/plan mode directives pointing at a tool the session could not dispatch.
 - Fixed resume clutter: elide 0-turn sessions from the /resume menu; -c similarly skips empty sessions.
