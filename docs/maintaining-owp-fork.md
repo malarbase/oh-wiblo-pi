@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `.omp/skills/sync-upstream/generate-skill-md.ts` — do not edit it by hand; run the script instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 85 fork commits on top of `upstream/main`.
+Total: 89 fork commits on top of `upstream/main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -136,7 +136,11 @@ Total: 85 fork commits on top of `upstream/main`.
 | `de187836a3` | fix(coding-agent): restore fork features lost in the Sep 21 history rebuild | `crates/pi-edit/grammars/mimo.ts`, `docs/bugs/debug-mode-lifecycle.md`, `packages/ai/src/stream.ts`, `packages/coding-agent/CHANGELOG.md`, `packages/coding-agent/src/config/settings-schema.ts`, … (28 more) | code |
 | `57c6b233e6` | fix(owp): compiled binary boot — drop Bun bytecode, retarget the ESM guard | `docs/bugs/bytecode-childprocess-binding.md`, `packages/coding-agent/CHANGELOG.md`, `packages/coding-agent/scripts/compile-binary.ts`, `scripts/ci-release-build-binaries.test.ts` | code |
 | `4e02c62a5b` | chore(owp): refresh robomp web bundle assets | `python/robomp/src/static/assets/index-B0Qocx5T.js`, `python/robomp/src/static/assets/index-BCntletT.js`, `python/robomp/src/static/index.html` | chore |
-| `55b9a03226` | chore(owp): repair feature registry against the current tree | `.gitignore`, `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, `Dockerfile`, `docs/maintaining-owp-fork.md` | chore |
+| `57948acc1c` | chore(owp): repair feature registry against the current tree | `.gitignore`, `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, `Dockerfile`, `docs/maintaining-owp-fork.md` | chore |
+| `d426c9f600` | fix(coding-agent): make xd:// dispatch failures honest and terminal | `packages/coding-agent/src/tools/xdev.ts`, `packages/coding-agent/test/write-xdev-dispatch.test.ts` | code |
+| `e9d6a557c7` | fix(owp): close eleven fork-side test failures, two of them silent behavior regressions | `packages/coding-agent/src/session/prewalk.ts`, `packages/coding-agent/test/agent-session-concurrent.test.ts`, `packages/coding-agent/test/agent-session-plan-mode-convergence.test.ts`, `packages/coding-agent/test/extensibility/legacy-pi-ai-root-exports.test.ts`, `packages/coding-agent/test/tools/bash-interceptor.test.ts`, … (2 more) | code |
+| `4b7d8dba57` | test(vibe): restore the stale worker-session fixture and unbind the suspension hang | `packages/coding-agent/test/vibe/vibe-runtime.test.ts` | code |
+| `a0ada52523` | chore(owp): rebaseline fork commit count and regenerate the fork table | `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `bun .omp/skills/sync-upstream/generate-skill-md.ts`, never by hand.
 <!-- GENERATED:fork-commits:end -->
