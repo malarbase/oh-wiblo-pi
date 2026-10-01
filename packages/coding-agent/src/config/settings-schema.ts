@@ -314,6 +314,13 @@ export const SETTINGS_SCHEMA = {
 	"auth.broker.url": { type: "string", default: undefined },
 	"auth.broker.token": { type: "string", default: undefined, credential: true },
 
+	// OpenCode Zen free-tier unlock. Off by default: the gateway rejects `-free`
+	// models with 403 FreeTierError unless the request carries a session minted
+	// by the genuine `opencode` client and omits its API key. The companion
+	// extension (`~/.omp/agent/extensions/opencode-zen-free-tier.ts`) reads this
+	// key and installs the request rewrite when it is true.
+	opencodeZenFreeTier: { type: "boolean", default: false },
+
 	autoResume: {
 		type: "boolean",
 		default: false,
@@ -5352,6 +5359,17 @@ export const SETTINGS_SCHEMA = {
 
 	"skills.includeSkills": { type: "array", default: [] as string[] },
 
+	"skills.rediscoverOnNewSession": {
+		type: "boolean",
+		default: true,
+		ui: {
+			tab: "tasks",
+			group: "Commands & Skills",
+			label: "Rediscover Skills on New Session",
+			description: "Re-scan skills on /new so mid-session skill toggles take effect",
+		},
+	},
+
 	// Commands
 	"commands.enableClaudeUser": {
 		type: "boolean",
@@ -6414,6 +6432,7 @@ export interface SkillsSettings {
 	customDirectories?: string[];
 	ignoredSkills?: string[];
 	includeSkills?: string[];
+	rediscoverOnNewSession?: boolean;
 	disabledExtensions?: string[];
 }
 

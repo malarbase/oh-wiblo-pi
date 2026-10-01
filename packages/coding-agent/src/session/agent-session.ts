@@ -162,6 +162,8 @@ import type { DaemonCompletionNotification } from "../launch/protocol";
 import { shutdownMnemopiEmbedClient } from "../mnemopi/embed-client";
 import { getMnemopiSessionState, type MnemopiSessionState, setMnemopiSessionState } from "../mnemopi/state";
 import type { AskModeState } from "../modes/ask-mode/state";
+import { startLogServer } from "../modes/debug-mode/log-server";
+import type { DebugModeState } from "../modes/debug-mode/state";
 import { renderOrchestrateNotice } from "../modes/orchestrate";
 import { containsOrchestrate } from "@oh-my-pi/pi-tui/prompt/orchestrate";
 import { theme } from "@oh-my-pi/pi-tui/theme";
@@ -182,6 +184,7 @@ import goalTodoContextPrompt from "../prompts/goals/goal-todo-context.md" with {
 import askModeContextPrompt from "../prompts/system/ask-mode-context.md" with { type: "text" };
 import autoContinuePrompt from "../prompts/system/auto-continue.md" with { type: "text" };
 import checkpointActiveNoticeTemplate from "../prompts/system/checkpoint-active-notice.md" with { type: "text" };
+import debugModeContextPrompt from "../prompts/system/debug-mode-context.md" with { type: "text" };
 import interruptedThinkingTemplate from "../prompts/system/interrupted-thinking.md" with { type: "text" };
 import planModeActivePrompt from "../prompts/system/plan-mode-active.md" with { type: "text" };
 import planModeReferencePrompt from "../prompts/system/plan-mode-reference.md" with { type: "text" };
@@ -651,13 +654,19 @@ export class AgentSession {
 	#planModeState: PlanModeState | undefined;
 	#vibeModeState: VibeModeState | undefined;
 	#askModeState: AskModeState | undefined;
-	#debugModeState: { enabled: boolean } | undefined;
+	#debugModeState: DebugModeState | undefined;
 	#goalModeState: GoalModeState | undefined;
 	#goalRuntime: GoalRuntime;
 	readonly #advisors: SessionAdvisors;
 	/** Resolves once the resume-time advisor spend backfill settles. */
 	#advisorCostRestore: Promise<void> = Promise.resolve();
 	#goalTurnCounter = 0;
+	/**
+	 * Disabled-extension set the current skill discovery ran with
+	 * (openspec/specs/skill-rediscovery): `newSession()` re-runs discovery only
+	 * when the set changes — same set, same result.
+	 */
+	#skillsDiscoveryKey: string | undefined;
 	#planReferenceSent = false;
 	#planReferencePath = "local://PLAN.md";
 	#clientBridge: ClientBridge | undefined;
@@ -1312,6 +1321,7 @@ export class AgentSession {
 		this.#codeModeState = config.codeModeState ?? {};
 		this.sessionManager = config.sessionManager;
 		this.settings = config.settings;
+		this.#skillsDiscoveryKey = this.#currentSkillsDiscoveryKey();
 		this.memoryEnabled = config.memoryEnabled ?? true;
 		this.#modelRegistry = config.modelRegistry;
 		this.#extensionRoots =
@@ -4927,6 +4937,8 @@ export class AgentSession {
 		this.#movedFromEmptySessionFile = undefined;
 		this.#closeAllProviderSessions("dispose");
 		this.#maintenance.cancelSpeculation();
+		// A live debug-mode log server would keep the process alive past dispose.
+		this.#stopDebugLogServer();
 		this.setHindsightSessionState(undefined);
 		hindsightState?.dispose();
 		this.#disconnectFromAgent();
@@ -5529,8 +5541,21 @@ export class AgentSession {
 		return this.#tools.getSelectedMCPToolNames();
 	}
 
-	/** Rediscovers reloadable skills and refreshes prompt metadata. */
+	/**
+	 * Stable snapshot of the disabled-extension set skill discovery keys off
+	 * (sorted, so a re-ordered set still compares equal).
+	 */
+	#currentSkillsDiscoveryKey(): string {
+		return JSON.stringify([...(this.settings.get("disabledExtensions") ?? [])].sort());
+	}
+
+	/**
+	 * Rediscovers reloadable skills and refreshes prompt metadata. Records the
+	 * disabled-extension set the discovery ran with so `newSession()` can skip
+	 * a redundant re-scan (openspec/specs/skill-rediscovery).
+	 */
 	refreshSkills(): Promise<void> {
+		this.#skillsDiscoveryKey = this.#currentSkillsDiscoveryKey();
 		return this.#tools.refreshSkills();
 	}
 
@@ -6127,6 +6152,30 @@ export class AgentSession {
 	#isScoutAvailable(): boolean {
 		const disabledAgents = this.settings.get("task.disabledAgents") as string[] | undefined;
 		return this.#scoutAllowedBySpawnPolicy && !disabledAgents?.includes("scout");
+	}
+
+	/**
+	 * Mode directive for the CURRENT mode, appended to the end of every rebuilt
+	 * system prompt (see `rebuildSystemPrompt` in `sdk.ts`).
+	 *
+	 * The system prompt is the only place that satisfies both halves of the
+	 * contract at once: it is rebuilt wholesale on every mode transition
+	 * (`#setActiveMode` → `refreshBaseSystemPrompt`), so the directive can never
+	 * go stale after leaving the mode, and it never enters the transcript, so a
+	 * turn that leaves ask or debug mode cannot still read that mode's
+	 * instructions quoted back from history.
+	 */
+	getModeContextPrompt(): string | undefined {
+		if (this.#askModeState?.enabled) return askModeContextPrompt;
+		const debugState = this.#debugModeState;
+		if (debugState?.enabled) {
+			return prompt.render(debugModeContextPrompt, {
+				ingestUrl: debugState.ingestUrl,
+				logPath: debugState.logPath,
+				sessionId: debugState.sessionId,
+			});
+		}
+		return undefined;
 	}
 
 	async #buildPlanModeMessage(): Promise<CustomMessage | null> {
@@ -8446,8 +8495,22 @@ export class AgentSession {
 			// The workspace-roots block must also reflect the new session's
 			// directory set, not the previous session's — refresh before the next
 			// turn goes out.
-			resetCapabilities();
-			await this.refreshBaseSystemPrompt();
+			//
+			// Skill rediscovery on /new (openspec/specs/skill-rediscovery): re-scan
+			// reloadable skills with the current disabledExtensions before the new
+			// session's prompt is built, skipping the scan when the disabled set is
+			// unchanged (same set, same result). SessionTools gates the disk load
+			// itself on skillsReloadable. Both branches reset the capability cache
+			// (refreshSkills() does it first) and end in the same wholesale rebuild.
+			if (
+				this.settings.get("skills.rediscoverOnNewSession") &&
+				this.#skillsDiscoveryKey !== this.#currentSkillsDiscoveryKey()
+			) {
+				await this.refreshSkills();
+			} else {
+				resetCapabilities();
+				await this.refreshBaseSystemPrompt();
+			}
 
 			// Emit session_switch event with reason "new" to hooks
 			if (this.#extensionRunner) {
@@ -11467,24 +11530,70 @@ export class AgentSession {
 		this.#askModeState = { enabled: true };
 	}
 
-	enableDebugMode(): void {
-		this.#debugModeState = { enabled: true };
-	}
-
-	async disableDebugMode(): Promise<void> {
-		this.#debugModeState = undefined;
+	/**
+	 * Enter debug mode: allocate the session's debug state and start the local
+	 * log-ingestion server whose endpoint the debug-mode directive bakes into
+	 * the rebuilt system prompt. A bind failure is logged rather than thrown —
+	 * `#setActiveMode` has already committed `#activeMode = "debug"` when this
+	 * runs, and the state keeps an empty `ingestUrl` the model can see.
+	 */
+	async enableDebugMode(): Promise<void> {
+		if (this.#debugModeState?.enabled) return;
+		const sessionId = this.sessionManager.getSessionId();
+		const logPath = path.join(this.sessionManager.getCwd(), ".pi", `debug-${sessionId}.log`);
+		const state: DebugModeState = { enabled: true, sessionId, logPath, ingestUrl: "", server: undefined };
+		this.#debugModeState = state;
+		try {
+			const handle = await startLogServer(sessionId, logPath);
+			if (this.#debugModeState !== state) {
+				// disableDebugMode() raced the bind; do not leak the server.
+				handle.server.stop();
+				return;
+			}
+			state.ingestUrl = handle.ingestUrl;
+			state.server = handle.server;
+		} catch (error) {
+			logger.error("Failed to start debug mode log server", { error: String(error) });
+		}
 	}
 
 	/**
-	 * @deprecated Mode context is now injected via the system prompt.
-	 * Kept for extension compatibility. Core mode transitions no longer call this.
+	 * Leave debug mode: kill the log server so its endpoint dies with the mode,
+	 * then drop the state so the next prompt rebuild loses the directive.
 	 */
-	async sendAskModeContext(): Promise<void> {
-		await this.sendCustomMessage({
-			customType: "ask-mode-context",
-			content: askModeContextPrompt,
-			display: false,
-		});
+	async disableDebugMode(): Promise<void> {
+		this.#stopDebugLogServer();
+	}
+
+	/**
+	 * Stops the debug log server (if any) and clears the debug state. Also run
+	 * from dispose(): a live `Bun.serve` handle would keep the process alive
+	 * past teardown.
+	 */
+	#stopDebugLogServer(): void {
+		const state = this.#debugModeState;
+		this.#debugModeState = undefined;
+		if (!state?.server) return;
+		try {
+			state.server.stop();
+		} catch (error) {
+			logger.warn("Failed to stop debug mode log server", { error: String(error) });
+		}
+	}
+
+	/**
+	 * Ask-mode directive for a turn already in flight. The directive normally
+	 * rides the rebuilt system prompt, but a turn that started before the mode
+	 * switch has already read that prompt — steer the copy in, the way plan mode
+	 * does for its own mid-stream entry.
+	 */
+	async sendAskModeContext(options?: { deliverAs?: "steer" | "followUp" | "nextTurn" | "aside" }): Promise<void> {
+		const content = this.getModeContextPrompt();
+		if (!content) return;
+		await this.sendCustomMessage(
+			{ customType: "ask-mode-context", content, display: false },
+			options ? { deliverAs: options.deliverAs } : undefined,
+		);
 	}
 
 	async disableAskMode(): Promise<void> {

@@ -44,7 +44,10 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<SlashCommandSpec> = [
 	...BUILTIN_MODE_SLASH_COMMANDS,
 	...BUILTIN_COLLABORATION_SLASH_COMMANDS,
 	...BUILTIN_SESSION_SLASH_COMMANDS,
-	...BUILTIN_LIFECYCLE_SLASH_COMMANDS,
+	// Fork delta: the `debug` name belongs to the debug-mode toggle below, so
+	// upstream's selector spec is filtered out here — its capability stays
+	// reachable as `/debug tools` (and via the global debug keybinding).
+	...BUILTIN_LIFECYCLE_SLASH_COMMANDS.filter(command => command.name !== "debug"),
 	...BUILTIN_MARKETPLACE_SLASH_COMMANDS,
 	...BUILTIN_CONTROL_SLASH_COMMANDS,
 	{
@@ -68,6 +71,23 @@ const BUILTIN_SLASH_COMMAND_REGISTRY: ReadonlyArray<SlashCommandSpec> = [
 				await runtime.ctx.handleDebugModeCommand();
 			} else {
 				runtime.ctx.showStatus("Agent mode is active.");
+			}
+		},
+	},
+	{
+		name: "debug",
+		description: "Toggle debug mode (debug with runtime evidence)",
+		allowArgs: true,
+		subcommands: [{ name: "tools", description: "Open debug tools selector" }],
+		handleTui: async (command, runtime) => {
+			const args = command.args.trim().toLowerCase();
+			runtime.ctx.editor.setText("");
+			if (args === "") {
+				await runtime.ctx.handleDebugModeCommand();
+			} else if (args === "tools") {
+				await runtime.ctx.showDebugSelector();
+			} else {
+				runtime.ctx.showWarning(`Usage: /${command.name} [tools]`);
 			}
 		},
 	},

@@ -167,7 +167,7 @@ describe("createTools", () => {
 
 		expect(session.deviceOnlyWrite).toBe(true);
 		expect(session.xdev).toBeDefined();
-		expect(tools.map(tool => tool.name)).toEqual(["read", "lsp", "write"]);
+		expect(tools.map(tool => tool.name)).toEqual(["read", "lsp", "switch_mode", "write"]);
 	});
 
 	it("lowercases requested tool subset", async () => {
@@ -255,7 +255,7 @@ describe("createTools", () => {
 			["ask", "read"],
 		);
 		// write joins as the device-only xd:// transport (read granted, ask disabled).
-		expect(requested.map(t => t.name)).toEqual(["read", "write"]);
+		expect(requested.map(t => t.name)).toEqual(["read", "switch_mode", "write"]);
 	});
 
 	it("includes ask tool when ask.enabled is true and hasUI is true", async () => {
@@ -295,7 +295,7 @@ describe("createTools", () => {
 		const requestedTools = await createTools(createTestSession({ settings: session.settings }), ["bash", "read"]);
 		// `write` joins as the device-only xd:// transport: read was granted,
 		// write omitted (see the "device-only xd:// transport write" test).
-		expect(requestedTools.map(t => t.name)).toEqual(["read", "write"]);
+		expect(requestedTools.map(t => t.name)).toEqual(["read", "switch_mode", "write"]);
 	});
 
 	it("auto-includes goal when goal mode is active", async () => {
@@ -309,7 +309,7 @@ describe("createTools", () => {
 		const names = tools.map(t => t.name);
 
 		// `write` joins last as the device-only xd:// transport (see above).
-		expect(names).toEqual(["read", "goal", "write"]);
+		expect(names).toEqual(["read", "goal", "switch_mode", "write"]);
 	});
 
 	it("does not widen a restricted explicit tool list for an active goal", async () => {
@@ -447,6 +447,12 @@ describe("createTools", () => {
 	});
 
 	it("HIDDEN_TOOLS contains expected hidden tools", () => {
-		expect(Object.keys(HIDDEN_TOOLS).sort()).toEqual(["ask_followup_question", "goal", "switch_mode", "yield"]);
+		expect(Object.keys(HIDDEN_TOOLS).sort()).toEqual([
+			"ask_followup_question",
+			"goal",
+			"switch_mode",
+			"think",
+			"yield",
+		]);
 	});
 });

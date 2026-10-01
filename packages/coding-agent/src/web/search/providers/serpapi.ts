@@ -7,7 +7,7 @@
  *
  * Requires SERPAPI_API_KEY environment variable or setting.
  */
-import { getEnvApiKey } from "@oh-my-pi/pi-ai";
+import { type ApiKey, type AuthStorage, getEnvApiKey, withAuth } from "@oh-my-pi/pi-ai";
 import type { SearchResponse, SearchSource } from "../../../web/search/types";
 import { SearchProviderError } from "../../../web/search/types";
 import { dateToAgeSeconds } from "../utils";
@@ -127,20 +127,18 @@ export class SerpApiProvider extends SearchProvider {
 	readonly id = "serpapi" as const;
 	readonly label = "SerpAPI";
 
-	isAvailable(): boolean {
-		return Boolean(getEnvApiKey("serpapi"));
+	isAvailable(authStorage: AuthStorage): boolean {
+		return authStorage.hasAuth("serpapi") || !!getEnvApiKey("serpapi");
 	}
 
 	search(params: SearchParams): Promise<SearchResponse> {
-		const apiKey = getEnvApiKey("serpapi");
-		if (!apiKey) {
-			return Promise.reject(
-				new SearchProviderError(
-					"serpapi",
-					"SERPAPI_API_KEY is required. Visit https://serpapi.com to get an API key.",
-				),
-			);
-		}
-		return searchSerpApi(params, apiKey);
+		const keyOrResolver: ApiKey = params.authStorage.resolver("serpapi", {
+			sessionId: params.sessionId,
+		});
+		return withAuth(keyOrResolver, key => searchSerpApi(params, key), {
+			signal: params.signal,
+			missingKeyMessage:
+				'SerpAPI credentials not found. Set SERPAPI_API_KEY or configure an API key for provider "serpapi".',
+		});
 	}
 }

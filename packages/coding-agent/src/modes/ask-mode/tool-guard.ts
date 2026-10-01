@@ -28,7 +28,7 @@ export type AskModeValidator = (params: unknown) => ReadOnlyCheck;
 export function wrapToolWithAskModeGuard<T extends AgentTool<any, any, any>>(
 	tool: T,
 	getAskModeState: () => AskModeState | undefined,
-	validators?: Map<string, AskModeValidator>,
+	validators?: Record<string, AskModeValidator>,
 ): T {
 	const originalExecute = tool.execute;
 
@@ -42,7 +42,7 @@ export function wrapToolWithAskModeGuard<T extends AgentTool<any, any, any>>(
 	): Promise<AgentToolResult> {
 		const state = getAskModeState();
 		if (state?.enabled && !isReadOnlyTool(tool.name)) {
-			const validator = validators?.get(tool.name);
+			const validator = validators?.[tool.name];
 			if (validator) {
 				const check = validator(params);
 				if (!check.allowed) {

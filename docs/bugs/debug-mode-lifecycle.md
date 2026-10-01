@@ -1,108 +1,93 @@
-# Debug Mode — Lifecycle and Known Issues
+# Debug Mode — Lifecycle
 
-## Lifecycle
+## Overview
 
-### Activation
+Debug mode makes the agent debug with runtime evidence: while the mode is
+active, a local log-ingestion server is up and the system prompt carries a
+debug directive with the live endpoint, log path, and session id baked in.
 
-`InteractiveMode.#enterDebugModeInternal()` (`packages/coding-agent/src/modes/interactive-mode.ts:1164`)
+The directive rides the rebuilt system prompt
+(`AgentSession.getModeContextPrompt()`, consumed by `rebuildSystemPrompt` in
+`sdk.ts`), never the transcript — so leaving the mode rebuilds the prompt
+without it and no stale endpoint survives in history.
 
-1. `session.enableDebugMode()` — allocates `#debugModeState` with the session ID and log path; `ingestUrl` starts as `""`.
-2. `startLogServer(sessionId, logPath)` (`packages/coding-agent/src/modes/debug-mode/log-server.ts:16`) — binds a Bun HTTP server on `127.0.0.1:0` (OS-assigned port). Accepts `POST /ingest/<sessionId>`, appends body as NDJSON to the log file.
-3. `debugState.ingestUrl` is updated to the real `http://127.0.0.1:<port>/ingest/<sessionId>`.
-4. `session.sendDebugModeContext()` — renders `prompts/system/debug-mode-context.md` with `{{ingestUrl}}`, `{{logPath}}`, `{{sessionId}}` substituted and injects it into the conversation as a non-displayed custom message. The agent now has the live endpoint baked into its context.
+## Activation
 
-### Deactivation
+Every entry point funnels through `InteractiveMode.#setActiveMode("debug")`
+(`packages/coding-agent/src/modes/interactive-mode.ts`):
 
-`InteractiveMode.#exitDebugModeInternal()` (`interactive-mode.ts:1150`)
+- `/debug` (inline spec in `slash-commands/builtin-registry.ts`)
+- the `switch_mode` tool (`handleSwitchModeTool`)
+- the mode cycler (`cycleAgentMode`: ask → debug)
 
-1. `state.server.stop()` — **log server is killed here**.
-2. `session.disableDebugMode()` (`agent-session.ts:2520`) — clears `#debugModeState`, then sends `prompts/system/debug-mode-off.md` as a custom message.
+`#setActiveMode("debug")`:
 
-The off message (`debug-mode-off.md`) currently reads:
+1. Exits the previous mode first (a debug → debug re-entry is short-circuited
+   before this point: `#setActiveMode` no-ops when the target equals the
+   current mode, and `handleDebugModeCommand` reports "already active").
+2. `await session.enableDebugMode()` (`packages/coding-agent/src/session/agent-session.ts`):
+   1. allocates `#debugModeState` (`DebugModeState`,
+      `packages/coding-agent/src/modes/debug-mode/state.ts`) with the session id
+      (`sessionManager.getSessionId()`), `logPath = <session cwd>/.pi/debug-<sessionId>.log`,
+      and an initially empty `ingestUrl`;
+   2. `startLogServer(sessionId, logPath)`
+      (`packages/coding-agent/src/modes/debug-mode/log-server.ts`) binds a Bun
+      HTTP server on `127.0.0.1:0` (OS-assigned port), accepting
+      `POST /ingest/<sessionId>` and appending the body as an NDJSON line to
+      the log path (directory created on demand);
+   3. fills the real `ingestUrl` (`http://127.0.0.1:<port>/ingest/<sessionId>`)
+      and the live `server` handle into the state. A bind failure is logged
+      (`logger.error`) rather than thrown — `#setActiveMode` has already
+      committed the mode at that point, so debug mode activates with an empty
+      endpoint instead of leaving a half-switched mode behind.
+3. Sets the status-line badge (`statusLine.setDebugModeStatus({ enabled: true })`)
+   and records the transition (`sessionManager.appendModeChange("debug")`).
+4. `await session.refreshBaseSystemPrompt()` — `sdk.ts#rebuildSystemPrompt`
+   appends `session.getModeContextPrompt()`, which for active debug mode
+   renders `prompts/system/debug-mode-context.md` with `{{ingestUrl}}`,
+   `{{logPath}}`, and `{{sessionId}}` substituted. The agent now has the live
+   endpoint baked into its context.
 
-> Debug mode has been disabled. You are back in normal agent mode. Extended thinking and the debug-focused diagnostic posture no longer apply. Proceed as normal.
+## Deactivation
 
----
+Leaving debug mode (`/agent`, `cycleAgentMode`, `switch_mode`) runs the exit
+arm of `#setActiveMode`:
 
-## Bug 1 — Off message does not invalidate the stale endpoint
+1. `await session.disableDebugMode()` — stops the log server
+   (`server.stop()`), so the endpoint dies with the mode, then clears
+   `#debugModeState`.
+2. The status badge is cleared (`statusLine.setDebugModeStatus(undefined)`).
+3. The prompt rebuild at the end of `#setActiveMode` no longer finds debug
+   state, so `getModeContextPrompt()` returns nothing and the directive is
+   gone from the next system prompt.
 
-### What happens
+`AgentSession.dispose()` runs the same teardown (`#stopDebugLogServer`), so a
+session disposed while debug mode is active cannot leak the `Bun.serve`
+handle and keep the process alive.
 
-The live `ingestUrl` (e.g. `http://127.0.0.1:64795/ingest/<id>`) is baked into the agent's conversation history by `sendDebugModeContext()`. When `#exitDebugModeInternal()` runs, it stops the server **before** sending the off message. The off message does not mention the endpoint.
+## Command surface
 
-If the agent later encounters a debugging task, it can retrieve that endpoint from earlier in the context window and attempt to use it. Every `fetch()` to a dead server returns connection refused (exit 7). The log file is never created. The agent interprets the missing file as a missing tool-call output and either halts or proceeds without evidence.
+- `/debug` — enable debug mode (calls `ctx.handleDebugModeCommand()`). While
+  debug mode is active it reports "already active"; leave via `/agent`, the
+  mode cycler, or `switch_mode`.
+- `/debug tools` — the debug tools selector. Upstream's satellite `/debug`
+  spec (in `slash-commands/builtin-lifecycle.ts`) is filtered out of the
+  registry composition in `builtin-registry.ts` so the fork's mode toggle owns
+  the name; the selector capability stays reachable as this subcommand and via
+  the global debug keybinding (`ui.onDebug`).
 
-### Root cause
+## Log format
 
-`disableDebugMode()` in `agent-session.ts:2520` clears `#debugModeState = undefined` before constructing the off message, discarding the `ingestUrl`. The off prompt is a static string with no template variables, so it cannot reference the now-dead endpoint.
+Logs are NDJSON — one JSON object per line — written to
+`<session cwd>/.pi/debug-<sessionId>.log`. The prompt's instrumentation
+template POSTs payloads (`{sessionId, runId, hypothesisId, location, message,
+data, timestamp}`) to the ingest endpoint; for non-JavaScript languages the
+directive has the model append NDJSON lines to the log path directly.
 
-### Fix
+## Notes
 
-**Option A — minimum (static warning):** Strengthen `debug-mode-off.md` to say the endpoint is dead without naming it:
-
-```
-Debug mode has been disabled. You are back in normal agent mode.
-
-The log server provisioned for this session has been stopped. Any
-`ingestUrl` or endpoint referenced in earlier messages in this conversation
-is no longer reachable. Do NOT attempt to use it. Do NOT add fetch()-based
-instrumentation of any kind.
-```
-
-**Option B — name the dead endpoint explicitly:** Capture `state.ingestUrl` before clearing state, render the off message as a template.
-
-In `agent-session.ts:disableDebugMode()`:
-```ts
-async disableDebugMode(): Promise<void> {
-    const state = this.#debugModeState;
-    if (!state?.enabled) return;
-    const ingestUrl = state.ingestUrl;   // capture before clearing
-    this.#debugModeState = undefined;
-    await this.sendCustomMessage({
-        customType: "debug-mode-off",
-        content: prompt.render(debugModeOffPrompt, { ingestUrl }),
-        display: false,
-    });
-}
-```
-
-Add `{{ingestUrl}}` to `debug-mode-off.md`:
-```
-The log server at `{{ingestUrl}}` has been stopped and is no longer
-reachable. Do not attempt fetch() calls to this endpoint.
-```
-
----
-
-## Bug 2 — Agent self-activates debug workflow from topic, not from session state
-
-### What happens
-
-The off message says "Extended thinking and the debug-focused diagnostic posture no longer apply." However, it does not explicitly prohibit the agent from entering the debug workflow (hypothesis list → instrumentation → reproduction ask → log analysis) when the *topic* of the conversation is debugging. The agent interprets "debugging" as a trigger for the debug workflow rather than treating it as a harness-controlled mode that requires an active in-turn activation message.
-
-Observed behaviour: user asked "how do I debug this?" after debug mode had been disabled. Agent generated 5 hypotheses, added `fetch()`-based instrumentation using the stale endpoint, and asked the user to reproduce — the full debug mode workflow, without any active debug session.
-
-### Root cause
-
-The off message lacks an explicit constraint on when the debug workflow is permitted.
-
-### Fix
-
-Add to `debug-mode-off.md`:
-
-```
-You will only enter the debug-mode workflow (hypotheses, fetch()
-instrumentation, reproduction steps, log analysis) when an explicit
-debug mode activation message is delivered to you in the CURRENT turn.
-Never self-activate this workflow because the topic involves debugging.
-Standard investigation applies: read code, identify cause, fix.
-```
-
----
-
-## Summary of files to change
-
-| File | Change |
-|------|--------|
-| `packages/coding-agent/src/prompts/system/debug-mode-off.md` | Add endpoint-invalidation and self-activation prohibition (see both fixes above) |
-| `packages/coding-agent/src/session/agent-session.ts:2520` | Capture `state.ingestUrl` before clearing; render off prompt as template (Bug 1 Option B) |
+- There is no debug-mode "off" message: `prompts/system/debug-mode-off.md`
+  exists on disk but is not wired into any code path. Deactivation relies on
+  the wholesale prompt rebuild, which both removes the directive and
+  invalidates the endpoint (the directive never enters the transcript, so the
+  model cannot retrieve a dead endpoint from history).

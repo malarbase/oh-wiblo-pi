@@ -702,6 +702,32 @@ export interface ResourcesDiscoverResult {
 }
 
 // ============================================================================
+// Startup Events
+// ============================================================================
+
+/**
+ * Fired once at CLI startup, before the session manager is created, to let
+ * extensions redirect where sessions are stored
+ * (openspec/specs/session-directory-event).
+ *
+ * The event is emitted against the extension result the CLI preloads before
+ * the session exists, so no {@link ExtensionContext} can accompany it yet —
+ * the handler receives the event alone. It is never routed through
+ * {@link ExtensionRunner}, so it is deliberately absent from
+ * {@link ExtensionEvent}.
+ */
+export interface SessionDirectoryEvent {
+	type: "session_directory";
+	cwd: string;
+}
+
+/** Result from session_directory event handler. The last non-empty sessionDir wins. */
+export interface SessionDirectoryResult {
+	/** Redirect session storage to this directory; empty/absent keeps the current choice. */
+	sessionDir?: string;
+}
+
+// ============================================================================
 // Session Events (shared with hooks subsystem)
 // ============================================================================
 
@@ -1201,6 +1227,17 @@ export interface ExtensionAPI {
 	// =========================================================================
 
 	on(event: "resources_discover", handler: ExtensionHandler<ResourcesDiscoverEvent, ResourcesDiscoverResult>): void;
+	/**
+	 * Startup-only (CLI preload path): fired once before the session manager
+	 * is created, so no {@link ExtensionContext} exists yet — the handler takes
+	 * the event alone and MAY return `{ sessionDir }` to redirect storage. The
+	 * last non-empty `sessionDir` wins; an explicit `sessionManager` (e.g. the
+	 * `--session-dir` flag) suppresses the event entirely.
+	 */
+	on(
+		event: "session_directory",
+		handler: (event: SessionDirectoryEvent) => SessionDirectoryResult | void | Promise<SessionDirectoryResult | void>,
+	): void;
 	on(event: "session_start", handler: ExtensionHandler<SessionStartEvent>): void;
 	on(
 		event: "session_before_switch",

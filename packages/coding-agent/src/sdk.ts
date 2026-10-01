@@ -112,6 +112,7 @@ import {
 	loadExtensions,
 	type PreparedExtension,
 	type RegisteredTool,
+	type SessionDirectoryResult,
 	type ToolDefinition,
 	wrapRegisteredTools,
 } from "./extensibility/extensions";
@@ -1458,11 +1459,32 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 	// Initialize provider preferences from settings
 	applyProviderGlobalsFromSettings(settings);
 
-	const sessionManager =
-		options.sessionManager ??
-		logger.time("sessionManager", () =>
-			SessionManager.create(cwd, SessionManager.getDefaultSessionDir(cwd, agentDir)),
+	// `session_directory` (openspec/specs/session-directory-event): fired once,
+	// before any session manager exists, against the extension result the CLI
+	// already loaded (`preloadedExtensions`) — the SDK path loads extensions
+	// later in this function, so the event never fires there. An explicit host
+	// choice (`options.sessionManager`, which is how main.ts threads
+	// `--session-dir` through) suppresses the event entirely. Among handler
+	// results the last non-empty `sessionDir` wins over the default directory.
+	let sessionManager = options.sessionManager;
+	if (!sessionManager) {
+		let sessionDir: string | undefined;
+		for (const extension of options.preloadedExtensions?.extensions ?? []) {
+			for (const handler of extension.handlers.get("session_directory") ?? []) {
+				try {
+					const result = (await handler({ type: "session_directory", cwd })) as SessionDirectoryResult | undefined;
+					if (result?.sessionDir) {
+						sessionDir = result.sessionDir;
+					}
+				} catch (error) {
+					logger.error("session_directory handler failed", { path: extension.path, error });
+				}
+			}
+		}
+		sessionManager = logger.time("sessionManager", () =>
+			SessionManager.create(cwd, sessionDir ?? SessionManager.getDefaultSessionDir(cwd, agentDir)),
 		);
+	}
 	const configuredDirs = options.additionalDirectories
 		? options.additionalDirectories
 		: settings.get("workspace.additionalDirectories");
@@ -1891,6 +1913,9 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			getServiceTierByFamily: () => session?.serviceTierByFamily,
 			getImageAttachments: () => session?.getImageAttachments() ?? [],
 			getPlanModeState: () => session?.getPlanModeState(),
+			// Ask-mode read-only enforcement reads this on every tool call; without
+			// the accessor the in-tool guards silently no-op in production.
+			getAskModeState: () => session?.getAskModeState(),
 			getPlanReferencePath: () => session?.getPlanReferencePath() ?? "local://PLAN.md",
 			getGoalModeState: () => session?.getGoalModeState(),
 			getGoalRuntime: () => session?.goalRuntime,
@@ -3267,6 +3292,11 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 					appendParts.push(`### ${srvName}\n${truncated}`);
 				}
 			}
+			// Fork mode directives (ask mode) close the prompt: last position keeps
+			// the provider's cached prefix byte-stable, and a wholesale rebuild on
+			// every mode transition keeps the directive from ever going stale.
+			const modeContext = hasSession ? session?.getModeContextPrompt() : undefined;
+			if (modeContext) appendParts.push(modeContext);
 			const appendPrompt = composeAppendPrompt(appendParts, options.appendSystemPrompt);
 			// Owned/in-band tool dialects (non-native) require the full functions-
 			// namespace catalog; native tool calling lets the compact name list suffice.

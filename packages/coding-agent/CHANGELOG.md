@@ -12,6 +12,8 @@
 
 ### Fixed
 
+- Fixed Ask mode entering without its directive: the read-only instructions and the `switch_mode` escape hatch are appended to the rebuilt system prompt on every mode transition, so the agent-requested `switch_mode` path gets them too and no stale copy survives leaving the mode.
+- Fixed the `switch_mode` tool being absent from the default tool set, which left the Ask/plan mode directives pointing at a tool the session could not dispatch.
 - Fixed resume clutter: elide 0-turn sessions from the /resume menu; -c similarly skips empty sessions.
 - Fixed Edit calls getting stuck generating repeated closing tags after an empty `SM:AFTER` insertion.
 - Fixed Edit previews and application panicking on Unicode no-op edits and overlapping duplicate matches.

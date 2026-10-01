@@ -82,7 +82,7 @@ describe("wrapToolWithAskModeGuard", () => {
 
 		it("allows a read-only bash command", async () => {
 			const tool = makeToolStub("bash");
-			const validators = new Map<string, AskModeValidator>([["bash", makeBashValidator()]]);
+			const validators: Record<string, AskModeValidator> = { bash: makeBashValidator() };
 			const wrapped = wrapToolWithAskModeGuard(tool, () => askOn, validators);
 			const result = await wrapped.execute("id", { command: "ls -la" });
 			expect(textOf(result)).toBe("bash executed");
@@ -90,7 +90,7 @@ describe("wrapToolWithAskModeGuard", () => {
 
 		it("blocks a mutating bash command and includes the reason", async () => {
 			const tool = makeToolStub("bash");
-			const validators = new Map<string, AskModeValidator>([["bash", makeBashValidator()]]);
+			const validators: Record<string, AskModeValidator> = { bash: makeBashValidator() };
 			const wrapped = wrapToolWithAskModeGuard(tool, () => askOn, validators);
 			const result = await wrapped.execute("id", { command: "rm -rf /" });
 			const text = textOf(result);
@@ -102,7 +102,7 @@ describe("wrapToolWithAskModeGuard", () => {
 		it("blocks bash when ask mode is on but ask mode turns off mid-session", async () => {
 			let state: AskModeState = askOn;
 			const tool = makeToolStub("bash");
-			const validators = new Map<string, AskModeValidator>([["bash", makeBashValidator()]]);
+			const validators: Record<string, AskModeValidator> = { bash: makeBashValidator() };
 			const wrapped = wrapToolWithAskModeGuard(tool, () => state, validators);
 
 			// blocked when ask mode is on

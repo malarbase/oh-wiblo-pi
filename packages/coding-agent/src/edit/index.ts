@@ -354,6 +354,17 @@ function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
 	return true;
 }
 
+/**
+ * Arg stream handed out for fork-only modes with no native engine (mimo):
+ * there is nothing to preview incrementally, and `execute` applies the parsed
+ * params in JS without ever consulting `#streamedArgs`, so nothing is recorded.
+ */
+const inertArgStream: AgentToolArgStream = {
+	push() {},
+	end() {},
+	cancel() {},
+};
+
 export class EditTool implements AgentTool<TInput> {
 	readonly name = "edit";
 	readonly label = "Edit";
@@ -421,6 +432,10 @@ export class EditTool implements AgentTool<TInput> {
 	}
 
 	get customFormat(): { syntax: "lark"; definition: string } | undefined {
+		// Fork-only mode with no native lark grammar — the native binding throws
+		// on unknown modes, so skip the lookup and report "no custom format"
+		// exactly like replace/patch do.
+		if (this.mode === "mimo") return undefined;
 		const definition = editGrammar(this.mode);
 		return definition === null ? undefined : { syntax: "lark", definition };
 	}
@@ -464,6 +479,13 @@ export class EditTool implements AgentTool<TInput> {
 		const existing = this.#sessions.get(init.toolCallId);
 		if (existing) existing.close();
 		this.#streamedArgs.delete(init.toolCallId);
+		if (this.mode === "mimo") {
+			// Fork-only mode: the native EditSession rejects unknown modes, and
+			// execute() applies mimo edits in JS from the parsed params, so the
+			// call streams no incremental preview.
+			this.#sessions.delete(init.toolCallId);
+			return inertArgStream;
+		}
 		// A call that arrived through the custom-tool wire streams the payload
 		// verbatim; JSON function calls stream JSON text.
 		const rawInput = init.customWireName !== undefined;

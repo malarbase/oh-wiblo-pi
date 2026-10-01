@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import type { AuthStorage } from "@oh-my-pi/pi-ai";
 import type { SearchParams } from "../../src/web/search/providers/base";
 import { buildSerpApiUrl, SerpApiProvider } from "../../src/web/search/providers/serpapi";
 
@@ -6,8 +7,21 @@ function makeParams(overrides: Partial<SearchParams> = {}): SearchParams {
 	return {
 		query: "test query",
 		systemPrompt: "You are a helpful assistant.",
+		authStorage: makeAuthStorage(undefined),
 		...overrides,
-	} as any;
+	};
+}
+
+function makeAuthStorage(apiKey: string | undefined): AuthStorage {
+	return {
+		hasAuth(provider: string) {
+			return provider === "serpapi" && Boolean(apiKey);
+		},
+		resolver(provider: string) {
+			expect(provider).toBe("serpapi");
+			return async () => apiKey;
+		},
+	} as unknown as AuthStorage;
 }
 
 describe("buildSerpApiUrl", () => {
@@ -61,5 +75,50 @@ describe("SerpApiProvider", () => {
 		const provider = new SerpApiProvider();
 		expect(provider.id).toBe("serpapi");
 		expect(provider.label).toBe("SerpAPI");
+	});
+
+	it("is unavailable without a credential and available with SERPAPI_API_KEY", () => {
+		const originalApiKey = process.env.SERPAPI_API_KEY;
+		delete process.env.SERPAPI_API_KEY;
+		try {
+			const provider = new SerpApiProvider();
+			const keyless = makeAuthStorage(undefined);
+
+			expect(provider.isAvailable(keyless)).toBe(false);
+			expect(provider.isExplicitlyAvailable(keyless)).toBe(false);
+
+			process.env.SERPAPI_API_KEY = "test-serpapi-key";
+			expect(provider.isAvailable(keyless)).toBe(true);
+			expect(provider.isExplicitlyAvailable(keyless)).toBe(true);
+		} finally {
+			if (originalApiKey === undefined) delete process.env.SERPAPI_API_KEY;
+			else process.env.SERPAPI_API_KEY = originalApiKey;
+		}
+	});
+
+	it("is available from a stored authStorage credential without the env var", () => {
+		const originalApiKey = process.env.SERPAPI_API_KEY;
+		delete process.env.SERPAPI_API_KEY;
+		try {
+			const provider = new SerpApiProvider();
+			expect(provider.isAvailable(makeAuthStorage("stored-key"))).toBe(true);
+		} finally {
+			if (originalApiKey === undefined) delete process.env.SERPAPI_API_KEY;
+			else process.env.SERPAPI_API_KEY = originalApiKey;
+		}
+	});
+
+	it("rejects with a clear error when no credential resolves", async () => {
+		const originalApiKey = process.env.SERPAPI_API_KEY;
+		delete process.env.SERPAPI_API_KEY;
+		try {
+			const provider = new SerpApiProvider();
+			await expect(provider.search(makeParams({ authStorage: makeAuthStorage(undefined) }))).rejects.toThrow(
+				'SerpAPI credentials not found. Set SERPAPI_API_KEY or configure an API key for provider "serpapi".',
+			);
+		} finally {
+			if (originalApiKey === undefined) delete process.env.SERPAPI_API_KEY;
+			else process.env.SERPAPI_API_KEY = originalApiKey;
+		}
 	});
 });

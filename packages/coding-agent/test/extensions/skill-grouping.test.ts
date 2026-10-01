@@ -5,6 +5,10 @@ import path from "node:path";
 import type { LoadContext } from "../../src/capability/types";
 import { scanSkillsFromDir } from "../../src/discovery/helpers";
 import { ExtensionList } from "@oh-my-pi/pi-tui/overlays/extensions/extension-list";
+import {
+	ExtensionDashboard,
+	type ExtensionDashboardRuntime,
+} from "@oh-my-pi/pi-tui/overlays/extensions/extension-dashboard";
 import type { ExtensionSettingsManager } from "../../src/modes/components/extensions/state-manager";
 import {
 	createExtensionSettingsAdapter,
@@ -13,7 +17,7 @@ import {
 	toggleGroup,
 } from "../../src/modes/components/extensions/state-manager";
 import type { DashboardState, Extension } from "@oh-my-pi/pi-tui/overlays/extensions/types";
-import { initTheme } from "@oh-my-pi/pi-tui/theme";
+import { initTheme, theme } from "@oh-my-pi/pi-tui/theme";
 
 describe("Skill Metadata Parsing & Grouping Infrastructure", () => {
 	beforeAll(async () => {
@@ -260,5 +264,120 @@ tags: [helper, lint, format]
 		// Skill without author should be listed below as flat skill row (not creating a dummy group header for g2 or s2)
 		expect(rendered).not.toContain("author:g2");
 		expect(rendered).not.toContain("author:s2");
+	});
+
+	it("toggles a group header through the live dashboard and regroups on axis cycle", async () => {
+		// Production-shaped persistence: the runtime seam reads and writes
+		// through the adapter createExtensionSettingsAdapter builds.
+		const storage: Record<string, unknown> = { disabledExtensions: [] };
+		const adapter = createExtensionSettingsAdapter({
+			get: (key: string) => storage[key],
+			set: (key: string, value: unknown) => {
+				storage[key] = value;
+			},
+		});
+
+		const baseSkills: Extension[] = [
+			{
+				id: "skill:skill-1",
+				kind: "skill",
+				name: "skill-1",
+				displayName: "skill-1",
+				path: "/path/1",
+				source: { provider: "native", providerName: "Native", level: "user" },
+				state: "active",
+				raw: {},
+				tags: ["utils"],
+				group: "g1",
+			},
+			{
+				id: "skill:skill-2",
+				kind: "skill",
+				name: "skill-2",
+				displayName: "skill-2",
+				path: "/path/2",
+				source: { provider: "native", providerName: "Native", level: "user" },
+				state: "active",
+				raw: {},
+				tags: ["utils"],
+				group: "g1",
+			},
+		];
+
+		// The dashboard awaits exactly this promise; its state-application
+		// continuation runs before the test's reaction on the same promise.
+		let refreshSettled: Promise<Extension[]> = Promise.resolve([]);
+		const runtime: ExtensionDashboardRuntime = {
+			getDisabledExtensions: adapter.getDisabledExtensions,
+			setDisabledExtensions: adapter.setDisabledExtensions,
+			getProviders: () => [],
+			loadExtensions: disabledIds => {
+				const disabled = new Set(disabledIds);
+				refreshSettled = Promise.resolve(
+					baseSkills.map((skill): Extension =>
+						disabled.has(skill.id) || isSkillDisabledByGroup(skill, disabled)
+							? { ...skill, state: "disabled", disabledReason: "item-disabled" }
+							: { ...skill, state: "active" },
+					),
+				);
+				return refreshSettled;
+			},
+			toggleProvider: () => true,
+			toggleUserSource: () => true,
+			isProviderEnabled: () => true,
+			persistMcpToggle: async () => {},
+			applyMcpToggle: async () => {},
+			subscribeMcpChanges: () => [],
+		};
+
+		const dashboard = await ExtensionDashboard.create({ runtime, terminalHeight: 40 });
+		const rendered = (): string => Bun.stripANSI(dashboard.render(100).join("\n"));
+		const groupHeaderLine = (text: string): string => text.split("\n").find(line => line.includes("dir:g1")) ?? "";
+		// The list row is the only line pairing the member's state icon with its
+		// name; the inspector pane shows them on separate lines.
+		const memberLine = (text: string, icon: string): string =>
+			text.split("\n").find(line => line.includes(icon) && line.includes("skill-1")) ?? "";
+
+		// Default dir axis: one checked group header above its active members.
+		const initial = rendered();
+		expect(initial).toContain("g: cycle group mode");
+		expect(groupHeaderLine(initial)).toContain(theme.checkbox.checked);
+		expect(memberLine(initial, theme.status.enabled)).toContain("skill-1");
+
+		// Down onto the group header, Enter flips the whole group off.
+		dashboard.handleInput("\x1b[B");
+		dashboard.handleInput("\n");
+		const disabledAfterToggle = adapter.getDisabledExtensions();
+		expect(disabledAfterToggle).toContain("skill-dir:g1");
+		expect(disabledAfterToggle).toContain("skill:skill-1");
+		expect(disabledAfterToggle).toContain("skill:skill-2");
+
+		// The list reflects the toggle synchronously, before the async refresh.
+		const toggledOff = rendered();
+		expect(groupHeaderLine(toggledOff)).toContain(theme.checkbox.unchecked);
+		expect(memberLine(toggledOff, theme.status.disabled)).toContain("skill-1");
+
+		// The refresh reconciles without a second visible flip.
+		await refreshSettled;
+		expect(groupHeaderLine(rendered())).toContain(theme.checkbox.unchecked);
+
+		// Enter again re-enables: synthetic key and member ids drop from storage.
+		dashboard.handleInput("\n");
+		const reEnabled = adapter.getDisabledExtensions();
+		expect(reEnabled).not.toContain("skill-dir:g1");
+		expect(reEnabled).not.toContain("skill:skill-1");
+		expect(reEnabled).not.toContain("skill:skill-2");
+		await refreshSettled;
+		const toggledOn = rendered();
+		expect(groupHeaderLine(toggledOn)).toContain(theme.checkbox.checked);
+		expect(memberLine(toggledOn, theme.status.enabled)).toContain("skill-1");
+
+		// g cycles dir -> tag: the same skills regroup under their tag.
+		dashboard.handleInput("g");
+		const regrouped = rendered();
+		expect(regrouped).toContain("tag:utils");
+		expect(regrouped).not.toContain("dir:g1");
+
+		dashboard.dispose();
 	});
 });

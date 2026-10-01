@@ -20,6 +20,8 @@ import type { LocalProtocolOptions } from "../internal-urls";
 import type { DaemonCompletionNotification } from "../launch/protocol";
 import { LspTool } from "../lsp";
 import type { MCPManager } from "../mcp";
+import { ASK_MODE_VALIDATORS } from "../modes/ask-mode/ask-mode-guard";
+import { wrapToolWithAskModeGuard } from "../modes/ask-mode/tool-guard";
 import type { MnemopiSessionState } from "../mnemopi/state";
 import type { PlanModeState } from "../plan-mode/state";
 import type { AgentLifecycleManager } from "../registry/agent-lifecycle";
@@ -627,6 +629,13 @@ export async function createTools(session: ToolSession, toolNames?: string[]): P
 		if (goalModeActive && !requestedTools.includes("goal")) {
 			requestedTools.push("goal");
 		}
+		// The mode directives injected into the prompt (ask mode's escape hatch,
+		// plan mode's exit) instruct the model to CALL `switch_mode`. An explicit
+		// tool list that omits it would advertise a tool the session cannot
+		// dispatch, so force-include it the same way `goal` is paired above.
+		if (!requestedTools.includes("switch_mode")) {
+			requestedTools.push("switch_mode");
+		}
 		if (
 			requestedTools.includes("grep") &&
 			!requestedTools.includes("ast_grep") &&
@@ -670,6 +679,11 @@ export async function createTools(session: ToolSession, toolNames?: string[]): P
 	}
 	const allTools: Record<string, ToolFactory> = { ...BUILTIN_TOOLS, ...HIDDEN_TOOLS };
 	const isToolAllowed = (name: string) => {
+		// Always callable at top level: the agent must be able to suggest a mode
+		// transition from ANY mode, not only from the ones it is currently stuck
+		// in. Gated to top-level sessions — a restricted tool list is the host's
+		// contract and is never widened here.
+		if (name === "switch_mode") return !restrictToolNames;
 		// Never in the default set. Explicitly activatable while goal.enabled and
 		// no goal record exists yet — /guided-goal enables it so the agent can
 		// finish the interview with `goal create`, which turns goal mode on. Once
@@ -741,6 +755,7 @@ export async function createTools(session: ToolSession, toolNames?: string[]): P
 					...(externalThinkingActive ? ([["think", HIDDEN_TOOLS.think]] as const) : []),
 					...(includeYield ? ([["yield", HIDDEN_TOOLS.yield]] as const) : []),
 					...(goalModeActive ? ([["goal", HIDDEN_TOOLS.goal]] as const) : []),
+					...(!restrictToolNames ? ([["switch_mode", HIDDEN_TOOLS.switch_mode]] as const) : []),
 				];
 
 	const activeToolNames = new Set(baseEntries.map(([name]) => name));
@@ -750,10 +765,19 @@ export async function createTools(session: ToolSession, toolNames?: string[]): P
 		session.isToolActive = name => activeToolNames.has(name);
 	}
 
+	// Ask-mode enforcement rides the tool factory: every tool createTools
+	// materializes — base entries, hidden tools, and the late write/read
+	// transports below — passes through `wrapToolWithAskModeGuard` exactly
+	// once, so the static read-only set plus ASK_MODE_VALIDATORS decide each
+	// call against live session state. A future built-in needs no per-tool
+	// guard call site (the pattern that died in the Sep 2026 sync).
+	const wrapProduced = <T extends Tool>(tool: T): T =>
+		wrapToolWithAskModeGuard(wrapToolWithMetaNotice(tool), () => session.getAskModeState?.(), ASK_MODE_VALIDATORS);
+
 	const baseResults = await Promise.all(
 		baseEntries.map(async ([name, factory]) => {
 			const tool = await logger.time(`createTools:${name}`, factory as ToolFactory, session);
-			return tool ? wrapToolWithMetaNotice(tool) : null;
+			return tool ? wrapProduced(tool) : null;
 		}),
 	);
 	let tools = baseResults.filter((r): r is Tool => r !== null);
@@ -782,7 +806,7 @@ export async function createTools(session: ToolSession, toolNames?: string[]): P
 		session.deviceOnlyWrite = true;
 		const writeTool = await logger.time("createTools:write:xdev-transport", BUILTIN_TOOLS.write, session);
 		if (writeTool) {
-			const wrapped = wrapToolWithMetaNotice(writeTool);
+			const wrapped = wrapProduced(writeTool);
 			tools.push(wrapped);
 			toolRegistry.set(wrapped.name, wrapped);
 			builtInNames.add(wrapped.name);
@@ -823,7 +847,7 @@ export async function createTools(session: ToolSession, toolNames?: string[]): P
 	) {
 		const writeTool = await logger.time("createTools:write", BUILTIN_TOOLS.write, session);
 		if (writeTool) {
-			const wrapped = wrapToolWithMetaNotice(writeTool);
+			const wrapped = wrapProduced(writeTool);
 			tools.push(wrapped);
 			toolRegistry.set(wrapped.name, wrapped);
 			builtInNames.add(wrapped.name);
@@ -832,7 +856,7 @@ export async function createTools(session: ToolSession, toolNames?: string[]): P
 	if (!restrictToolNames && xdevMounted && !tools.some(tool => tool.name === "read")) {
 		const readTool = await logger.time("createTools:read", BUILTIN_TOOLS.read, session);
 		if (readTool) {
-			const wrapped = wrapToolWithMetaNotice(readTool);
+			const wrapped = wrapProduced(readTool);
 			tools.push(wrapped);
 			toolRegistry.set(wrapped.name, wrapped);
 			builtInNames.add(wrapped.name);

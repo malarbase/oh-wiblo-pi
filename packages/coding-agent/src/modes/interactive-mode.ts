@@ -4999,6 +4999,13 @@ export class InteractiveMode implements InteractiveModeContext {
 				this.session.enableAskMode();
 				this.askModeEnabled = true;
 				this.statusLine.setAskModeStatus({ enabled: true });
+				// The ask-mode directive rides the system prompt, which is rebuilt at
+				// step 6 below — but a turn already in flight has read the
+				// previous prompt, so steer this copy in now (plan mode does
+				// the same in #enterPlanMode).
+				if (this.session.isStreaming) {
+					await this.session.sendAskModeContext({ deliverAs: "steer" });
+				}
 				break;
 			case "plan":
 				await this.#enterPlanMode();
@@ -5032,7 +5039,6 @@ export class InteractiveMode implements InteractiveModeContext {
 		}
 		await this.#setActiveMode("ask");
 		this.showStatus("Ask mode enabled");
-		await this.session.sendAskModeContext();
 	}
 
 	async handleDebugModeCommand(): Promise<void> {
@@ -5065,7 +5071,6 @@ export class InteractiveMode implements InteractiveModeContext {
 			default:
 				await this.#setActiveMode("ask");
 				this.showStatus("Ask mode enabled");
-				await this.session.sendAskModeContext();
 				break;
 		}
 	}

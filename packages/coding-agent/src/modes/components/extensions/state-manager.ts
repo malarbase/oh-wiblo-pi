@@ -22,6 +22,7 @@ import {
 	loadCapability,
 } from "../../../discovery";
 import { readDisabledServers, readEnabledServers } from "../../../mcp/config-writer";
+import { toggleSkillGroup } from "@oh-my-pi/pi-tui/overlays/extensions/extension-dashboard";
 import { commandPreview } from "@oh-my-pi/pi-tui/overlays/extensions/inspector-model";
 import { inferMcpTransport } from "@oh-my-pi/pi-tui/overlays/extensions/mcp-runtime";
 import {
@@ -648,7 +649,10 @@ export function toggleExtensionState(
 }
 
 /**
- * Bulk toggle a group of skills (by tag, dir, repo, or author).
+ * Bulk toggle a group of skills (by tag, dir, repo, or author). The membership
+ * and persistence math lives in the dashboard's shared `toggleSkillGroup`, so
+ * the group-header toggle and this API write identical `disabledExtensions`
+ * lists.
  */
 export function toggleGroup(
 	state: DashboardState,
@@ -656,33 +660,7 @@ export function toggleGroup(
 	groupName: string,
 	settings: ExtensionSettingsManager,
 ): DashboardState {
-	const newDisabled = new Set(settings.getDisabledExtensions());
-	const syntheticKey = `skill-${groupKind}:${groupName}`;
-	const isGroupDisabled = newDisabled.has(syntheticKey);
-
-	const matchingSkills = state.extensions.filter(ext => {
-		if (ext.kind !== "skill") return false;
-		if (groupKind === "tag") return ext.tags?.includes(groupName);
-		if (groupKind === "dir") return ext.group === groupName;
-		if (groupKind === "repo") return ext.repo === groupName || ext.author === groupName || ext.group === groupName;
-		if (groupKind === "author") return ext.author === groupName || ext.group === groupName;
-		return false;
-	});
-
-	if (isGroupDisabled) {
-		newDisabled.delete(syntheticKey);
-		for (const skill of matchingSkills) {
-			newDisabled.delete(skill.id);
-		}
-	} else {
-		newDisabled.add(syntheticKey);
-		for (const skill of matchingSkills) {
-			newDisabled.add(skill.id);
-		}
-	}
-
-	const disabledList = Array.from(newDisabled);
-	settings.setDisabledExtensions(disabledList);
+	const disabledList = toggleSkillGroup(state.extensions, groupKind, groupName, settings);
 	return applyDisabledExtensionsToState(state, disabledList);
 }
 
