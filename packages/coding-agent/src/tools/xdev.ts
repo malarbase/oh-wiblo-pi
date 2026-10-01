@@ -378,8 +378,18 @@ function shouldInlineXdevTool(
 function resolveRequiredXdevTool(state: XdevState, name: string): Tool {
 	const inst = resolveXdevTool(state, name);
 	if (!inst) {
+		// Dispatch only ever reaches a mounted device or an active top-level
+		// tool (see resolveXdevTool). The failure must therefore say WHICH of
+		// the two is missing: the previous wording promised that any active tool
+		// is dispatchable, so an agent handed a name that is in neither set —
+		// a hidden tool such as switch_mode, or any absent tool — kept retrying
+		// the same dead write (observed: seven identical retries in one turn).
+		// Nothing about this state changes by retrying, so say so.
+		const known = state.tools.get(name);
 		throw new ToolError(
-			`No such tool: ${XD_URL_PREFIX}${name}. Mounted devices: ${[...state.mountedNames].join(", ")}. Active top-level tools are also dispatchable via ${XD_URL_PREFIX}<tool>.`,
+			known
+				? `${XD_URL_PREFIX}${name} exists but is not active in this session, so it cannot be dispatched. Activate it and call it top-level, or retry once the mode that activates it is on.`
+				: `No such tool: ${XD_URL_PREFIX}${name}. It is neither a mounted device nor an active tool in this session, so this write cannot reach it — retrying will not help. Mounted devices: ${[...state.mountedNames].join(", ")}. Read ${XD_URL_PREFIX} for the full mounted-device list, or ask the user to make the change directly.`,
 		);
 	}
 	return inst;

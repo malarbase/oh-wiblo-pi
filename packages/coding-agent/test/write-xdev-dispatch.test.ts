@@ -15,6 +15,7 @@ import { WriteTool } from "@oh-my-pi/pi-coding-agent/tools/write";
 import { type WriteRenderContext, writeToolRenderer } from "@oh-my-pi/pi-tui/tools/write";
 import type { XdevMountedRenderer } from "@oh-my-pi/pi-tui/tools/xdev";
 import {
+	dispatchXdevTool,
 	listXdevTools,
 	resolveMountedXdevTool,
 	XDEV_DOCS_PER_DEVICE_CAP,
@@ -649,6 +650,67 @@ describe("web_search stays top-level under xdev", () => {
 		} finally {
 			await removeWithRetries(tempDir);
 		}
+	});
+});
+
+describe("xd:// dispatch failures are terminal and honest", () => {
+	// Regression: an ask-mode directive tells the model to call `switch_mode`,
+	// which is a HIDDEN tool — never mounted, and (before its restoration) never
+	// active either. The old failure text claimed any active tool was
+	// dispatchable through xd://, so the model kept retrying the identical dead
+	// write (seven times in one recorded turn). The message must now state that
+	// neither set contains the name and that retrying cannot help.
+	it("tells the model an absent name is unreachable, without implying retry will work", async () => {
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "write-xdev-unknown-"));
+		try {
+			const session = xdevSession(tempDir);
+			const tools = await createTools(session, ["read", "grep"]);
+			const write = tools.find(entry => entry.name === "write")!;
+
+			const unknown = await write.execute("write-xdev-unknown", {
+				path: "xd://no_such_tool",
+				content: "{}",
+			});
+
+			const text = unknown.content.find(entry => entry.type === "text")?.text ?? "";
+			expect(unknown.isError).toBe(true);
+			expect(text).toContain("No such tool: xd://no_such_tool");
+			expect(text).toContain("neither a mounted device nor an active tool");
+			// The old wording offered a route that cannot reach the name; it must
+			// not come back, and nothing may imply a retry could succeed.
+			expect(text).not.toContain("Active top-level tools are also dispatchable");
+			expect(text).toContain("retrying will not help");
+		} finally {
+			await removeWithRetries(tempDir);
+		}
+	});
+
+	it("distinguishes a registered but inactive tool from an absent one", async () => {
+		const inactive = {
+			name: "switch_mode",
+			label: "Switch Mode",
+			description: "hidden tool that is registered but not active",
+			parameters: type({ mode: type("string") }),
+			async execute() {
+				return { content: [{ type: "text" as const, text: "ok" }] };
+			},
+		} as unknown as AgentTool;
+		// Mounted but inactive: resolveXdevTool refuses it, and the error must say
+		// so rather than claiming the tool does not exist.
+		const state: XdevState = {
+			tools: new Map([[inactive.name, inactive]]),
+			mountedNames: new Set(),
+			builtInNames: new Set([inactive.name]),
+			isActive: () => false,
+		};
+
+		// dispatchXdevTool converts the lookup failure into an error result
+		// rather than rejecting, so the contract is asserted on its payload.
+		const { result } = await dispatchXdevTool(state, inactive.name, "{}", "call-1");
+		expect(result.isError).toBe(true);
+		expect(result.content.find(entry => entry.type === "text")?.text).toContain(
+			"exists but is not active in this session",
+		);
 	});
 });
 
