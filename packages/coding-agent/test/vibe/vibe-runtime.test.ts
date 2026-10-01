@@ -233,8 +233,9 @@ async function pollUntil(predicate: () => boolean, timeoutMs = 2000): Promise<vo
 /**
  * Minimal stand-in for a worker AgentSession: records prompts/steers, replays
  * a scripted event stream through subscribed listeners on each prompt, and
- * reports a final assistant message — enough surface for the executor's run
- * monitor + driveSessionToYield.
+ * reports a final assistant message — enough surface for
+ * `runSubagentFollowUpTurn` (yield-contract install, tool lookup, advisor and
+ * async-work probes), its run monitor, and driveSessionToYield.
  */
 function createFakeWorkerSession(options: { streaming?: boolean; onDispose?: () => void | Promise<void> } = {}) {
 	const listeners = new Set<(event: unknown) => void>();
@@ -246,6 +247,15 @@ function createFakeWorkerSession(options: { streaming?: boolean; onDispose?: () 
 	const fake = {
 		isStreaming: options.streaming ?? false,
 		model: undefined,
+		// Real AgentSession contract members the follow-up turn drives
+		// unguarded (task/executor.ts: isAdvisorActive:1889, getToolByName:3156,
+		// setWorkPoolYieldItems:3142, hasPendingAsyncWork:2258). Without them the
+		// resumed turn throws, the job settles as failed, and the worker never
+		// records the follow-up prompt.
+		isAdvisorActive: () => false,
+		getToolByName: (_name: string) => undefined,
+		setWorkPoolYieldItems: (_items: readonly unknown[]): Promise<void> => Promise.resolve(),
+		hasPendingAsyncWork: () => false,
 		subscribe(listener: (event: unknown) => void): () => void {
 			listeners.add(listener);
 			return () => listeners.delete(listener);
@@ -832,6 +842,14 @@ describe("vibe session registry", () => {
 		});
 		await started.promise;
 
+		// The suspension bounds its wait on the runtime's teardown grace
+		// (VIBE_TEARDOWN_GRACE_MS, 5000ms) — a real timer armed inside
+		// waitForVibeTeardown. Under fake timers `advanceTimersByTime(250)` can
+		// never fire it, so `await suspension` would never settle. Drop the grace
+		// to the span this test advances; the bounding behavior under test is
+		// unchanged, and the finally restores the default for later tests in this
+		// file (the registry is a global singleton).
+		registry.setTeardownGraceForTesting(250);
 		vi.useFakeTimers();
 		try {
 			const suspension = registry.suspendScope(registry.ownerScope(session), manager);
@@ -854,6 +872,7 @@ describe("vibe session registry", () => {
 			expect(registry.listIds(session)).toEqual([]);
 		} finally {
 			gate.resolve();
+			registry.setTeardownGraceForTesting(5000);
 			vi.useRealTimers();
 		}
 	});
