@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `.omp/skills/sync-upstream/generate-skill-md.ts` — do not edit it by hand; run the script instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 89 fork commits on top of `upstream/main`.
+Total: 91 fork commits on top of `upstream/main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -140,7 +140,9 @@ Total: 89 fork commits on top of `upstream/main`.
 | `d426c9f600` | fix(coding-agent): make xd:// dispatch failures honest and terminal | `packages/coding-agent/src/tools/xdev.ts`, `packages/coding-agent/test/write-xdev-dispatch.test.ts` | code |
 | `e9d6a557c7` | fix(owp): close eleven fork-side test failures, two of them silent behavior regressions | `packages/coding-agent/src/session/prewalk.ts`, `packages/coding-agent/test/agent-session-concurrent.test.ts`, `packages/coding-agent/test/agent-session-plan-mode-convergence.test.ts`, `packages/coding-agent/test/extensibility/legacy-pi-ai-root-exports.test.ts`, `packages/coding-agent/test/tools/bash-interceptor.test.ts`, … (2 more) | code |
 | `4b7d8dba57` | test(vibe): restore the stale worker-session fixture and unbind the suspension hang | `packages/coding-agent/test/vibe/vibe-runtime.test.ts` | code |
-| `a0ada52523` | chore(owp): rebaseline fork commit count and regenerate the fork table | `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
+| `6ebddd85c1` | chore(owp): rebaseline fork commit count and regenerate the fork table | `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
+| `d9cdd266cb` | style(owp): oxfmt the Exa abort-test edits | `packages/coding-agent/test/tools/web-search-exa.test.ts` | code |
+| `0f17f5198c` | chore(owp): rebaseline fork commit count and regenerate the fork table | `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `bun .omp/skills/sync-upstream/generate-skill-md.ts`, never by hand.
 <!-- GENERATED:fork-commits:end -->

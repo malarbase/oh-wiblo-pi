@@ -18,7 +18,7 @@
 # Fork commit count at the last verified rebuild/rebase. `--verify` fails if
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
-expected_fork_commit_count: 89
+expected_fork_commit_count: 91
 
 features:
   - name: "Settings layering (project/global scope + revert)"
