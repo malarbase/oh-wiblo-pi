@@ -396,7 +396,10 @@ describe("searchExa", () => {
 		// load, while abort → settled runs purely on microtasks, so the bound
 		// below measures the contract (abort interrupts the wait promptly).
 		const settled = Promise.withResolvers<void>();
-		pending.then(() => settled.resolve(), () => settled.resolve());
+		pending.then(
+			() => settled.resolve(),
+			() => settled.resolve(),
+		);
 		const abortedAt = Date.now();
 		controller.abort(new Error("cancelled Exa throttle wait"));
 		await settled.promise;
@@ -430,7 +433,10 @@ describe("searchExa", () => {
 		const third = searchExa({ query: "third request", fetch: fetchMock, signal: thirdController.signal });
 		await Bun.sleep(0);
 		const thirdSettled = Promise.withResolvers<void>();
-		third.then(() => thirdSettled.resolve(), () => thirdSettled.resolve());
+		third.then(
+			() => thirdSettled.resolve(),
+			() => thirdSettled.resolve(),
+		);
 		const abortedAt = Date.now();
 		thirdController.abort(new Error("cancelled queued Exa throttle wait"));
 		await thirdSettled.promise;
