@@ -193,6 +193,31 @@ describe("buildModel", () => {
 		expect(model.compat.whenThinking).toBeUndefined();
 	});
 
+	// Regression: the haiku `thinking-mode "budget"` rule was unbounded, so it
+	// tied with the `>=4.7 <45.1` adaptive rule on axis `mode` for 4.7+ Haiku.
+	// buildModel threw AmbiguousOverlapError, and the models.dev mapper runs
+	// every row through one try/catch — one tie discarded the provider's whole
+	// slice, leaving every unbaked id (e.g. opencode-zen/mimo-v2.6-flash-free)
+	// with no context window and no image input, which also blocks snapcompact.
+	it("resolves 4.7+ Haiku thinking mode without an axis tie", () => {
+		for (const [provider, baseUrl] of [
+			["opencode-zen", "https://opencode.ai/zen/v1"],
+			["anthropic", "https://api.anthropic.com"],
+		] as const) {
+			const model = buildModel(
+				completionsSpec({
+					id: "claude-haiku-5-5",
+					name: "Claude Haiku 5.5",
+					provider,
+					baseUrl,
+					reasoning: true,
+					input: ["text", "image"],
+				}),
+			);
+			expect(model.thinking?.mode).toBe("anthropic-adaptive");
+		}
+	});
+
 	it("builds OpenRouter pseudo-API models with shared chat and Responses compat", () => {
 		const model = buildModel(
 			openrouterSpec({
