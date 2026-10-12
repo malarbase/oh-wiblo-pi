@@ -1,4 +1,7 @@
 import { describe, expect, test, vi } from "bun:test";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import { createModelManager } from "@oh-my-pi/pi-catalog/model-manager";
@@ -152,17 +155,27 @@ describe("Yolo-Auto provider discovery", () => {
 		// production manager replaces the static rows with the wire catalog.
 		const fetch: FetchImpl = async () =>
 			new Response(JSON.stringify({ data: [{ id: "live-only", object: "model" }] }), { status: 200 });
-		const manager = createModelManager(yoloAutoModelManagerOptions({ apiKey: "yolo-test-key", fetch }));
-		const { models } = await manager.refresh("online");
+		// Isolate the model cache: the default path is the real agent cache, whose
+		// open-time migration deletes rows written under a different ruleset.
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-catalog-yolo-auto-"));
+		try {
+			const manager = createModelManager({
+				...yoloAutoModelManagerOptions({ apiKey: "yolo-test-key", fetch }),
+				cacheDbPath: path.join(tempDir, "models.db"),
+			});
+			const { models } = await manager.refresh("online");
 
-		expect(models.map(model => model.id)).toEqual(["live-only"]);
-		// Even a reference-less wire id keeps the provider-wide flat-rate cost
-		// and no-store surface — the generic compat defaults would otherwise
-		// resolve `supportsStore: true` and the endpoint rejects the field.
-		expect(models[0]).toMatchObject({
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-			compat: { supportsStore: false, supportsDeveloperRole: false },
-		});
+			expect(models.map(model => model.id)).toEqual(["live-only"]);
+			// Even a reference-less wire id keeps the provider-wide flat-rate cost
+			// and no-store surface — the generic compat defaults would otherwise
+			// resolve `supportsStore: true` and the endpoint rejects the field.
+			expect(models[0]).toMatchObject({
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				compat: { supportsStore: false, supportsDeveloperRole: false },
+			});
+		} finally {
+			await fs.rm(tempDir, { recursive: true, force: true });
+		}
 	});
 
 	test("prefers curated metadata over a stale previous bundle", async () => {

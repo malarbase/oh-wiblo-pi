@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import { createModelManager } from "@oh-my-pi/pi-catalog/model-manager";
@@ -266,12 +269,22 @@ describe("Synthetic provider discovery", () => {
 				supported_features: ["tools"],
 			},
 		]);
-		const manager = createModelManager(syntheticModelManagerOptions({ apiKey: "syn-test-key", fetch }));
-		const { models } = await manager.refresh("online");
+		// Isolate the model cache: the default path is the real agent cache, whose
+		// open-time migration deletes rows written under a different ruleset.
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-catalog-synthetic-"));
+		try {
+			const manager = createModelManager({
+				...syntheticModelManagerOptions({ apiKey: "syn-test-key", fetch }),
+				cacheDbPath: path.join(tempDir, "models.db"),
+			});
+			const { models } = await manager.refresh("online");
 
-		const glm = models.find(model => model.id === "hf:zai-org/GLM-5.2");
-		expect(glm?.reasoning).toBe(false);
-		expect(glm?.thinking).toBeUndefined();
+			const glm = models.find(model => model.id === "hf:zai-org/GLM-5.2");
+			expect(glm?.reasoning).toBe(false);
+			expect(glm?.thinking).toBeUndefined();
+		} finally {
+			await fs.rm(tempDir, { recursive: true, force: true });
+		}
 	});
 
 	test("serves no dynamic models without an API key", () => {

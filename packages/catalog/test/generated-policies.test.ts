@@ -1,4 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
 import type { Api, Model, ModelSpec, Provider } from "@oh-my-pi/pi-catalog/types";
 import {
@@ -507,9 +510,19 @@ describe("generated model policies", () => {
 			["kimi-k2.7-code", 262_000],
 			["gpt-5.6-sol-fast", 272_000],
 		];
-		const resolved = await resolveProviderModels(cursorModelManagerOptions(), "offline");
-		for (const [id, contextWindow] of windows) {
-			expect(resolved.models.find(model => model.id === id)?.contextWindow).toBe(contextWindow);
+		// An omitted cacheDbPath resolves to the real agent cache, whose open-time
+		// schema/policy migration deletes every row written under another ruleset.
+		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-catalog-generated-policies-"));
+		try {
+			const resolved = await resolveProviderModels(
+				{ ...cursorModelManagerOptions(), cacheDbPath: path.join(tempDir, "models.db") },
+				"offline",
+			);
+			for (const [id, contextWindow] of windows) {
+				expect(resolved.models.find(model => model.id === id)?.contextWindow).toBe(contextWindow);
+			}
+		} finally {
+			await fs.rm(tempDir, { recursive: true, force: true });
 		}
 	});
 
