@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `.omp/skills/sync-upstream/generate-skill-md.ts` — do not edit it by hand; run the script instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 93 fork commits on top of `upstream/main`.
+Total: 94 fork commits on top of `upstream/main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -145,6 +145,7 @@ Total: 93 fork commits on top of `upstream/main`.
 | `b35781aadd` | chore(owp): rebaseline fork commit count and regenerate the fork table | `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
 | `4007419f03` | fix(catalog): bound the haiku budget rule so models.dev slices build | `packages/catalog/src/compat/rules.json`, `packages/catalog/src/compat/rules/classes/anthropic.kdl`, `packages/catalog/test/build.test.ts` | code |
 | `53439897cc` | test(catalog): isolate provider tests from the real agent model cache | `packages/catalog/test/generated-policies.test.ts`, `packages/catalog/test/synthetic-provider.test.ts`, `packages/catalog/test/yolo-auto-provider.test.ts` | code |
+| `d7acf9ca05` | chore(owp): land the forklift harness — registry, skills, rendered artifacts | `.forklift/README.md`, `.forklift/footprint-baseline.json`, `.forklift/harness.lock`, `.forklift/registry.yaml`, `.omp/plans/done/forklift-bootstrap-plan.done.md`, … (7 more) | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `bun .omp/skills/sync-upstream/generate-skill-md.ts`, never by hand.
 <!-- GENERATED:fork-commits:end -->
