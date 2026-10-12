@@ -1,0 +1,1238 @@
+# OWP Feature Registry — Single source of truth for fork-owned files and divergences.
+# Both SKILL.md and sync.ts consume this file.
+# Add new features here, then regenerate SKILL.md with:
+#   bun .omp/skills/sync-upstream/generate-skill-md.ts
+#
+# Optional per-feature field: obsoleted_fixes
+#   - pre_rebase_hash:      string (the hash before rebase)
+#   - description:          string (what the fix did)
+#   - upstream_obsoleted_in: string (upstream commit hash where it became obsolete)
+# Use this to suppress false-positive dropped-commit warnings when upstream
+# independently applied the same fix.
+#
+# Optional per-feature field: protecting_tests
+#   - list of test files (bun test targets) that must pass for this feature to
+#     count as preserved. `--verify` runs them; a red test is a feature-loss
+#     alarm that survives upstream refactors (unlike symbol greps).
+
+# Fork commit count at the last verified rebuild/rebase. `--verify` fails if
+# `git rev-list --count upstream/main..main` drifts from this without a
+# deliberate registry update (rebuild, merge, or intentional commit drop).
+generatedAt: "2026-10-02T13:50:08Z"
+expected_fork_commit_count: 94
+
+harness:
+  version: 1
+  fork:
+    name: "oh-wiblo-pi"
+    short: "owp"
+    remote: "origin"
+    branch: "main"
+  upstream:
+    name: "oh-my-pi"
+    short: "omp"
+    remote: "upstream"
+    branch: "main"
+  project:
+    languages: [typescript, rust]
+    source_roots: ["packages/*/src", "crates/"]
+    test_globs: ["packages/*/test/"]
+    typecheck_command: "bun check"
+    test_command: "bun test"
+    lint_command: "bun run lint"
+    conflict_marker_globs: ["packages/**/*.ts", "packages/**/*.tsx"]
+    package_aliases:
+      "@oh-my-pi/pi-agent-core": "packages/agent/src"
+      "@oh-my-pi/pi-ai": "packages/ai/src"
+      "@oh-my-pi/pi-catalog": "packages/catalog/src"
+      "@oh-my-pi/pi-coding-agent": "packages/coding-agent/src"
+      "@oh-my-pi/pi-mnemopi": "packages/mnemopi/src"
+      "@oh-my-pi/pi-natives": "packages/natives/src"
+      "@oh-my-pi/pi-tui": "packages/tui/src"
+      "@oh-my-pi/pi-utils": "packages/utils/src"
+      "@oh-my-pi/pi-wire": "packages/wire/src"
+      "@oh-my-pi/omptype": "packages/omptype/src"
+      "@oh-my-pi/omp-stats": "packages/stats/src"
+      "@oh-my-pi/snapcompact": "packages/snapcompact/src"
+      "@oh-my-pi/typescript-edit-benchmark": "packages/typescript-edit-benchmark/src"
+      "@oh-my-pi/collab-web": "packages/collab-web/src"
+      "@oh-my-pi/pi-metaharness": "packages/metaharness/src"
+      "@oh-my-pi/browser-relay": "packages/browser-relay/src"
+  checks:
+    behavioral_source_regex: "^packages/[^/]+/src/.*\\.tsx?$"
+    native_sentinel:
+      path_glob: "packages/natives/native/pi_natives.*.node"
+      version_source: "packages/natives/package.json#version"
+      prefix: "__piNativesV"
+    footprint_baseline: ".forklift/footprint-baseline.json"
+    excludes: [".forklift/"]
+  sync_command: "bun .omp/skills/sync-upstream/sync.ts"
+  sync_runner: "sync.ts"
+  sync_state_path: "~/.omp/sync-state.json"
+  sync_log_path: "~/.omp/sync-log.jsonl"
+  registry_path: ".omp/skills/sync-upstream/feature-registry.yaml"
+  fork_doc: "docs/maintaining-owp-fork.md"
+
+features:
+  - name: "Settings layering (project/global scope + revert)"
+    description: "Per-setting provenance (getLayer), scoped set({scope: project|global}) persisting to <project>/.omp/config.yml, clearGlobal/clearProject revert; settings UI layer badges + Ctrl+S scope toggle + Delete revert"
+    owned_paths:
+      - "packages/coding-agent/src/config/settings.ts"
+      - "packages/coding-agent/src/config/settings-ui.ts"
+      - "packages/tui/src/overlays/settings-defs.ts"
+      - "packages/tui/src/overlays/settings-selector.ts"
+    protecting_tests:
+      - "test/settings-provenance.test.ts"
+      - "test/settings-manager.test.ts"
+
+  - name: "Identity"
+    description: "README fork marker"
+    owned_paths:
+      - "README.md"
+
+  - name: "Ask mode"
+    owned_paths:
+      - "packages/coding-agent/src/modes/ask-mode/"
+      - "packages/coding-agent/src/session/agent-session.ts"
+      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
+      - "packages/coding-agent/src/prompts/system/ask-mode-context.md"
+    protecting_tests:
+      - "test/modes/ask-mode/"
+
+  - name: "switch_mode tool"
+    description: "Agent-initiated mode switch; always active at top level, never xd://-mounted"
+    owned_paths:
+      - "packages/coding-agent/src/tools/switch-mode.ts"
+      - "packages/coding-agent/src/tools/index.ts"
+      - "packages/coding-agent/src/prompts/tools/switch-mode.md"
+    protecting_tests:
+      - "test/tools/switch-mode.test.ts"
+      - "test/tools/index.test.ts"
+
+  - name: "Debug mode"
+    description: "Mode directive is appended by AgentSession.getModeContextPrompt(); the log server is started in enableDebugMode and stopped on disable/dispose"
+    owned_paths:
+      - "packages/coding-agent/src/modes/debug-mode/"
+      - "packages/coding-agent/src/prompts/system/debug-mode-context.md"
+      - "packages/coding-agent/src/session/agent-session.ts"
+      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
+    protecting_tests:
+      - "test/modes/debug-mode/"
+      - "test/slash-commands/debug.test.ts"
+
+  - name: "Local discovery + two-level scan"
+    description: "Providers self-register on import; discovery/index.ts is the only trigger and MUST keep importing ./pi"
+    owned_paths:
+      - "packages/coding-agent/src/discovery/pi.ts"
+      - "packages/coding-agent/src/discovery/helpers.ts"
+      - "packages/coding-agent/src/discovery/index.ts"
+    protecting_tests:
+      - "test/discovery/pi-provider.test.ts"
+
+  - name: "Skill grouping"
+    owned_paths:
+      - "packages/tui/src/overlays/extensions/extension-list.ts"
+      - "packages/tui/src/overlays/extensions/extension-dashboard.ts"
+      - "packages/coding-agent/src/modes/components/extensions/state-manager.ts"
+      - "packages/coding-agent/src/capability/skill.ts"
+    protecting_tests:
+      - "test/extensions/skill-grouping.test.ts"
+
+  - name: "baseUrl resolution"
+    coverage_exempt: "resolveProviderBaseUrl is exercised through model-registry composition in provider/discovery suites; no dedicated baseUrl contract test"
+    owned_paths:
+      - "packages/coding-agent/src/config/model-registry.ts"
+
+  - name: "openai-compatible discovery"
+    coverage_exempt: "covered by the catalog discovery suites run with the catalog package"
+    owned_paths:
+      - "packages/coding-agent/src/config/model-registry.ts"
+
+  - name: "disableStrictTools escape hatch"
+    coverage_exempt: "typecheck pins the ModelCompat field; wire behavior is upstream's, the fork only forwards the flag"
+    owned_paths:
+      - "packages/ai/src/types.ts"
+      - "packages/ai/src/providers/anthropic.ts"
+      - "packages/coding-agent/src/config/model-registry.ts"
+
+  - name: "Google search provider"
+    coverage_exempt: "no dedicated google provider test; provider shape is exercised by the shared web-search suites"
+    owned_paths:
+      - "packages/coding-agent/src/web/search/providers/google.ts"
+      - "packages/coding-agent/src/web/search/providers/google-ai.ts"
+      - "packages/coding-agent/src/config/settings-schema.ts"
+    upstream_deleted_paths:
+      - path: "packages/coding-agent/src/config/settings-schema.ts"
+        upstream_removed_in: "6962d5cd2e"
+        note: "Upstream replaced it with the centralized settings registry (config/all-settings.ts + config/registry.ts). The fork still edits this file; port the google-search settings into the registry shape at the next sync instead of restoring the file."
+
+  - name: "SerpAPI search provider"
+    description: "Scraper-backed provider; its credential key (LEGACY_ENV_KEYS) lives in the AI package, so a conflict there silently kills availability"
+    owned_paths:
+      - "packages/coding-agent/src/web/search/providers/serpapi.ts"
+      - "packages/coding-agent/src/web/search/types.ts"
+      - "packages/coding-agent/src/web/search/provider.ts"
+      - "packages/ai/src/stream.ts"
+    protecting_tests:
+      - "test/tools/web-search-serpapi.test.ts"
+
+  - name: "Plan mode /plan load"
+    owned_paths:
+      - "packages/coding-agent/src/plan-mode/"
+      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
+      - "packages/coding-agent/src/modes/ask-mode/bash-readonly.ts"
+      - "packages/coding-agent/src/modes/ask-mode/tool-guard.ts"
+    protecting_tests:
+      - "test/plan-mode/"
+
+  - name: "Plan storage project path fix"
+    description: "Forward finalPlanFilePath in approve/save paths so plan.storage=project saves to .omp/plans/"
+    protecting_tests:
+      - "test/plan-mode/storage.test.ts"
+      - "test/plan-mode/approved-plan.test.ts"
+      - "test/plan-mode/plan-run.test.ts"
+    owned_paths:
+      - "packages/coding-agent/src/modes/interactive-mode.ts"
+      - "packages/coding-agent/src/plan-mode/storage.ts"
+      - "packages/coding-agent/src/plan-mode/approved-plan.ts"
+      - "packages/coding-agent/src/plan-mode/resolve-handler.ts"
+      - "packages/coding-agent/src/modes/controllers/event-controller.ts"
+
+  - name: "Provider onboarding wizard"
+    coverage_exempt: "covered by the models-config schema/validation suites plus interactive smoke"
+    owned_paths:
+      - "packages/coding-agent/src/modes/components/provider-onboarding-wizard.ts"
+      - "packages/tui/src/overlays/settings-defs.ts"
+
+  - name: "Install-binary custom command"
+    owned_paths:
+      - "packages/coding-agent/src/extensibility/custom-commands/bundled/install-binary/"
+
+  - name: "@mariozechner/* loader aliases"
+    protecting_tests:
+      - "test/pi-scope-aliases.test.ts"
+    description: "Alias graph + bunfs virtual modules relocated upstream into legacy-pi-compat.ts; the loaders only install it"
+    owned_paths:
+      - "packages/coding-agent/src/extensibility/plugins/legacy-pi-compat.ts"
+      - "packages/coding-agent/src/extensibility/extensions/loader.ts"
+      - "packages/coding-agent/src/extensibility/custom-commands/loader.ts"
+
+  - name: "History reorganization tooling"
+    description: "reorganize-history skill and slash command"
+    owned_paths:
+      - ".omp/skills/reorganize-history/"
+      - ".omp/commands/reorganize-fork.md"
+
+  - name: "Test filter scope fix"
+    owned_paths:
+      - "packages/coding-agent/test/utils/filter-user-extensions.ts"
+    obsoleted_fixes: []
+  - name: "Unified agent mode cycle (alt+k)"
+    coverage_exempt: "keybinding wiring is asserted by the keybinding suites; no dedicated mode-cycle test"
+    owned_paths:
+      - "packages/tui/src/status-line/"
+      - "packages/tui/src/app-keybindings.ts"
+      - "packages/coding-agent/src/modes/controllers/input-controller.ts"
+      - "packages/coding-agent/src/config/settings-schema.ts"
+    upstream_deleted_paths:
+      - path: "packages/coding-agent/src/config/settings-schema.ts"
+        upstream_removed_in: "6962d5cd2e"
+        note: "Superseded upstream by the centralized settings registry (config/all-settings.ts + config/registry.ts); port the mode-cycle settings there at the next sync."
+
+  - name: "Session directory event + jiti loader + authHeader fix"
+    owned_paths:
+      - "packages/coding-agent/src/sdk.ts"
+      - "packages/coding-agent/src/session/"
+      - "packages/coding-agent/src/capability/"
+      - "packages/coding-agent/src/extensibility/extensions/loader.ts"
+
+    protecting_tests:
+      - "test/sdk-session-directory-event.test.ts"
+  - name: "Cache write token tracking + bin/owp switcher"
+    coverage_exempt: "token accounting is asserted upstream in pi-ai usage suites; the fork switcher is a shell script checked by the release build"
+    owned_paths:
+      - "packages/ai/src/providers/openai-completions.ts"
+      - "bin/owp"
+      - "docs/cache-token-tracking.md"
+
+  - name: "Use jiti with virtualModules in custom command loader"
+    coverage_exempt: "the jiti dependency was dropped in favour of legacy-pi-compat; liveness + the alias test cover the surviving path"
+    owned_paths:
+      - "packages/coding-agent/src/extensibility/custom-commands/loader.ts"
+
+  - name: "Fix isBunBinary in compiled binary"
+    coverage_exempt: "predicate relocated upstream to isCompiledBinary; verified by the compiled-binary release guard"
+    description: "Predicate relocated upstream to isCompiledBinary() in pi-utils; config.ts never carried it at the pre-rebuild tip either"
+    owned_paths:
+      - "packages/utils/src/env.ts"
+    obsoleted_fixes: []
+  - name: "Build dist/owp as primary output"
+    liveness_exempt: "Release build script spawned by the packaging pipeline, never imported"
+    owned_paths:
+      - "packages/coding-agent/scripts/build-binary.ts"
+
+  - name: "Compiled-binary boot fixes (bytecode ESM + addon archive extraction)"
+    description: "Fork-side ports of upstream fixes that landed without syncing: 020ed9fdc1 (compile with format:\"esm\" so import.meta.resolve in bundled deps survives bytecode lowering) and cc258b1757 (tar.gz embedded-addon extraction in loader-state.js). Both converge with upstream at next sync."
+    owned_paths:
+      - "packages/coding-agent/scripts/compile-binary.ts"
+      - "packages/natives/native/loader-state.js"
+      - "scripts/ci-release-build-binaries.test.ts"
+    obsoleted_fixes:
+      - pre_rebase_hash: "64c020a8185329f64ea9610ab9a37c89c6187662"
+        note: "this hash is the fork-side port itself (still an ancestor of main as of 2026-10-01); it is recorded here so upstream converging on the same fix does not raise a dropped-commit warning"
+        description: "retain ESM semantics in compiled bytecode"
+        upstream_obsoleted_in: "020ed9fdc1f3e997f5175c3748a82482893e8d59"
+      - pre_rebase_hash: "64c020a8185329f64ea9610ab9a37c89c6187662"
+        note: "this hash is the fork-side port itself (still an ancestor of main as of 2026-10-01); it is recorded here so upstream converging on the same fix does not raise a dropped-commit warning"
+        description: "extract embedded native addon from tar.gz archive"
+        upstream_obsoleted_in: "cc258b1757"
+
+  - name: "Fix plan-mode approval UI + omp bin entry + ETXTBSY fix"
+    coverage_exempt: "ETXTBSY half has no unit seam; the plan-approval half is covered by test/plan-mode"
+    owned_paths:
+      - "packages/coding-agent/src/modes/controllers/event-controller.ts"
+      - "packages/coding-agent/package.json"
+      - "packages/coding-agent/src/extensibility/custom-commands/bundled/install-binary/index.ts"
+      - "packages/coding-agent/test/tools/bash-interceptor.test.ts"
+
+  - name: "Google search provider + hashline recovery + mode fixes"
+    coverage_exempt: "hashline moved to the native engine upstream; the fork residue is covered by the web-search suites"
+    description: "Hashline editing itself was nativized upstream (crates/pi-edit modes/hashline) — the fork's JS pipeline (packages/hashline + edit/hashline executors) was retired in favor of the native engine; the fork keeps the MiMo edit mode on top of it."
+    owned_paths:
+      - ".omp/extensions/pi-peon/"
+      - ".omp/skills/owp-developer/"
+      - "packages/coding-agent/src/modes/interactive-mode.ts"
+      - "packages/coding-agent/src/web/search/"
+
+  - name: "Upstream-deleted module stubs"
+    coverage_exempt: "stubs exist to keep upstream-removed imports resolvable; covered by typecheck, not behavior"
+    description: "Minimal stubs for upstream-deleted modules required by OWP features"
+    owned_paths:
+      - "packages/coding-agent/src/tools/approval.ts"
+      - "packages/coding-agent/src/tools/output-schema-validator.ts"
+      - "packages/utils/src/sanitize-text.ts"
+
+  - name: "sync-upstream skill and script"
+    owned_paths:
+      - ".omp/skills/sync-upstream/"
+
+  - name: "feature-checklist extension"
+    description: "Loaded at runtime by the extension loader from the workspace .omp/extensions directory; never imported, so the import-liveness check cannot apply."
+    owned_paths:
+      - ".omp/extensions/feature-checklist.ts"
+    liveness_exempt: "runtime-loaded extension (workspace .omp/extensions), not an import target"
+
+  - name: "Cast node Blob to Web Blob for tsgo"
+    coverage_exempt: "upstream renamed streams.ts→stream.ts and the seam now takes BunFile, so the cast is obsolete"
+    description: "streams.ts was renamed upstream to stream.ts; the writethrough seam now takes BunFile so the cast is moot"
+    owned_paths:
+      - "packages/utils/src/stream.ts"
+
+  - name: "mise.toml + native rebuild docs"
+    owned_paths:
+      - "mise.toml"
+      - ".omp/commands/sync-upstream.md"
+
+  - name: "Bazel build config (hermetic PATH, crate annotations)"
+    owned_paths:
+      - ".bazelrc"
+      - "MODULE.bazel"
+      - "MODULE.bazel.lock"
+
+  - name: "Add .gitnexus, .claude/, CLAUDE.md to .gitignore"
+    owned_paths:
+      - ".gitignore"
+
+  - name: "Deduplicate slash command autocomplete"
+    protecting_tests:
+      - "test/available-commands.test.ts"
+      - "test/interactive-mode-prompt-template-autocomplete.test.ts"
+    owned_paths:
+      - "packages/coding-agent/src/modes/interactive-mode.ts"
+
+  - name: "Add serpapi, gemini, codex to settings-defs"
+    coverage_exempt: "settings option rows are asserted by the settings-list suites"
+    owned_paths:
+      - "packages/tui/src/overlays/settings-defs.ts"
+
+  - name: "Add /refresh-models slash command"
+    coverage_exempt: "no dedicated test; the command's dependencies are covered by the model-registry suites"
+    owned_paths:
+      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
+
+  - name: "MiMo-Code edit mode"
+    description: "Fork-only edit mode (exact-match replacer chain ported from MiMo-Code), running as a JS branch inside the upstream-native edit tool; mimo-model auto-selection in resolveEditMode"
+    owned_paths:
+      - "packages/coding-agent/src/edit/modes/mimo.ts"
+      - "packages/coding-agent/src/edit/index.ts"
+      - "packages/coding-agent/src/utils/edit-mode.ts"
+      - "packages/tui/src/tools/edit.ts"
+    protecting_tests:
+      - "test/edit-mode.test.ts"
+      - "test/edit-tool-details.test.ts"
+      - "test/edit-blackbox.test.ts"
+      - "test/read-edit-seen-lines.test.ts"
+
+  - name: "Archive skill-group-toggle openspec spec"
+    owned_paths:
+      - "openspec/specs/skill-group-toggle/spec.md"
+
+  - name: "Rediscover skills on /new after ECC toggles"
+    description: "newSession() re-runs discovery through the existing refresh seam, gated on skills.rediscoverOnNewSession"
+    owned_paths:
+      - "packages/coding-agent/src/sdk.ts"
+      - "packages/coding-agent/src/session/agent-session.ts"
+      - "packages/coding-agent/src/config/settings-schema.ts"
+      - "packages/coding-agent/src/capability/skill.ts"
+    upstream_deleted_paths:
+      - path: "packages/coding-agent/src/config/settings-schema.ts"
+        upstream_removed_in: "6962d5cd2e"
+        note: "Superseded upstream by the centralized settings registry (config/all-settings.ts + config/registry.ts); port skills.rediscoverOnNewSession there at the next sync."
+    protecting_tests:
+      - "test/session/skill-rediscovery-new-session.test.ts"
+
+  - name: "Work around zlob/zig build failure on macOS 26"
+    owned_paths:
+      - "crates/pi-natives/"
+
+  - name: "OWP workspace and plans"
+    owned_paths:
+      - ".omp/settings.json"
+      - ".omp/plans/"
+      - ".omp/rules/"
+      - ".omp/extensions/"
+    upstream_deleted_paths:
+      - path: ".omp/rules/"
+        upstream_removed_in: "eb1a46baf5"
+        note: "Fork keeps its own .omp/rules/ (sticky RULES.md); upstream dropped its copy. Path stays fork-owned."
+
+  - name: "OWP Claude workspace"
+    owned_paths:
+      - ".claude/"
+    upstream_deleted_paths:
+      - path: ".claude/"
+        upstream_removed_in: "638398b61c"
+        note: "Upstream moved .claude/ to .omp/; the fork keeps .claude/ as a skill-install target for Claude Code (forklift stamps live there)."
+
+  - name: "OWP skills"
+    owned_paths:
+      - ".omp/skills/tmux-debug/"
+      - ".omp/skills/google-ai-research/"
+      - ".omp/skills/system-prompts/"
+      - ".omp/skills/semantic-compression/"
+      - ".omp/skills/owp-developer/"
+      - ".omp/skills/skill-installer/"
+      - ".omp/skills/onboard-provider/"
+
+  - name: "OWP commands"
+    owned_paths:
+      - ".omp/commands/fix-issues.md"
+      - ".omp/commands/review-prs.md"
+      - ".omp/commands/release.md"
+      - ".omp/commands/triage.md"
+      - ".omp/commands/sync-upstream.md"
+
+  - name: "OWP spec docs"
+    owned_paths:
+      - "openspec/config.yaml"
+      - "openspec/specs/ask-mode/"
+      - "openspec/specs/debug-mode/"
+      - "openspec/specs/dual-mode-extension-loader/"
+      - "openspec/specs/install-binary-command/"
+      - "openspec/specs/mode-cycle-keybinding/"
+      - "openspec/specs/session-directory-event/"
+      - "openspec/specs/skill-rediscovery/"
+      - "openspec/specs/rpc-ask-debug/"
+
+  - name: "OWP AI package"
+    owned_paths:
+      - "packages/ai/"
+
+  - name: "OWP agent package"
+    owned_paths:
+      - "packages/agent/"
+
+  - name: "OWP coding-agent package"
+    owned_paths:
+      - "packages/coding-agent/"
+
+  - name: "OWP natives package"
+    owned_paths:
+      - "packages/natives/"
+
+  - name: "OWP stats package"
+    owned_paths:
+      - "packages/stats/"
+
+  - name: "OWP TUI package"
+    owned_paths:
+      - "packages/tui/"
+
+  - name: "OWP utils package"
+    owned_paths:
+      - "packages/utils/"
+
+  - name: "OWP catalog package"
+    owned_paths:
+      - "packages/catalog/"
+
+  - name: "OWP Rust crates"
+    owned_paths:
+      - "crates/pi-ast/"
+      - "crates/pi-iso/"
+      - "crates/pi-natives/"
+      - "crates/pi-shell/"
+
+  - name: "OWP scripts"
+    owned_paths:
+      - "scripts/"
+
+  - name: "OWP Python RPC"
+    owned_paths:
+      - "python/omp-rpc/"
+
+  - name: "OWP documentation"
+    owned_paths:
+      - "docs/"
+
+  - name: "OWP GitHub config"
+    owned_paths:
+      - ".github/"
+
+  - name: "OWP root config and assets"
+    owned_paths:
+      - "package.json"
+      - "bunfig.toml"
+      - "Cargo.toml"
+      - ".gitattributes"
+      - "rust-toolchain.toml"
+      - "rustfmt.toml"
+      - "rust-analyzer.toml"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "LICENSE"
+      - "AGENTS.md"
+      - ".fallowrc.jsonc"
+      - "tsconfig.json"
+      - "tsconfig.base.json"
+      - "tsconfig.tools.json"
+      - "packages/tsconfig.workspace.json"
+      - "assets/"
+      - "types/"
+
+  - name: "Command dispatch composition"
+    description: "Upstream satellite command arrays spread into the registry; fork deltas stay inline (last-wins) for add-provider/refresh-models/drop/agent/ask"
+    owned_paths:
+      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
+      - "packages/coding-agent/src/slash-commands/builtin-modes.ts"
+      - "packages/coding-agent/src/modes/controllers/event-controller.ts"
+      - "packages/tui/src/overlays/extensions/extension-list.ts"
+    protecting_tests:
+      - "test/slash-commands/plan-subcommands.test.ts"
+      - "test/slash-commands/mode-attachments.test.ts"
+      - "test/acp-builtins.test.ts"
+      - "test/available-commands.test.ts"
+      - "test/interactive-mode-working-accent.test.ts"
+      - "test/sharpshooter-backend.test.ts"
+      - "test/goals/goal-mode-integration.test.ts"
+      - "test/keybindings-selector-navigation.test.ts"
+      - "test/input-controller-followup-image.test.ts"
+  - name: "Forklift harness"
+    description: "Project registry and install lock consumed by the forklift sync harness; registry.yaml is rewritten by forklift-render"
+    owned_paths:
+      - ".forklift/"
+
+# Intentional divergences — files that upstream owns and we always take upstream for.
+divergences:
+  - path: "packages/*/CHANGELOG.md"
+    reason: "Upstream owns release notes; owp never modifies changelog files."
+    resolution: "prefer_upstream"
+  - path: "crates/pi-edit/grammars/mimo.ts"
+    reason: "Fork-only pre-repair duplicate of the live mimo mode (packages/coding-agent/src/edit/modes/mimo.ts); its imports never resolved from the crate dir and nothing referenced it. Deleted 2026-10-01 — native pi-edit owns grammars/*.lark."
+    resolution: "prefer_upstream"
+
+  - path: "bun.lock"
+    reason: "Lockfile is authoritative upstream; run bun install if deps differ."
+    resolution: "prefer_upstream"
+
+  - path: "Cargo.lock"
+    reason: "Rust lockfile tracks upstream's Cargo.toml changes."
+    resolution: "prefer_upstream"
+
+  - path: "MODULE.bazel.lock"
+    reason: "Generated Bazel lockfile; regenerate after merges."
+    resolution: "prefer_upstream"
+
+  - path: "packages/natives/native/index.js"
+    reason: "Built native artifact; regenerated via mise exec -- bun --cwd=packages/natives run build."
+    resolution: "prefer_upstream"
+
+  - path: "crates/brush-core-vendored/"
+    reason: "Vendored upstream Rust crate."
+    resolution: "prefer_upstream"
+
+  - path: "crates/brush-builtins-vendored/"
+    reason: "Vendored upstream Rust crate."
+    resolution: "prefer_upstream"
+
+  - path: "packages/react-edit-benchmark/"
+    reason: "Upstream benchmark tooling."
+    resolution: "prefer_upstream"
+
+  - path: "packages/typescript-edit-benchmark/"
+    reason: "Upstream benchmark tooling."
+    resolution: "prefer_upstream"
+
+  - path: "packages/omp-extension-swarm/"
+    reason: "Upstream extension package."
+    resolution: "prefer_upstream"
+
+  - path: "packages/omp-stats/"
+    reason: "Upstream stats dashboard package."
+    resolution: "prefer_upstream"
+
+  - path: "packages/git-tool/"
+    reason: "Upstream git tooling package."
+    resolution: "prefer_upstream"
+
+  - path: ".turbo/"
+    reason: "Generated Turbo cache artifacts; should not be tracked."
+    resolution: "prefer_upstream"
+
+
+  - path: "Dockerfile.robomp"
+    reason: "Fork removes upstream robomp Docker builder."
+    resolution: "prefer_ours"
+
+  - path: "Dockerfile.robomp.dockerignore"
+    reason: "Fork removes upstream robomp Docker builder context."
+    resolution: "prefer_ours"
+
+    resolution: "prefer_ours"
+
+  - path: "packages/hashline/"
+    reason: "Upstream nativized hashline into crates/pi-edit (18.2.x) and dropped the JS package; the fork adopted the native engine and retired its JS pipeline (2026-09-21)."
+    resolution: "prefer_upstream"
+
+# Intentional deletions — upstream files absent from owp on purpose.
+removals:
+  - path: "python/robomp/"
+    reason: "The fork carries only a trimmed subset of upstream robomp (59 tracked files); the remaining upstream paths are absent on purpose and would otherwise be restored by the next sync. The subset that IS kept is fork-modified and is registered under features (OWP Python RPC), not here."
+  - path: "packages/hashline/"
+    reason: "JS hashline retired — upstream native engine (crates/pi-edit) adopted"
+  - path: "packages/coding-agent/src/hashline/"
+    reason: "legacy ¶-era hashline module — superseded by native engine"
+  - path: "packages/coding-agent/src/edit/hashline/"
+    reason: "JS hashline executor retired — native engine adopted"
+  - path: "packages/coding-agent/src/edit/modes/patch.ts"
+    reason: "JS patch executor retired — native crates/pi-edit/src/modes/patch.rs adopted (Phase B, 1ef85e092c)"
+  - path: "packages/coding-agent/src/edit/modes/apply-patch.ts"
+    reason: "JS apply-patch executor retired — native crates/pi-edit/src/modes/apply_patch.rs adopted (Phase B, 1ef85e092c)"
+  - path: "packages/tui/src/overlays/extensions/extension-list.ts.bak"
+    reason: "stale fork backup copy of extension-list.ts; the live overlay is upstream-owned under packages/tui/"
+  - path: "packages/coding-agent/src/edit/sloppy.ts"
+    reason: "JS sloppy executor retired — native modes/sloppy adopted"
+  - path: "packages/coding-agent/src/edit/streaming.ts"
+    reason: "JS streaming preview retired — native EditSession.openArgStream adopted"
+  - path: "packages/coding-agent/src/edit/renderer.ts"
+    reason: "fork renderer retired — EditToolDetails from pi-tui/tools/edit"
+  - path: "packages/coding-agent/src/edit/result.ts"
+    reason: "fork result plumbing retired with JS executors"
+  - path: "packages/coding-agent/src/edit/snapshot-details.ts"
+    reason: "fork snapshot-details retired with JS executors"
+  - path: "packages/coding-agent/src/edit/file-read-cache.ts"
+    reason: "superseded by native EditStore snapshots for anchor recovery"
+  - path: "packages/coding-agent/src/edit/edit-clipboard.ts"
+    reason: "superseded by native EditStore clipboard registers"
+  - path: "packages/coding-agent/src/edit/file-snapshot-store.ts"
+    reason: "superseded by native EditStore snapshot store"
+  - path: "packages/coding-agent/test/auth-broker-migrate.test.ts"
+    reason: "fork stubs resolveAuthBrokerConfig to null (no auth-broker) — broker-migration tests cannot pass by design"
+  - path: "packages/coding-agent/test/auth-broker-snapshot-cache.test.ts"
+    reason: "fork stubs resolveAuthBrokerConfig to null — broker snapshot-cache tests cannot pass by design"
+  - path: "packages/coding-agent/test/auth-gateway-account-pool.test.ts"
+    reason: "fork does not ship the auth gateway broker"
+  - path: "packages/coding-agent/test/issue-8096-broker-unreachable-startup.test.ts"
+    reason: "broker-unreachable startup paths are unreachable with the fork's null broker config; describeAuthBrokerStartupError is retained defensively"
+  - path: "packages/coding-agent/test/core/block-replace.test.ts"
+    reason: "JS hashline block-op tests retired — native block ops covered by crates/pi-edit tests + read-edit suite"
+  - path: "packages/coding-agent/test/edit-streaming-preview.test.ts"
+    reason: "JS streaming preview tests retired — native openArgStream covered by streaming-edit-abort.test.ts"
+  # Seeded from triage: deleting commit 9c659a2ec "chore(owp): remove upstream-only components".
+  # Deletions from 606f850d6 (docs sync commit, 43 files) stay unregistered — auto-restored.
+  - path: "packages/coding-agent/test/"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/utils/test/"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "Dockerfile.robomp*"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "Dockerfile.dockerignore"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/agent/test/compaction-error-status.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/agent/test/compaction-telemetry.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/agent/test/compaction-thinking-level.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/agent/test/yield.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/hashline/README.md"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/hashline/tsconfig.publish.json"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/hashline/bench/recovery-session-chain.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/hashline/test/format-v2.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/hashline/test/recovery-session-chain.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/hashline/test/snapshots.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/coding-agent/examples/sdk/12-redis-sessions.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/coding-agent/examples/sdk/13-sql-sessions.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/catalog/test/google-vertex-discovery.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/catalog/test/wafer.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  # Seeded from triage: deleting commit 81c8024c15 "chore(owp): remove packages/coding-agent/test/
+  # — remove upstream-only components" (same batch as the coding-agent test removals above).
+  - path: "packages/tui/test/emoji-autocomplete.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/tui/test/hyperlink.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/tui/test/raw-sse-pretty.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/tui/test/settings-list-theme.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/tui/test/shimmer.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/tui/test/status-line-cache-hit.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+  - path: "packages/tui/test/task-nested-live-render.test.ts"
+    reason: "chore(owp): remove upstream-only components"
+
+# Owned symbols inside shared files. During rebase, take upstream structure, graft these symbols.
+owned_symbols:
+  - file: "packages/coding-agent/src/session/agent-session.ts"
+    feature: "Ask mode"
+    symbols:
+      - name: "storage"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "finalPlanFilePath"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "sessionLike"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/slash-commands/builtin-registry.ts"
+    feature: "Ask mode"
+    symbols:
+      - name: "agent"
+        description: "Fork command def (/agent) in inline registry block"
+      - name: "drop"
+        description: "Fork command def (/drop) in inline registry block"
+      - name: "ask"
+        description: "Fork command def (/ask) in inline registry block"
+  - file: "packages/coding-agent/scripts/build-binary.ts"
+    feature: "Build dist/owp as primary output"
+    symbols:
+      - name: "owpPath"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "fs"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "ompPath"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/modes/controllers/event-controller.ts"
+    feature: "Fix plan-mode approval UI + omp bin entry + ETXTBSY fix"
+    symbols:
+      - name: "approval"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "details"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "planDetails"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/web/search/index.ts"
+    feature: "Google search provider + hashline recovery + mode fixes"
+    symbols:
+      - name: "captchaBehavior"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "configuredBehavior"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "captchaTimeout"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "configuredTimeout"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/web/search/providers/google.ts"
+    feature: "Google search provider"
+    symbols:
+      - name: "signal"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/discovery/helpers.ts"
+    feature: "Local discovery + two-level scan"
+    symbols:
+      - name: "rawMeta"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "author"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "repo"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "tags"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "group"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/tui/src/components/settings-list.ts"
+    feature: "OWP TUI package"
+    symbols:
+      - name: "defaultLayerBadge"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "item"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "labelPadded"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "hasAnyLayer"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "badgeWidth"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "badge"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "layer"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "valueMaxWidth"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/tui/src/overlays/extensions/extension-list.ts"
+    feature: "OWP TUI package"
+    symbols:
+      - name: "order"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "nextIdx"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "item"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "searchText"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "startIdx"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "endIdx"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "rowWidth"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "listItem"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/tui/src/overlays/settings-selector.ts"
+    feature: "OWP TUI package"
+    symbols:
+      - name: "selected"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "def"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/tui/src/status-line/segments.ts"
+    feature: "OWP TUI package"
+    symbols:
+      - name: "ask"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "content"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "debug"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "pauseSuffix"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/tui/src/utils.ts"
+    feature: "OWP TUI package"
+    symbols:
+      - name: "fileHyperlink"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "tryResolveInternalUrlSync"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/config/settings-ui.ts"
+    feature: "OWP coding-agent package"
+    symbols:
+      - name: "layer"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/config/settings.ts"
+    feature: "OWP coding-agent package"
+    symbols:
+      - name: "deleteByPath"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "current"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "i"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "next"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "segments"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "scope"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "prev"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "hook"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/discovery/omp-plugins.ts"
+    feature: "OWP coding-agent package"
+    symbols:
+      - name: "roots"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/edit/blackbox.ts"
+    feature: "Edit-mode test harness"
+    symbols:
+      - name: "createEditBlackboxRecorder"
+        description: "Fork graft (black-box edit recorder shared by churn tests)"
+  - file: "packages/coding-agent/src/edit/index.ts"
+    feature: "MiMo edit mode"
+    symbols:
+      - name: "openArgStream"
+        description: "Fork graft (description streaming reused by upstream EditTool)"
+  - file: "packages/coding-agent/src/edit/normalize.ts"
+    feature: "OWP coding-agent package"
+    symbols:
+      - name: "countLeadingWhitespace"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "count"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "i"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "char"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "getLeadingWhitespace"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "isNonEmptyLine"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "minIndent"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "lines"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/modes/controllers/input-controller.ts"
+    feature: "OWP coding-agent package"
+    symbols:
+      - name: "cycleModeKeys"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/tools/auto-generated-guard.ts"
+    feature: "OWP coding-agent package"
+    symbols:
+      - name: "CHECK_BYTE_COUNT"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "HEADER_LINE_LIMIT"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "KNOWN_GENERATOR_PATTERN"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "AUTO_GENERATED_HEADER_MARKERS"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "COMMENT_STYLES_BY_EXTENSION"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "COMMENT_STYLES_BY_BASENAME"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "AUTO_GENERATED_FILENAME_PATTERNS"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "stripBom"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/tools/builtin-names.ts"
+    feature: "OWP coding-agent package"
+    symbols:
+      - name: "HIDDEN_TOOL_NAMES"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/tools/checkpoint.ts"
+    feature: "OWP coding-agent package"
+    symbols:
+      - name: "askBlock"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/tools/resolve.ts"
+    feature: "OWP coding-agent package"
+    symbols:
+      - name: "runResolveInvocation"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/natives/scripts/embed-native.ts"
+    feature: "OWP natives package"
+    symbols:
+      - name: "embeddedAddonTypedefs"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "reset"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "outputPath"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "packageJsonPath"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "nativeDir"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "fileExists"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "validateAddonSentinel"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "isCurrentPlatform"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "scripts/eval-bench-runs.ts"
+    feature: "OWP scripts"
+    symbols:
+      - name: "cleaned"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "segs"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/stats/src/db.ts"
+    feature: "OWP stats package"
+    symbols:
+      - name: "getModelTimeSeries"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "rows"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "getModelPerformanceSeries"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/plan-mode/approved-plan.ts"
+    feature: "Plan mode /plan load"
+    symbols:
+      - name: "resolvePlanLikePath"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "normalized"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "renameApprovedPlanFile"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "resolveOptions"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "resolvedSource"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "resolvedDestination"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "destinationStat"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/modes/interactive-mode.ts"
+    feature: "Plan storage project path fix"
+    symbols:
+      - name: "loadedFrom"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "targetPlanPath"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "ctx"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "plans"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "items"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "choice"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "resolved"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "preserveContext"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/web/search/types.ts"
+    feature: "SerpAPI search provider"
+    symbols:
+      - name: "SEARCH_PROVIDER_OPTIONS"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "SEARCH_PROVIDER_LABELS"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/session/auth-broker-config.ts"
+    feature: "Session directory event + jiti loader + authHeader fix"
+    symbols:
+      - name: "getAuthBrokerTokenFilePath"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "discoverAuthStorage"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "dbPath"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "storage"
+        description: "Fork graft (auto-derived from live diff)"
+  - file: "packages/coding-agent/src/modes/components/extensions/state-manager.ts"
+    feature: "Skill grouping"
+    symbols:
+      - name: "createExtensionSettingsAdapter"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "skillMeta"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "author"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "repo"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "tags"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "group"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "isDisabled"
+        description: "Fork graft (auto-derived from live diff)"
+      - name: "isShadowed"
+        description: "Fork graft (auto-derived from live diff)"
+
+# ---------------------------------------------------------------------------
+# knowledge — project-specific conflict semantics rendered at {{knowledge}}.
+# Decision tree + porting protocol (the prose the generic template deliberately
+# does not carry) plus the fork-flavored appendices that used to live inline in
+# the sync skill (plan rule: owp/oh-my-pi/packages/crates/bun/hashline prose
+# belongs here).
+# ---------------------------------------------------------------------------
+knowledge: |
+  ## Conflict Resolution Decision Tree
+
+  When the script reports a conflict, apply this logic in order:
+
+  ```
+  1. Is the file in the owp feature registry (§ Feature Stack)?
+     YES → prefer ours; adapt to upstream's shape if needed; verify compilation
+     IMPACT: Keeps the feature alive. RISK: Misses upstream bug-fixes or refactors.
+     MITIGATION: After resolve, diff against upstream to see excluded changes.
+
+  2. Is upstream's change a rename/refactor of a symbol we call?
+     YES → update our callsite to the new name/signature; verify compilation
+     IMPACT: Feature survives with updated imports. No functional loss.
+
+  3. Is upstream's change altering the *semantics* of an interface we depend on?
+     (changed return contract, removed a mode, restructured data flow)
+     YES → ESCALATE: "upstream changed X which feature Y depends on — adapt or drop?"
+     IMPACT: No automatic choice is safe. Preferring upstream breaks our feature;
+             preferring ours risks building on a deprecated contract.
+
+  4. Is the file in the omp intentional-divergence list (§ Upstream Divergences)?
+     YES → prefer upstream (we intentionally don't own it)
+     IMPACT: Intentional loss of any owp modifications. If unexpected, the file
+             may have been incorrectly classified — add it to the registry.
+
+  5. MERGE PATH (manual, for shared files with upstream shape changes):
+     - Take upstream structure.
+     - Graft our owned symbols from § Owned Symbols into the new shape.
+     - Verify compilation. Use when upstream's change is structural, not semantic.
+
+    6. DEFAULT → prefer upstream; verify our feature still compiles
+       IMPACT: Benefit from upstream's work. RISK: Our feature may need import fixes.
+
+    7. Did upstream delete an entire package that our features depend on?
+       YES → port the package source into an appropriate local module tree,
+             create a barrel index.ts, update all imports (source + test).
+       IMPACT: Preserves feature. RISK: Future upstream changes to the original
+               package must be manually backported.
+       MITIGATION: Add the ported module directory to the Feature Stack.
+    ```
+
+  > **Empty commits during rebase:** If a commit from owp becomes empty during rebase, git drops it silently. This happens when upstream independently applied the same bug fix. The sync script warns about dropped commits after a successful rebase; if you see one, verify its change is present in upstream's code before proceeding.
+
+  **Shape conflict** (auto-resolve): renamed field, reorganized function, moved import path.
+  **Semantic conflict** (escalate): different behavior for same operation, incompatible assumptions, feature overlap.
+
+  ## Upstream-Deleted Module Protocol
+
+  When upstream deletes an entire package or module that OWP features depend on, the decision tree step 7 handles porting. This section refines that with lessons from the `packages/hashline/` migration.
+
+  ### Categorize the deleted module
+
+  | Category | Definition | Action |
+  |----------|-----------|--------|
+  | **Dead stub** | No live consumers, no-op implementation, only barrel re-export | Delete file, remove barrel re-export, verify compilation |
+  | **No-op stub with consumers** | Live callers exist but implementation is empty/returns default | Keep stub, add to "Upstream-deleted module stubs" feature registry entry, consider promotion |
+  | **Real implementation** | Full forked code with active consumers | Port to workspace package or local module tree, add to feature registry |
+  | **Re-export stub** | Only re-exports upstream symbols, no added value | Search for symbol usage *through the re-export* before deleting; prefer direct import |
+
+  ### Porting workflow (real implementation)
+
+  1. **Check for upstream replacement.** Is there a published package (e.g., `@oh-my-pi/hashline`)? If yes, prefer migrating imports to it rather than maintaining a vendored copy.
+  2. **Resolve cross-package imports.** If the module imports from coding-agent paths (e.g., `../edit/file-read-cache`), extract minimal interfaces or create local adapters so the package has no reverse dependency into coding-agent.
+  3. **Restore workspace membership.** Upstream deletion may remove the package from root `package.json` workspaces. Add it back. Create `package.json` if missing.
+  4. **Fix named imports / aliases.** Upstream packages may use different export names (e.g., `MismatchError` vs `HashlineMismatchError`). Create a small compat module (`hashline-compat.ts`) for production-used aliases. Update test-only aliases to upstream names.
+  5. **Migrate all imports.** Bulk-replace vendored path → package import across source and test files. Watch for barrel re-exports.
+  6. **Copy bundled assets.** If the module imports `.lark` grammar or `.md` prompts via `with { type: "text" }`, verify the upstream package bundles them. If not, copy to a stable location owned by the consuming feature.
+  7. **Verify compilation and tests.** Run `bun run check:types` in affected packages and relevant unit tests.
+  8. **Register in feature registry.** Add the ported module path to the Feature Stack and update the divergence entry if one existed.
+
+  ### Common mistakes
+
+  - **Forgetting barrel re-exports.** Removing a stub file but leaving `export * from "./deleted"` in `index.ts` causes `TS2307` errors.
+  - **Perl array interpolation.** Bulk `perl -pi -e 's/.../.../g'` on `@oh-my-pi/hashline` eats the `@` because perl interpolates it as an array. Escape: `perl -pi -e 's|\.\./hashline|@oh-my-pi/hashline|g'`.
+  - **Missing workspace entry.** `packages/hashline/` exists but `package.json` workspaces doesn't list it → Bun install ignores it.
+  - **Duplicate exports.** After migration, both the new package and an old compat re-export may export the same symbol, causing TS conflicts. Remove redundant re-exports.
+
+  ## Test Compilation Patterns
+
+  When upstream deletes symbols that tests reference, use these canonical patterns
+  (in order of preference):
+
+  1. **Deleted import → local stub.** Add a `const` or `function` stub at the top
+     of the test file rather than modifying the source module.
+  2. **Deleted property → cast to `any`.** `(obj as any).prop` or
+     `(obj as any)["prop"]` for settings/schema properties upstream removed.
+  3. **Method signature mismatch on stubs.** If upstream replaced a real function
+     with a no-op stub, widen the stub signature to `..._args: unknown[]` to keep
+     tests compiling.
+  4. **Duplicate variable declaration.** Rename the second declaration
+     (e.g. `result` → `result2`) rather than reordering blocks.
+  5. **Relative path mismatch.** Test files at `packages/*/test/**/` use
+     `../src/` for sibling imports, not `../../src/`.
+
+  ## History Rewrites (reorganize-history) — Safety Rules
+
+  The 2026-09-21 rebuild is the cautionary case: it was a *tree* graft, not a patch
+  replay, and it silently disconnected at least ten capabilities. The source files
+  survived; the wiring did not. `.pi` discovery kept its module but lost its single
+  `import "./pi"`, ask mode kept its guard helpers but lost every call site,
+  `session_directory` vanished from the tree entirely, and `switch_mode` stayed
+  registered while nothing could dispatch it. Nineteen follow-up "repair" commits
+  were needed to claw back part of it.
+
+  Rules for any history rewrite (`reorganize-history`, topical rebase, squash-and-regroup):
+
+  1. **Replay patches, never graft trees.** `git rebase -i` squash, or
+     `reset --soft` + staged re-commits. Building a new tree from a snapshot and
+     recommitting it drops wiring the snapshot's owner never recorded.
+  2. **Snapshot first, and write the pre-rewrite head into `sync-state.json`
+     *before* starting.** Afterwards the reflog is your only undo.
+  3. **Group by file overlap, not by topic.** The rebase cost is one resolution per
+     (fork commit × conflicted file); grouping so each shared file is touched by
+     exactly one commit is what reduces work. Topic grouping alone changes nothing
+     about the number of hunks.
+  4. **Run `--verify` after, and require import liveness to be clean.** A rewrite
+     that leaves an owned source with zero importers has not preserved that feature,
+     no matter how the diff looks.
+  5. **Rebaseline `expected_fork_commit_count` only after verify passes**, then
+     regenerate SKILL.md.
+
+  ## Guidelines for New Features
+
+  The biggest determinant of rebase difficulty is how many lines a feature injects into shared
+  upstream files — especially `sdk.ts`. Features that own their own files rebase cleanly.
+  Features that scatter inline additions through `createAgentSession()` conflict on every sync.
+
+  ### Design principles
+
+  1. **Own your files.** Put feature logic in new files under `src/modes/`, `src/config/`, or
+     `src/capability/`. Import and call from the minimum number of shared callsites. Files you
+     own entirely survive rebases with zero conflicts.
+
+  2. **Minimize sdk.ts contact surface.** If you must touch `createAgentSession()`:
+     - Prefer adding one field to an options object or constructor over inline logic
+     - Prefer a single import + single call over scattered inline additions
+     - Prefer reading state lazily from `session` or `settings` at call time over threading
+       values through intermediate functions
+     - Each separate insertion point in sdk.ts = one potential conflict hunk per sync
+
+  3. **Extend, don't fork, shared types.** If upstream has `StatusLineSegmentId`, add your
+     literal to the union — don't create a parallel type. If upstream has `ProviderDiscoverySchema`,
+     add your literal to the existing Type.Union — don't create a separate schema. This gives you
+     one small conflict hunk ("add entry to list") instead of a structural divergence.
+
+  4. **Use the extension/hook system when it exists.** Upstream's extensibility system
+     (`extensionRunner`, hooks, event handlers) is designed for exactly this. When possible,
+     implement features as extensions rather than core modifications.
+
+  5. **Register symbols immediately.** When your feature touches a shared file, update
+     `feature-registry.yaml` in the same commit. Then regenerate SKILL.md with `forklift-render`
+     so the Owned Symbols tables stay current. Don't wait for the next sync to discover the gap.
+
+  ### Contact surface audit
+
+  Before merging a new feature commit, audit its sdk.ts diff:
+  - Count the number of separate insertion/modification hunks
+  - If > 2 hunks, consider whether the logic can be moved to a dedicated file
+  - If the feature adds a parameter to `rebuildSystemPrompt` or `buildSystemPromptInternal`,
+    consider whether the value can be read from `session` or `settings` instead of threaded
+
+  ## Post-Rebase Bookkeeping
+
+  - **Review promotion candidates.** Check if any no-op stubs now have sufficient implementation need to be promoted to real code.
+  - **Fork Features table.** `generate-skill-md.ts` refreshes the Fork Features table in `docs/maintaining-owp-fork.md` from git history. It also rewrites SKILL.md from the legacy template — re-run `forklift-render` afterwards so the skill stays forklift-managed.
+# ---------------------------------------------------------------------------
+# post_sync_knowledge — fork-specific steps rendered inside After Resolution
+# (between the commit-count check and the fork-doc/push items).
+# ---------------------------------------------------------------------------
+post_sync_knowledge: |
+  - **Reconcile lock files:** if any owp commit adds a dependency not in upstream's `bun.lock`, run `bun install` and commit the updated `bun.lock` separately.
+  - **Rebuild native addon** (always rebuild after a version bump, not just when `packages/natives/` or `crates/` changed):
+    ```bash
+    mise exec -- bun --cwd=packages/natives run build
+    ```
+    **Why always rebuild on version bump:** `Cargo.toml` / `package.json` bumps change the `__piNativesV{major}_{minor}_{patch}` sentinel that `loader-state.js` expects. A stale `.node` embeds the old sentinel and the compiled binary dies with `does not expose the ... version sentinel`. Verify: `strings packages/natives/native/pi_natives.*.node | grep "__piNativesV"` must equal the current `package.json#version` sentinel.
+    Native build dependencies (e.g. `zig`) are declared in `mise.toml`. Run `mise install` first if a tool is missing.
+  - **Verify models.yml schema:** start owp and check for `Schema error` in output. If `src/config/model-registry.ts` changed `ProviderDiscoverySchema`, verify `~/.omp/agent/models.yml` uses valid `discovery.type` values.
+  - **Rebuild and reinstall owp binary:** `/install-binary`

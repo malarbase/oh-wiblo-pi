@@ -2,6 +2,7 @@
 name: sync-upstream
 description: Rebase oh-wiblo-pi (owp) fork/main against oh-my-pi (omp) upstream/main. Handles conflict resolution automatically for trivial cases and escalates semantic conflicts. Read this skill before running sync.ts.
 ---
+<!-- forklift v1 -->
 
 # Sync Upstream (owp ← omp)
 
@@ -13,7 +14,7 @@ Rebase `fork/main` against `upstream/main` (omp). Run `sync.ts` to execute. This
 bun .omp/skills/sync-upstream/sync.ts
 ```
 
-The script handles git operations and outputs structured conflict reports. You resolve conflicts using the decision tree below, then signal the script to continue or abort.
+Git operations run through the command above. You resolve conflicts using the decision tree below, then signal the script to continue or abort.
 
 ## Conflict Resolution Decision Tree
 
@@ -92,6 +93,95 @@ When upstream deletes an entire package or module that OWP features depend on, t
 - **Missing workspace entry.** `packages/hashline/` exists but `package.json` workspaces doesn't list it → Bun install ignores it.
 - **Duplicate exports.** After migration, both the new package and an old compat re-export may export the same symbol, causing TS conflicts. Remove redundant re-exports.
 
+## Test Compilation Patterns
+
+When upstream deletes symbols that tests reference, use these canonical patterns
+(in order of preference):
+
+1. **Deleted import → local stub.** Add a `const` or `function` stub at the top
+   of the test file rather than modifying the source module.
+2. **Deleted property → cast to `any`.** `(obj as any).prop` or
+   `(obj as any)["prop"]` for settings/schema properties upstream removed.
+3. **Method signature mismatch on stubs.** If upstream replaced a real function
+   with a no-op stub, widen the stub signature to `..._args: unknown[]` to keep
+   tests compiling.
+4. **Duplicate variable declaration.** Rename the second declaration
+   (e.g. `result` → `result2`) rather than reordering blocks.
+5. **Relative path mismatch.** Test files at `packages/*/test/**/` use
+   `../src/` for sibling imports, not `../../src/`.
+
+## History Rewrites (reorganize-history) — Safety Rules
+
+The 2026-09-21 rebuild is the cautionary case: it was a *tree* graft, not a patch
+replay, and it silently disconnected at least ten capabilities. The source files
+survived; the wiring did not. `.pi` discovery kept its module but lost its single
+`import "./pi"`, ask mode kept its guard helpers but lost every call site,
+`session_directory` vanished from the tree entirely, and `switch_mode` stayed
+registered while nothing could dispatch it. Nineteen follow-up "repair" commits
+were needed to claw back part of it.
+
+Rules for any history rewrite (`reorganize-history`, topical rebase, squash-and-regroup):
+
+1. **Replay patches, never graft trees.** `git rebase -i` squash, or
+   `reset --soft` + staged re-commits. Building a new tree from a snapshot and
+   recommitting it drops wiring the snapshot's owner never recorded.
+2. **Snapshot first, and write the pre-rewrite head into `sync-state.json`
+   *before* starting.** Afterwards the reflog is your only undo.
+3. **Group by file overlap, not by topic.** The rebase cost is one resolution per
+   (fork commit × conflicted file); grouping so each shared file is touched by
+   exactly one commit is what reduces work. Topic grouping alone changes nothing
+   about the number of hunks.
+4. **Run `--verify` after, and require import liveness to be clean.** A rewrite
+   that leaves an owned source with zero importers has not preserved that feature,
+   no matter how the diff looks.
+5. **Rebaseline `expected_fork_commit_count` only after verify passes**, then
+   regenerate SKILL.md.
+
+## Guidelines for New Features
+
+The biggest determinant of rebase difficulty is how many lines a feature injects into shared
+upstream files — especially `sdk.ts`. Features that own their own files rebase cleanly.
+Features that scatter inline additions through `createAgentSession()` conflict on every sync.
+
+### Design principles
+
+1. **Own your files.** Put feature logic in new files under `src/modes/`, `src/config/`, or
+   `src/capability/`. Import and call from the minimum number of shared callsites. Files you
+   own entirely survive rebases with zero conflicts.
+
+2. **Minimize sdk.ts contact surface.** If you must touch `createAgentSession()`:
+   - Prefer adding one field to an options object or constructor over inline logic
+   - Prefer a single import + single call over scattered inline additions
+   - Prefer reading state lazily from `session` or `settings` at call time over threading
+     values through intermediate functions
+   - Each separate insertion point in sdk.ts = one potential conflict hunk per sync
+
+3. **Extend, don't fork, shared types.** If upstream has `StatusLineSegmentId`, add your
+   literal to the union — don't create a parallel type. If upstream has `ProviderDiscoverySchema`,
+   add your literal to the existing Type.Union — don't create a separate schema. This gives you
+   one small conflict hunk ("add entry to list") instead of a structural divergence.
+
+4. **Use the extension/hook system when it exists.** Upstream's extensibility system
+   (`extensionRunner`, hooks, event handlers) is designed for exactly this. When possible,
+   implement features as extensions rather than core modifications.
+
+5. **Register symbols immediately.** When your feature touches a shared file, update
+   `feature-registry.yaml` in the same commit. Then regenerate SKILL.md with `forklift-render`
+   so the Owned Symbols tables stay current. Don't wait for the next sync to discover the gap.
+
+### Contact surface audit
+
+Before merging a new feature commit, audit its sdk.ts diff:
+- Count the number of separate insertion/modification hunks
+- If > 2 hunks, consider whether the logic can be moved to a dedicated file
+- If the feature adds a parameter to `rebuildSystemPrompt` or `buildSystemPromptInternal`,
+  consider whether the value can be read from `session` or `settings` instead of threaded
+
+## Post-Rebase Bookkeeping
+
+- **Review promotion candidates.** Check if any no-op stubs now have sufficient implementation need to be promoted to real code.
+- **Fork Features table.** `generate-skill-md.ts` refreshes the Fork Features table in `docs/maintaining-owp-fork.md` from git history. It also rewrites SKILL.md from the legacy template — re-run `forklift-render` afterwards so the skill stays forklift-managed.
+
 ## Tag Strategy (Remote Backup)
 
 Use `--tag` to create lightweight annotated tags as remote backups of known-working states. These tags are pushed to origin when combined with `--push` and `--follow-tags`.
@@ -102,7 +192,7 @@ Use `--tag` to create lightweight annotated tags as remote backups of known-work
 |-----|--------|---------|---------|
 | `sync/base/YYYY-MM-DD` | pre-sync HEAD | Before rebase starts | Rollback point if sync fails or introduces regressions |
 | `sync/YYYY-MM-DD` | post-sync HEAD | After rebase + typecheck pass | New known-working state after successful sync |
-| `sync/YYYY-MM-DD-N` | — | Collision handling | If同一天 multiple syncs occur, `-N` suffix increments |
+| `sync/YYYY-MM-DD-N` | — | Collision handling | If multiple syncs land on the same day, `-N` suffix increments |
 
 ### Usage
 
@@ -118,7 +208,7 @@ git push origin main --force-with-lease --follow-tags
 
 ### Why tags instead of just sync-state.json?
 
-- `sync-state.json` lives in `~/.omp/` — lost if the machine is replaced
+- `sync-state.json` lives at `~/.omp/sync-state.json` — lost if the machine is replaced
 - Tags on origin survive independently of local state
 - Tags survive `git gc` and reflog expiry better than loose refs
 - Easy historical diff: `git log --oneline sync/2026-06-01..main`
@@ -140,10 +230,9 @@ git push origin main --force-with-lease
 
 After all conflicts are resolved and compilation passes, perform these bookkeeping steps before force-pushing:
 
-1. **Regenerate generated docs.** Run `bun .omp/skills/sync-upstream/generate-skill-md.ts` — it regenerates SKILL.md and the Fork Features table in `docs/maintaining-owp-fork.md` from `feature-registry.yaml` and git history.
-2. **Update feature registry.** If new files were added, removed, or moved, update `.omp/skills/sync-upstream/feature-registry.yaml`.
-3. **Review promotion candidates.** Check if any no-op stubs now have sufficient implementation need to be promoted to real code.
-4. **Update divergence list.** If a previously divergent file is now owned by OWP, update both lists.
+- **Regenerate generated docs.** Run `forklift-render --registry .forklift/registry.yaml` — it regenerates SKILL.md and, when `harness.registry_path` is set, the legacy runner's registry copy from the registry.
+- **Update feature registry.** If new files were added, removed, or moved, update `.forklift/registry.yaml` and re-render (above).
+- **Update divergence list.** If a previously divergent file is now owned by owp, update both lists.
 
 ## Feature Stack
 
@@ -182,7 +271,7 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | Upstream-deleted module stubs | `packages/coding-agent/src/tools/approval.ts`, `packages/coding-agent/src/tools/output-schema-validator.ts`, `packages/utils/src/sanitize-text.ts` |
 | sync-upstream skill and script | `.omp/skills/sync-upstream/` |
 | feature-checklist extension | `.omp/extensions/feature-checklist.ts` |
-| Cast node Blob to Web Blob for tsgo | `packages/utils/src/streams.ts` |
+| Cast node Blob to Web Blob for tsgo | `packages/utils/src/stream.ts` |
 | mise.toml + native rebuild docs | `mise.toml`, `.omp/commands/sync-upstream.md` |
 | Bazel build config (hermetic PATH, crate annotations) | `.bazelrc`, `MODULE.bazel`, `MODULE.bazel.lock` |
 | Add .gitnexus, .claude/, CLAUDE.md to .gitignore | `.gitignore` |
@@ -194,10 +283,10 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | Rediscover skills on /new after ECC toggles | `packages/coding-agent/src/sdk.ts`, `packages/coding-agent/src/session/agent-session.ts`, `packages/coding-agent/src/config/settings-schema.ts`, `packages/coding-agent/src/capability/skill.ts` |
 | Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/` |
 | OWP workspace and plans | `.omp/settings.json`, `.omp/plans/`, `.omp/rules/`, `.omp/extensions/` |
+| OWP Claude workspace | `.claude/` |
 | OWP skills | `.omp/skills/tmux-debug/`, `.omp/skills/google-ai-research/`, `.omp/skills/system-prompts/`, `.omp/skills/semantic-compression/`, `.omp/skills/owp-developer/`, `.omp/skills/skill-installer/`, `.omp/skills/onboard-provider/` |
 | OWP commands | `.omp/commands/fix-issues.md`, `.omp/commands/review-prs.md`, `.omp/commands/release.md`, `.omp/commands/triage.md`, `.omp/commands/sync-upstream.md` |
-| OWP documentation | `docs/maintaining-owp-fork.md`, `docs/plan-mode-resolve-bug.md`, `docs/debug-mode-lifecycle.md`, `docs/web-native-feasibility.md`, `docs/ask_session.md`, `docs/debug_session.md`, `docs/render-mermaid.md`, `docs/non-compaction-retry-policy.md`, `docs/notebook-tool-runtime.md`, `docs/resolve-tool-runtime.md`, `docs/ERRATA-GPT5-HARMONY.md` |
-| OWP spec docs | `openspec/config.yaml`, `openspec/specs/ask-mode/`, `openspec/specs/debug-mode/`, `openspec/specs/dual-mode-extension-loader/`, `openspec/specs/install-binary-command/`, `openspec/specs/mode-cycle-keybinding/`, `openspec/specs/session-directory-event/`, `openspec/specs/skill-rediscovery/`, `openspec/specs/rpc-ask-debug/`, `openspec/changes/` |
+| OWP spec docs | `openspec/config.yaml`, `openspec/specs/ask-mode/`, `openspec/specs/debug-mode/`, `openspec/specs/dual-mode-extension-loader/`, `openspec/specs/install-binary-command/`, `openspec/specs/mode-cycle-keybinding/`, `openspec/specs/session-directory-event/`, `openspec/specs/skill-rediscovery/`, `openspec/specs/rpc-ask-debug/` |
 | OWP AI package | `packages/ai/` |
 | OWP agent package | `packages/agent/` |
 | OWP coding-agent package | `packages/coding-agent/` |
@@ -205,18 +294,15 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | OWP stats package | `packages/stats/` |
 | OWP TUI package | `packages/tui/` |
 | OWP utils package | `packages/utils/` |
-| OWP pi-utils package | `packages/pi-utils/` |
 | OWP catalog package | `packages/catalog/` |
-| OWP swarm-extension package | `packages/swarm-extension/` |
 | OWP Rust crates | `crates/pi-ast/`, `crates/pi-iso/`, `crates/pi-natives/`, `crates/pi-shell/` |
 | OWP scripts | `scripts/` |
 | OWP Python RPC | `python/omp-rpc/` |
 | OWP documentation | `docs/` |
 | OWP GitHub config | `.github/` |
-| OWP Claude workspace | `.claude/` |
-| OWP agent themes | `agent/themes/` |
-| OWP plans | `plans/` |
-| OWP root config and assets | `package.json`, `bunfig.toml`, `turbo.json`, `Cargo.toml`, `biome.json`, `.gitattributes`, `.prettierignore`, `.prettierrc`, `rust-toolchain.toml`, `rustfmt.toml`, `rust-analyzer.toml`, `Dockerfile`, `.dockerignore`, `Dockerfile.dockerignore`, `LICENSE`, `AGENTS.md`, `STAGES.md`, `REPORT-ISSUE-601.md`, `PLAN_FIX_689.md`, `PLAN_FIX_689_PHASE2.md`, `pi-mono.code-workspace`, `oh-my-pi-session-title-api`, `.fallowrc.jsonc`, `tsconfig.json`, `tsconfig.base.json`, `tsconfig.tools.json`, `packages/tsconfig.workspace.json`, `assets/`, `types/` |
+| OWP root config and assets | `package.json`, `bunfig.toml`, `Cargo.toml`, `.gitattributes`, `rust-toolchain.toml`, `rustfmt.toml`, `rust-analyzer.toml`, `Dockerfile`, `.dockerignore`, `LICENSE`, `AGENTS.md`, `.fallowrc.jsonc`, `tsconfig.json`, `tsconfig.base.json`, `tsconfig.tools.json`, `packages/tsconfig.workspace.json`, `assets/`, `types/` |
+| Command dispatch composition | `packages/coding-agent/src/slash-commands/builtin-registry.ts`, `packages/coding-agent/src/slash-commands/builtin-modes.ts`, `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/tui/src/overlays/extensions/extension-list.ts` |
+| Forklift harness | `.forklift/` |
 
 > **Note:** The § Owned Symbols table below is generally more current than this § Feature Stack, because new shared-file symbols are registered immediately while high-level feature rows may lag. After any feature merge, audit both tables.
 
@@ -519,7 +605,6 @@ These omp files exist but owp intentionally doesn't override them. Always take u
 - `packages/omp-stats/` — Upstream stats dashboard package.
 - `packages/git-tool/` — Upstream git tooling package.
 - `.turbo/` — Generated Turbo cache artifacts; should not be tracked.
-- `python/robomp/` — Fork KEEPS the robomp triage bot (59 tracked files, python/robomp/web workspace in package.json, robomp:* scripts, Dockerfile COPY). Resolved 2026-10-01: the earlier § removals rows contradicted the tree and would have let a sync delete it.
 - `Dockerfile.robomp` — Fork removes upstream robomp Docker builder.
 - `Dockerfile.robomp.dockerignore` — Fork removes upstream robomp Docker builder context.
 - `packages/hashline/` — Upstream nativized hashline into crates/pi-edit (18.2.x) and dropped the JS package; the fork adopted the native engine and retired its JS pipeline (2026-09-21).
@@ -543,6 +628,7 @@ These commits were previously part of the fork but became empty during rebase be
 
 These upstream paths are intentionally absent from owp. `sync.ts --verify` fails if any other upstream file goes missing.
 
+- `python/robomp/` — The fork carries only a trimmed subset of upstream robomp (59 tracked files); the remaining upstream paths are absent on purpose and would otherwise be restored by the next sync. The subset that IS kept is fork-modified and is registered under features (OWP Python RPC), not here.
 - `packages/hashline/` — JS hashline retired — upstream native engine (crates/pi-edit) adopted
 - `packages/coding-agent/src/hashline/` — legacy ¶-era hashline module — superseded by native engine
 - `packages/coding-agent/src/edit/hashline/` — JS hashline executor retired — native engine adopted
@@ -588,7 +674,6 @@ These upstream paths are intentionally absent from owp. `sync.ts --verify` fails
 - `packages/tui/test/shimmer.test.ts` — chore(owp): remove upstream-only components
 - `packages/tui/test/status-line-cache-hit.test.ts` — chore(owp): remove upstream-only components
 - `packages/tui/test/task-nested-live-render.test.ts` — chore(owp): remove upstream-only components
-- `undefined` — undefined
 
 ## Escalation Format
 
@@ -619,91 +704,71 @@ question: adapt our feature to upstream's change, or drop the upstream change?
 
 Once all conflicts are resolved:
 
-1. **Verify no conflict markers remain:**
-   ```bash
-   grep -rn '<<<<<<' packages/ crates/ --include='*.ts' --include='*.rs' --include='*.toml'
-   ```
+- **Verify no conflict markers remain:**
+  ```bash
+  git grep -n '<<<<<<<'
+  ```
 
-2. **Run parse check (not just lint):**
-   ```bash
-    cd packages/coding-agent && bunx tsc -p tsconfig.json --noEmit
-   ```
-   This catches structural breakage (truncated objects, orphaned references) that biome misses.
-   Ignore pre-existing errors in `node_modules/` or upstream-owned files.
+- **Run the type check (not just lint):**
+  ```bash
+  bun check
+  ```
+  This catches structural breakage (truncated objects, orphaned references) that lint misses. Ignore pre-existing errors in dependency directories or upstream-owned files.
 
-3. **Verify owp-owned symbols survive:**
-   ```bash
-   # sdk.ts symbols
-   grep -n 'makeSkillDiscoverer\|skillsOverride\|disabledExtensions.*settings.get\|let sessionManager' packages/coding-agent/src/sdk.ts
-   # model-registry.ts symbols
-   grep -n 'resolveConfigValue\|#customProviderBaseUrls\|openai-compatible\|#discoverOpenAICompatibleModels' packages/coding-agent/src/config/model-registry.ts
-   # settings-schema.ts symbols
-   grep -n 'agent_mode\|session_name' packages/coding-agent/src/config/settings-schema.ts
-   ```
+- **Run the full verification suite — this is the check that matters:**
+  ```bash
+  bun .omp/skills/sync-upstream/sync.ts --verify
+  ```
+  It gates on exit code and covers, in order: conflict markers, symbol health,
+  commit survival, protecting tests (feature behavioral contracts), **feature
+  coverage** (every behavioral feature names a `protecting_tests` entry),
+  **import liveness** (every owned source has at least one importer), footprint,
+  type check, and the deletion audit.
 
-4. **Verify no commits were silently dropped:**
-   ```bash
-   git rev-list --count upstream/main..main
-   ```
-   This should equal the number of fork commits rebased. If the count decreased, a commit became empty — identify which and verify the feature/bug-fix still survives.
+  Import liveness is the check that catches a feature whose files are present and
+  registered but whose wiring was dropped: nothing imports it, so its own file
+  still greps fine while the capability is dead.
 
-5. **Reconcile lock files:**
-   If any owp commit adds a dependency not in upstream's `bun.lock`, run:
-   ```bash
-   bun install
-   ```
-   Commit the updated `bun.lock` separately.
+- **Verify owp-owned symbols survive:** prefer `sync.ts --verify`'s
+  symbol-health step over ad-hoc greps; the § Owned Symbols table is partly
+  auto-derived and its entries are local variable names, so a hand grep against it
+  proves nothing about a feature's reachability.
 
-6. **Rebuild native addon** (always rebuild after a version bump, not just when `packages/natives/` or `crates/` changed):
-   ```bash
-   mise exec -- bun --cwd=packages/natives run build
-   ```
-   **Why always rebuild on version bump:** `Cargo.toml` / `package.json` bumps change the `__piNativesV{major}_{minor}_{patch}` sentinel that `loader-state.js` expects. A stale `.node` embeds the old sentinel and the compiled binary dies with `does not expose the ... version sentinel`. Verify: `strings packages/natives/native/pi_natives.*.node | grep "__piNativesV"` must equal the current `package.json#version` sentinel.
-   Native build dependencies (e.g. `zig`) are declared in `mise.toml`. Run `mise install` first if a tool is missing.
+- **Verify no commits were silently dropped:**
+  ```bash
+  git rev-list --count upstream/main..main
+  ```
+  Compare against `expected_fork_commit_count` in the registry. Treat a moved
+  number as a *symptom only*: it names no feature. When it moves, use the
+  per-feature coverage and liveness results to find which capability actually
+  stopped running.
 
-7. **Verify models.yml schema:**
-   Start owp and check for `Schema error` in output.
-   If `src/config/model-registry.ts` changed `ProviderDiscoverySchema`, verify
-   `~/.omp/agent/models.yml` uses valid `discovery.type` values.
+- **Reconcile lock files:** if any owp commit adds a dependency not in upstream's `bun.lock`, run `bun install` and commit the updated `bun.lock` separately.
+- **Rebuild native addon** (always rebuild after a version bump, not just when `packages/natives/` or `crates/` changed):
+  ```bash
+  mise exec -- bun --cwd=packages/natives run build
+  ```
+  **Why always rebuild on version bump:** `Cargo.toml` / `package.json` bumps change the `__piNativesV{major}_{minor}_{patch}` sentinel that `loader-state.js` expects. A stale `.node` embeds the old sentinel and the compiled binary dies with `does not expose the ... version sentinel`. Verify: `strings packages/natives/native/pi_natives.*.node | grep "__piNativesV"` must equal the current `package.json#version` sentinel.
+  Native build dependencies (e.g. `zig`) are declared in `mise.toml`. Run `mise install` first if a tool is missing.
+- **Verify models.yml schema:** start owp and check for `Schema error` in output. If `src/config/model-registry.ts` changed `ProviderDiscoverySchema`, verify `~/.omp/agent/models.yml` uses valid `discovery.type` values.
+- **Rebuild and reinstall owp binary:** `/install-binary`
 
-8. **Rebuild and reinstall owp binary:**
-   ```bash
-   /install-binary
-   ```
+- **Update docs/maintaining-owp-fork.md § Last Sync Point.**
 
-9. **Update docs/maintaining-owp-fork.md § Last Sync Point.**
-
-10. **Push:**
-    ```bash
-    git push origin main --force-with-lease
-    ```
-    If the push fails with `remote: fatal: did not receive expected object <sha>`,
-    see § Push Failure: Fork-Network Missing Objects below.
-
-## Test Compilation Patterns
-
-When upstream deletes symbols that tests reference, use these canonical patterns
-(in order of preference):
-
-1. **Deleted import → local stub.** Add a `const` or `function` stub at the top
-   of the test file rather than modifying the source module.
-2. **Deleted property → cast to `any`.** `(obj as any).prop` or
-   `(obj as any)["prop"]` for settings/schema properties upstream removed.
-3. **Method signature mismatch on stubs.** If upstream replaced a real function
-   with a no-op stub, widen the stub signature to `..._args: unknown[]` to keep
-   tests compiling.
-4. **Duplicate variable declaration.** Rename the second declaration
-   (e.g. `result` → `result2`) rather than reordering blocks.
-5. **Relative path mismatch.** Test files at `packages/*/test/**/` use
-   `../src/` for sibling imports, not `../../src/`.
+- **Push:**
+  ```bash
+  git push origin main --force-with-lease
+  ```
+  If the push fails with `remote: fatal: did not receive expected object <sha>`,
+  see § Push Failure: Fork-Network Missing Objects below.
 
 ## Pre-Rebase Registry Validation
 
-`sync.ts` validates every file touched by fork commits against `feature-registry.yaml` *before* starting the rebase. If any file is unregistered (not in features or divergences), the script aborts:
+`sync.ts` validates every file touched by fork commits against the registry *before* starting the rebase. If any file is unregistered (not in features or divergences), the script aborts:
 
 ```
 ERROR: Unregistered file in fork commit <sha>: <path>
-  This file is not in feature-registry.yaml § features or § divergences.
+  This file is not in the registry's § features or § divergences.
   Add it to the registry, then regenerate SKILL.md and re-run.
 ```
 
@@ -715,10 +780,13 @@ Run `sync.ts --verify` after a completed rebase to run the full verification sui
 
 | Check | Method | Fail behavior |
 |-------|--------|---------------|
-| Conflict markers | `grep -rn '<<<<<<' packages/ crates/` | Hard fail |
+| Conflict markers | `git grep -n '<<<<<<<' -- 'packages/**/*.ts' 'packages/**/*.tsx'` | Hard fail |
 | Symbol health | `grep` each owp-owned symbol from § Owned Symbols | Report PASS/MISSING |
 | Commit survival | `git rev-list --count upstream/main..main` | Report expected vs actual |
-| Type check | `bun check:ts` | Report pass/fail |
+| Protecting tests | `bun test <protecting_tests>` per registered file | Hard fail |
+| Feature coverage | every behavioral feature declares `protecting_tests` | Hard fail |
+| Import liveness | owned sources resolved against parsed import specifiers | Hard fail |
+| Type check | `bun check` | Report pass/fail |
 | Native sentinel | `strings … pi_natives.*.node \| grep "__piNativesV"` | Report version match/mismatch |
 
 Output is a structured JSON block plus human-readable summary.
@@ -732,7 +800,7 @@ error: remote unpack failed: index-pack failed
 ```
 
 **Root cause:** GitHub fork networks share an object database between the parent repo
-(`can1357/oh-my-pi`) and the fork (`malarbase/oh-wiblo-pi`). During push negotiation,
+and the fork. During push negotiation,
 the fork advertises objects it can see through the alternate as `have`, so the client
 builds a thin pack with deltas against those bases. But when `receive-pack` runs
 server-side it looks up the bases in the *fork's own* object DB (which doesn't see
@@ -742,7 +810,7 @@ Typically triggered after the parent repo is repacked, force-pushed, or GC'd in 
 that orphans objects from the fork's view but leaves stale `have` advertisements.
 
 **Fix:** push each missing object as a temporary ref on origin, forcing the fork to
-copy it into its own object database. Loop until the main push succeeds, then delete
+copy it into its own object database. Loop until the target push succeeds, then delete
 the temp refs.
 
 ```bash
@@ -763,46 +831,6 @@ refs=$(git ls-remote origin '_owns_*' | awk '{print $2}' | sed 's|refs/heads/||'
 Each iteration unblocks one delta base. Three to five iterations is typical for a
 multi-week sync gap; sometimes only one. The temporary `_owns_<sha8>` branches are
 harmless if forgotten but should be deleted when the push completes.
-
-## Guidelines for New Features
-
-The biggest determinant of rebase difficulty is how many lines a feature injects into shared
-upstream files — especially `sdk.ts`. Features that own their own files rebase cleanly.
-Features that scatter inline additions through `createAgentSession()` conflict on every sync.
-
-### Design principles
-
-1. **Own your files.** Put feature logic in new files under `src/modes/`, `src/config/`, or
-   `src/capability/`. Import and call from the minimum number of shared callsites. Files you
-   own entirely survive rebases with zero conflicts.
-
-2. **Minimize sdk.ts contact surface.** If you must touch `createAgentSession()`:
-   - Prefer adding one field to an options object or constructor over inline logic
-   - Prefer a single import + single call over scattered inline additions
-   - Prefer reading state lazily from `session` or `settings` at call time over threading
-     values through intermediate functions
-   - Each separate insertion point in sdk.ts = one potential conflict hunk per sync
-
-3. **Extend, don't fork, shared types.** If upstream has `StatusLineSegmentId`, add your
-   literal to the union — don't create a parallel type. If upstream has `ProviderDiscoverySchema`,
-   add your literal to the existing Type.Union — don't create a separate schema. This gives you
-   one small conflict hunk ("add entry to list") instead of a structural divergence.
-
-4. **Use the extension/hook system when it exists.** Upstream's extensibility system
-   (`extensionRunner`, hooks, event handlers) is designed for exactly this. When possible,
-   implement features as extensions rather than core modifications.
-
-5. **Register symbols immediately.** When your feature touches a shared file, update
-   `feature-registry.yaml` in the same commit. Then regenerate SKILL.md with `generate-skill-md.ts`
-   so the Owned Symbols tables stay current. Don't wait for the next sync to discover the gap.
-
-### Contact surface audit
-
-Before merging a new feature commit, audit its sdk.ts diff:
-- Count the number of separate insertion/modification hunks
-- If > 2 hunks, consider whether the logic can be moved to a dedicated file
-- If the feature adds a parameter to `rebuildSystemPrompt` or `buildSystemPromptInternal`,
-  consider whether the value can be read from `session` or `settings` instead of threaded
 
 ## Rollback
 
