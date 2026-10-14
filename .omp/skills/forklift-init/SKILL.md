@@ -32,7 +32,7 @@ State the classification and the evidence (remote URLs) before proceeding.
 **Fork role - probe which fork tooling targets this repo:**
 
 ```bash
-bun "$FORKLIFT/bin/forklift-render" --help >/dev/null 2>&1 && echo "forklift-render: runnable" || echo "forklift-render: NOT runnable (bun missing?)"
+bun "$FORKLIFT/bin/forklift" render --help >/dev/null 2>&1 && echo "forklift render: runnable" || echo "forklift render: NOT runnable (bun missing?)"
 npx --no-install create-opencode --help >/dev/null 2>&1 && echo "create-opencode: available (opencode scaffold)" || echo "create-opencode: not available"
 ```
 
@@ -79,14 +79,14 @@ Then fill `.forklift/registry.yaml` - every field is documented in `$FORKLIFT/sc
 Then generate the skill and audit:
 
 ```bash
-bun "$FORKLIFT/bin/forklift-render" --registry .forklift/registry.yaml
-bun "$FORKLIFT/bin/forklift-install"
+bun "$FORKLIFT/bin/forklift" render --registry .forklift/registry.yaml
+bun "$FORKLIFT/bin/forklift" install
 ```
 
-`forklift-render` (default template `templates/SKILL.md.tmpl`) writes `sync-upstream/SKILL.md` into every adapter skills directory that already exists from step 2's scan; if none exists yet, create the directory this fork's agents use (e.g. `.omp/skills`) and re-render - until then the output is staged at `.forklift/SKILL.md`. `forklift-install` then stamps the static skills into the same adapter directories, installs the sync command, and writes `.forklift/harness.lock`, which doctor check 7 requires.
+`forklift render` (default template `templates/SKILL.md.tmpl`) writes `sync-upstream/SKILL.md` into every adapter skills directory that already exists from step 2's scan; if none exists yet, create the directory this fork's agents use (e.g. `.omp/skills`) and re-render - until then the output is staged at `.forklift/SKILL.md`. `forklift install` then stamps the static skills into the same adapter directories, installs the sync command, and writes `.forklift/harness.lock`, which doctor check 7 requires.
 
-Run `forklift-doctor` checks 1-7 (skill in `$FORKLIFT/skills/forklift-doctor/SKILL.md`) and fix every finding before the first sync.
+Run `forklift doctor` checks 1-7 (skill in `$FORKLIFT/skills/forklift-doctor/SKILL.md`) and fix every finding before the first sync.
 
 ## 4. Host role - document the layout
 
-Do **not** create `.forklift/`. From step 2's scan, record which adapter directories exist and their counts; if the counts differ from the `examples` block in `$FORKLIFT/adapters/tools.yaml`, report the corrected numbers so the table can be refreshed. Host repos consume forklift only through fork-side installs (`bin/forklift-install` run against them) - mention which `role: fork`/`both` tools could target this repo.
+Do **not** create `.forklift/`. From step 2's scan, record which adapter directories exist and their counts; if the counts differ from the `examples` block in `$FORKLIFT/adapters/tools.yaml`, report the corrected numbers so the table can be refreshed. Host repos consume forklift only through fork-side installs (`forklift install` run against them) - mention which `role: fork`/`both` tools could target this repo.

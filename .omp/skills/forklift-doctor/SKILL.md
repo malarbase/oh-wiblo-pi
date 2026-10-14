@@ -6,7 +6,7 @@ description: Seven drift checks for a fork managed by forklift. Run from the tar
 
 # forklift-doctor
 
-The `bin/forklift-doctor` CLI runs all seven checks against the fork repo you are standing in. Each check is a self-contained command with a pass criterion and exact remediation.
+The `forklift doctor` CLI runs all seven checks against the fork repo you are standing in. Each check is a self-contained command with a pass criterion and exact remediation.
 
 ## Setup
 
@@ -16,19 +16,19 @@ export FORKLIFT=<absolute path to the forklift checkout that contains this skill
 test -f .forklift/registry.yaml || echo "MISSING: .forklift/registry.yaml (run forklift-init)"
 ```
 
-Registry-scoped checks (1-4, 6) read `.forklift/registry.yaml`. Harness checks (5, 7) additionally read `.forklift/harness.lock` (written by `bin/forklift-install`).
+Registry-scoped checks (1-4, 6) read `.forklift/registry.yaml`. Harness checks (5, 7) additionally read `.forklift/harness.lock` (written by `forklift install`).
 
 ## Usage
 
 ```bash
-bun "$FORKLIFT/bin/forklift-doctor"                       # all checks, human output
-bun "$FORKLIFT/bin/forklift-doctor" --check 6             # one check
-bun "$FORKLIFT/bin/forklift-doctor" --check 1,2,6         # several
-bun "$FORKLIFT/bin/forklift-doctor" --check 1-7           # range (same as default)
-bun "$FORKLIFT/bin/forklift-doctor" --list                # print the check table, run nothing
-bun "$FORKLIFT/bin/forklift-doctor" --json                # {registry, checks: [{id,name,status,lines}], ok}
-bun "$FORKLIFT/bin/forklift-doctor" --registry .forklift/registry.yaml   # explicit path (default)
-bun "$FORKLIFT/bin/forklift-doctor" --help
+bun "$FORKLIFT/bin/forklift" doctor                       # all checks, human output
+bun "$FORKLIFT/bin/forklift" doctor --check 6             # one check
+bun "$FORKLIFT/bin/forklift" doctor --check 1,2,6         # several
+bun "$FORKLIFT/bin/forklift" doctor --check 1-7           # range (same as default)
+bun "$FORKLIFT/bin/forklift" doctor --list                # print the check table, run nothing
+bun "$FORKLIFT/bin/forklift" doctor --json                # {registry, checks: [{id,name,status,lines}], ok}
+bun "$FORKLIFT/bin/forklift" doctor --registry .forklift/registry.yaml   # explicit path (default)
+bun "$FORKLIFT/bin/forklift" doctor --help
 ```
 
 The registry is validated against `schema/registry.schema.yaml` before any check runs; a schema error is a hard failure naming the registry. Human output is one block per check with its PASS/FAIL line and findings, then a final `doctor: N passed, M failed` summary; exit 0 only when every executed check passes. Check 7 derives the forklift root from the CLI's own location, so `FORKLIFT` is no longer required for it (still honored when set).
@@ -49,4 +49,4 @@ Run checks in order 1-7; 1-4 must pass before syncing, 5-6 before rebaselining, 
 
 6. **Deletion audit** — a path still registered under `owned_paths` that exists in upstream history but not at the current upstream tip means the next rebase would delete it; never-existed paths (fork-new files) are informational. A path the fork keeps as a deliberate port can be acknowledged: add it to the owning feature's `upstream_deleted_paths` (`path` required; `upstream_removed_in`, `note` optional provenance) and check 6 downgrades it to an informational `PORT (acknowledged) <path> | <feature>` line instead of failing. **PASS** = `PASS: no registered path deleted upstream (checked …, fork-new …)`. **FAIL** = one `DELETED-UPSTREAM` line per unacknowledged path. **Remediation (per path):** the porting protocol - upstream deleted it, the fork still needs it, so the rebase will drop it. Options: keep the fork copy and acknowledge it via `upstream_deleted_paths`, absorb the upstream replacement (update registry to the new upstream path), or drop the feature if upstream retired it deliberately. Resolve every line before syncing.
 
-7. **Version drift** — `harness.lock` is the authority on the installed template version; every stamped install must match it, and the registry's `harness.version` must match the lock. **PASS** = `PASS: <n> stamped install(s) match harness.lock v<n>` (either all stamps match, or the target has no installs). **FAIL** = a `DRIFT` line naming file + expected/actual, or a registry/lock mismatch, or a missing lock. **Remediation:** version drift means the harness moved without reinstalling - re-run `bin/forklift-render` and then `bin/forklift-install` in the target repo to restamp, or set `harness.version` in the registry back if it was edited by hand. Never edit a stamp line directly.
+7. **Version drift** — `harness.lock` is the authority on the installed template version; every stamped install must match it, and the registry's `harness.version` must match the lock. **PASS** = `PASS: <n> stamped install(s) match harness.lock v<n>` (either all stamps match, or the target has no installs). **FAIL** = a `DRIFT` line naming file + expected/actual, or a registry/lock mismatch, or a missing lock. **Remediation:** version drift means the harness moved without reinstalling - re-run `forklift render` and then `forklift install` in the target repo to restamp, or set `harness.version` in the registry back if it was edited by hand. Never edit a stamp line directly.

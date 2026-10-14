@@ -166,7 +166,7 @@ Features that scatter inline additions through `createAgentSession()` conflict o
    implement features as extensions rather than core modifications.
 
 5. **Register symbols immediately.** When your feature touches a shared file, update
-   `feature-registry.yaml` in the same commit. Then regenerate SKILL.md with `forklift-render`
+   `feature-registry.yaml` in the same commit. Then regenerate SKILL.md with `forklift render`
    so the Owned Symbols tables stay current. Don't wait for the next sync to discover the gap.
 
 ### Contact surface audit
@@ -180,7 +180,7 @@ Before merging a new feature commit, audit its sdk.ts diff:
 ## Post-Rebase Bookkeeping
 
 - **Review promotion candidates.** Check if any no-op stubs now have sufficient implementation need to be promoted to real code.
-- **Fork Features table.** `generate-skill-md.ts` refreshes the Fork Features table in `docs/maintaining-owp-fork.md` from git history. It also rewrites SKILL.md from the legacy template — re-run `forklift-render` afterwards so the skill stays forklift-managed.
+- **Fork Features table.** `generate-skill-md.ts` refreshes the Fork Features table in `docs/maintaining-owp-fork.md` from git history. It also rewrites SKILL.md from the legacy template — re-run `forklift render` afterwards so the skill stays forklift-managed.
 
 ## Tag Strategy (Remote Backup)
 
@@ -230,7 +230,7 @@ git push origin main --force-with-lease
 
 After all conflicts are resolved and compilation passes, perform these bookkeeping steps before force-pushing:
 
-- **Regenerate generated docs.** Run `forklift-render --registry .forklift/registry.yaml` — it regenerates SKILL.md and, when `harness.registry_path` is set, the legacy runner's registry copy from the registry.
+- **Regenerate generated docs.** Run `forklift render --registry .forklift/registry.yaml` — it regenerates SKILL.md and, when `harness.registry_path` is set, the legacy runner's registry copy from the registry.
 - **Update feature registry.** If new files were added, removed, or moved, update `.forklift/registry.yaml` and re-render (above).
 - **Update divergence list.** If a previously divergent file is now owned by owp, update both lists.
 
@@ -302,7 +302,7 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | OWP GitHub config | `.github/` |
 | OWP root config and assets | `package.json`, `bunfig.toml`, `Cargo.toml`, `.gitattributes`, `rust-toolchain.toml`, `rustfmt.toml`, `rust-analyzer.toml`, `Dockerfile`, `.dockerignore`, `LICENSE`, `AGENTS.md`, `.fallowrc.jsonc`, `tsconfig.json`, `tsconfig.base.json`, `tsconfig.tools.json`, `packages/tsconfig.workspace.json`, `assets/`, `types/` |
 | Command dispatch composition | `packages/coding-agent/src/slash-commands/builtin-registry.ts`, `packages/coding-agent/src/slash-commands/builtin-modes.ts`, `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/tui/src/overlays/extensions/extension-list.ts` |
-| Forklift harness | `.forklift/`, `.omp/skills/forklift-doctor/`, `.omp/skills/forklift-init/` |
+| Forklift harness | `.forklift/`, `.omp/skills/forklift-doctor/`, `.omp/skills/forklift-init/`, `AGENT.md` |
 
 > **Note:** The § Owned Symbols table below is generally more current than this § Feature Stack, because new shared-file symbols are registered immediately while high-level feature rows may lag. After any feature merge, audit both tables.
 
