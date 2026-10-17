@@ -152,7 +152,7 @@ Total: 101 fork commits on top of `upstream/main..main`.
 | `45d420a076` | chore(owp): complete the forklift cutover — retire the legacy sync layer | `.forklift/registry.yaml`, `.omp/commands/reorganize-fork.md`, `.omp/commands/sync-upstream.md`, `.omp/extensions/feature-checklist.ts`, `.omp/rules/owp-feature-registry.md`, … (10 more) | chore |
 | `358bf134a8` | chore(owp): render the Conflict Walk into the sync-upstream skill | `.omp/commands/sync-upstream.md`, `.omp/skills/forklift-doctor/SKILL.md`, `.omp/skills/forklift-init/SKILL.md`, `.omp/skills/sync-upstream/SKILL.md`, `docs/maintaining-owp-fork.md` | chore |
 | `ed51e2c7d4` | feat(google-ai): gate extraction on answer readiness, not a fixed sleep | `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/web/search/providers/google-ai.ts`, `packages/coding-agent/test/interactive-mode-plan-review.test.ts`, `packages/coding-agent/test/tools/web-search-google-ai.test.ts` | code |
-| `7fe6e0fdc8` | feat(zen): read the console session token as the free-tier identity | `.forklift/registry.yaml`, `.omp/extensions/opencode-zen-free-tier.ts`, `AGENT.md`, `docs/maintaining-owp-fork.md` | code |
+| `36c52dfe58` | feat(zen): read the console session token as the free-tier identity | `.forklift/registry.yaml`, `.omp/extensions/opencode-zen-free-tier.ts`, `AGENT.md`, `docs/maintaining-owp-fork.md` | code |
 
 > **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->
