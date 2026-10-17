@@ -71,7 +71,7 @@ Then fill `.forklift/registry.yaml` - every field is documented in `$FORKLIFT/sc
 
 1. `harness.fork` / `harness.upstream` - from `git remote -v` (remote names and branches), plus `sync_command` (how to start a sync: for a manual fork, `git rebase <upstream>/<branch>`), `fork_doc` (the doc that records sync points; `.forklift/README.md` when the repo keeps no other), and `sync_runner` **only** when the fork runs a forklift-style runner script with `--verify`/`--revert`/`--tag` flags - omit it otherwise, and the runner-flag sections are dropped from the rendered skill instead of rendering nonsense flags onto a plain `git rebase`.
 2. `harness.project` - inspect the tree: `source_roots` (globs of fork source dirs), `test_globs` (test dir layouts), `conflict_marker_globs` (the file classes where conflict markers must be inspected), `package_aliases` (package name -> source dir for bare-specifier import resolution; from `package.json` workspaces if present).
-3. `harness.checks` - `behavioral_source_regex` (paths whose features need protecting tests), `footprint_baseline` path once one exists, `excludes` for harness-generated paths.
+3. `harness.checks` - `behavioral_source_regex` (paths whose features need protecting tests), `footprint_baseline` path once one exists, `excludes` for harness-generated paths, `semantic_drift: {tool: difftastic}` - enable it whenever difftastic can be installed for this fork: add `"github:Wilfred/difftastic" = "latest"` to the fork's mise.toml [tools], run `mise install`, confirm with `mise exec -- difft --version`, then set the key so the rendered skill's Conflict Walk reads conflicts structurally instead of by line diff. Omit it only when the tool cannot be installed here; the walk stays git-only and doctor check 8 says so.
 4. `features` - enumerate fork-owned work from `git log --name-only <upstream>/<branch>..<fork>/<branch>` grouped by file overlap; each entry: `name`, `owned_paths`, and either `protecting_tests` or `coverage_exempt`. Put `status: draft` on every generated feature: the fresh registry is a migration worklist, and doctor checks 3 and 4 report draft findings without failing (protecting tests, import liveness) until you promote each feature to `active` once its worklist items are cleared.
 5. `divergences` - upstream-owned files the fork deliberately does not override (always take upstream).
 6. `expected_fork_commit_count` - `git rev-list --count <upstream>/<branch>..<fork>/<branch>`.
@@ -85,7 +85,7 @@ bun "$FORKLIFT/bin/forklift" install
 
 `forklift render` (default template `templates/SKILL.md.tmpl`) writes `sync-upstream/SKILL.md` into every adapter skills directory that already exists from step 2's scan; if none exists yet, create the directory this fork's agents use (e.g. `.omp/skills`) and re-render - until then the output is staged at `.forklift/SKILL.md`. `forklift install` then stamps the static skills into the same adapter directories, installs the sync command, and writes `.forklift/harness.lock`, which doctor check 7 requires.
 
-Run `forklift doctor` checks 1-7 (skill in `$FORKLIFT/skills/forklift-doctor/SKILL.md`) and fix every finding before the first sync.
+Run `forklift doctor` checks 1-8 (skill in `$FORKLIFT/skills/forklift-doctor/SKILL.md`) and fix every finding before the first sync.
 
 ## 4. Host role - document the layout
 

@@ -6,12 +6,12 @@ Rebase `main` against `main` (oh-my-pi -> oh-wiblo-pi).
 ## Steps
 
 1. Read the `sync-upstream` skill - it carries the conflict resolution decision tree, the upstream-deleted module protocol, and the rules for reading the feature registry (`.forklift/registry.yaml`).
-2. Run your fork's sync runner:
+2. `forklift doctor --check 8` first sizes the sync (which upstream-changed files intersect this fork's owned paths, and which features must be gated); then run the fork's sync runner:
    ```bash
    forklift sync
    ```
    *Note: if upstream has no new commits relative to the local base, the runner should exit early as a no-op.*
-3. If conflicts are reported, resolve them with the decision tree from the skill, then `git rebase --continue` and re-run the runner to pick up the next batch.
+3. If conflicts are reported, resolve each one through the skill's Conflict Walk (three-stage extraction; formatting-only hunks need no escalation), run the touched features' protecting tests, then `git rebase --continue` and re-run the runner to pick up the next batch.
 4. After the rebase: run `forklift doctor` checks 1-4 (registry completeness, stale paths, feature coverage, import liveness), then the type check:
    ```bash
    bun check

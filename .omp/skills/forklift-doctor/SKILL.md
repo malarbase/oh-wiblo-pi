@@ -1,12 +1,12 @@
 ---
 name: forklift-doctor
-description: Seven drift checks for a fork managed by forklift. Run from the target fork repository. Each check is a self-contained command with a pass criterion and exact remediation.
+description: Eight drift checks for a fork managed by forklift. Run from the target fork repository. Each check is a self-contained command with a pass criterion and exact remediation.
 ---
 <!-- forklift v1 -->
 
 # forklift-doctor
 
-The `forklift doctor` CLI runs all seven checks against the fork repo you are standing in. Each check is a self-contained command with a pass criterion and exact remediation.
+The `forklift doctor` CLI runs all eight checks against the fork repo you are standing in. Each check is a self-contained command with a pass criterion and exact remediation.
 
 ## Setup
 
@@ -24,7 +24,7 @@ Registry-scoped checks (1-4, 6) read `.forklift/registry.yaml`. Harness checks (
 bun "$FORKLIFT/bin/forklift" doctor                       # all checks, human output
 bun "$FORKLIFT/bin/forklift" doctor --check 6             # one check
 bun "$FORKLIFT/bin/forklift" doctor --check 1,2,6         # several
-bun "$FORKLIFT/bin/forklift" doctor --check 1-7           # range (same as default)
+bun "$FORKLIFT/bin/forklift" doctor --check 1-8           # range (same as default)
 bun "$FORKLIFT/bin/forklift" doctor --list                # print the check table, run nothing
 bun "$FORKLIFT/bin/forklift" doctor --json                # {registry, checks: [{id,name,status,lines}], ok}
 bun "$FORKLIFT/bin/forklift" doctor --registry .forklift/registry.yaml   # explicit path (default)
@@ -35,7 +35,7 @@ The registry is validated against `schema/registry.schema.yaml` before any check
 
 ## Check reference
 
-Run checks in order 1-7; 1-4 must pass before syncing, 5-6 before rebaselining, 7 any time. A script error (missing `harness` block, registry unparseable) is a hard failure with the setup remediation.
+Run checks in order 1-8; 1-4 and 8 must pass before syncing, 5-6 before rebaselining, 7 any time. A script error (missing `harness` block, registry unparseable) is a hard failure with the setup remediation.
 
 1. **Registry completeness** — no fork commit may touch a source path the registry does not claim. **PASS** = `PASS: registry covers every fork-touched source path (<range>)`. **FAIL** = one `UNREGISTERED` line per path (range `<upstream.remote>/<upstream.branch>..<fork.branch>`). **Remediation (per path):** find the owning feature with `git log --oneline -1 <upstream_branch> -- <path>` and `git log --oneline -1 <fork_branch> -- <path>`; then either register the path in an existing feature's `owned_paths`, add a new feature, add the file to `divergences` (take-upstream policy), or record a `removals` entry if the path is absent from the fork on purpose. Re-run check 1 after every registry edit.
 
@@ -50,3 +50,5 @@ Run checks in order 1-7; 1-4 must pass before syncing, 5-6 before rebaselining, 
 6. **Deletion audit** — a path still registered under `owned_paths` that exists in upstream history but not at the current upstream tip means the next rebase would delete it; never-existed paths (fork-new files) are informational. A path the fork keeps as a deliberate port can be acknowledged: add it to the owning feature's `upstream_deleted_paths` (`path` required; `upstream_removed_in`, `note` optional provenance) and check 6 downgrades it to an informational `PORT (acknowledged) <path> | <feature>` line instead of failing. **PASS** = `PASS: no registered path deleted upstream (checked …, fork-new …)`. **FAIL** = one `DELETED-UPSTREAM` line per unacknowledged path. **Remediation (per path):** the porting protocol - upstream deleted it, the fork still needs it, so the rebase will drop it. Options: keep the fork copy and acknowledge it via `upstream_deleted_paths`, absorb the upstream replacement (update registry to the new upstream path), or drop the feature if upstream retired it deliberately. Resolve every line before syncing.
 
 7. **Version drift** — `harness.lock` is the authority on the installed template version; every stamped install must match it, and the registry's `harness.version` must match the lock. **PASS** = `PASS: <n> stamped install(s) match harness.lock v<n>` (either all stamps match, or the target has no installs). **FAIL** = a `DRIFT` line naming file + expected/actual, or a registry/lock mismatch, or a missing lock. **Remediation:** version drift means the harness moved without reinstalling - re-run `forklift render` and then `forklift install` in the target repo to restamp, or set `harness.version` in the registry back if it was edited by hand. Never edit a stamp line directly.
+
+8. **Upstream drift forecast** — upstream-changed files since the merge-base that intersect fork-owned paths, ranked by resolution policy and gated on protecting_tests. **PASS** = `PASS: conflict surface <n> upstream-changed file(s) (graft <g>, prefer-ours <o>, take-upstream <u>, unrelated <r>) - all gated`; when upstream has not moved: `PASS: no upstream drift since merge-base <sha8>`; when there is no merge base: `FAIL: no merge base between <fork.branch> and <up> (fetch <upstream.remote> first)`. **FAIL** = `FAIL: <k> conflict-surface file(s) belong to feature(s) with no protecting_tests (…)` plus one `  UNGATED <path> | <feature>` per ungated surface file. **Surface lines** = `  GRAFT <path> | <feature> | structural|whitespace-only` (file carries `owned_symbols` — MERGE PATH), `  OURS <path> | <feature> | structural|whitespace-only` (file in a feature's `owned_paths` — prefer ours), `  UPSTREAM <path> | take upstream` (in `divergences`), plus `  DRAFT (reported only) <feature>` for draft features. **INFO line** = `  INFO: harness.checks.semantic_drift is unset - the Conflict Walk renders git-only; set {tool: difftastic} (mise: "github:Wilfred/difftastic") when difftastic can be installed on this fork`. Never a failure: it asks the operator to add `"github:Wilfred/difftastic" = "latest"` to the fork's `mise.toml` `[tools]`, run `mise install`, set the registry key, and re-render — the alternative (difftastic uninstallable) is a legitimate answer. **Remediation (per UNGATED):** add `protecting_tests` (or a `coverage_exempt` reason) to the named feature before syncing, so the resolution has a gate; if the surface is larger than the sync can absorb, shrink contact surface per the skill's § Guidelines. Re-run `forklift doctor --check 8`.

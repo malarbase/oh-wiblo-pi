@@ -16,6 +16,49 @@ forklift sync
 
 Git operations run through the command above. You resolve conflicts using the decision tree below, then signal the script to continue or abort.
 
+## Conflict Walk
+
+Read a conflict from git's three-way index, not from the conflict-marker file: markers hide which side changed what and cannot show what the two sides share.
+
+**Before the rebase starts**, reconcile the branch picture against what the registry claims — this is the macro intent every per-commit decision below serves:
+
+```bash
+git diff --stat upstream/main...main
+```
+
+**Extract the three stages** of each conflicted path into a scratch directory (keep the extension — parsers key on it):
+
+```bash
+p=<conflicted-path>; ext=${p##*.}; d=$(mktemp -d)
+git ls-files -u -- "$p"                 # which stages actually exist
+git show :1:"$p" > "$d/base.$ext"       # common ancestor
+git show :2:"$p" > "$d/ours.$ext"       # so-far-rebased series, starting from omp
+git show :3:"$p" > "$d/theirs.$ext"     # the fork commit being replayed
+```
+
+During a rebase the roles swap: `:2:` (ours) is the rebased series, `:3:` (theirs) is your feature commit.
+
+**Missing stages.** For add/add, delete/modify and rename conflicts a stage is absent — `git ls-files -u` lists only the stages git holds. Read an absent stage as an empty file and take the decision tree's semantic branch (escalate); never reconstruct the missing side from marker text.
+
+**Read each side against base:**
+
+```bash
+git diff --no-index --color=never "$d/base.$ext" "$d/ours.$ext"    # upstream's change
+git diff --no-index --color=never "$d/base.$ext" "$d/theirs.$ext"  # the feature's change
+```
+
+`--no-index` exits 1 when the files differ — the normal case, not an error.
+
+**Noise filter.** When `base → ours` differs from base only in whitespace or reformatting, the hunk is a formatter artifact, not a semantic clash: keep the feature's content from `:3:`, skip ESCALATE, and prove it by compiling. When `base → ours` carries a real change to a file listed in § Owned Symbols, it is a MERGE PATH conflict: take upstream's structure and graft the named symbols into it.
+
+**Gate each paused commit.** After resolving one commit's conflicts and before `git rebase --continue`, run the protecting tests of every feature whose owned paths you just touched:
+
+```bash
+bun test <protecting_tests for the touched features>
+```
+
+A red test here names the resolution that broke the feature; waiting for the end-of-rebase suite attributes the break to dozens of commits.
+
 ## Conflict Resolution Decision Tree
 
 When the script reports a conflict, apply this logic in order:
