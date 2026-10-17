@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `forklift render` — do not edit it by hand; run the command instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 112 fork commits on top of `upstream/main..main`.
+Total: 113 fork commits on top of `upstream/main..main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -163,7 +163,8 @@ Total: 112 fork commits on top of `upstream/main..main`.
 | `04b7e69268` | chore(owp): adopt the render's pending-row semantics | `docs/maintaining-owp-fork.md` | chore |
 | `af1faa4a71` | chore(owp): render the fork table after the pending-row change | `docs/maintaining-owp-fork.md` | chore |
 | `74c249cfe9` | chore(owp): render the fork table after the rebaseline | `docs/maintaining-owp-fork.md` | chore |
-| `pending` | chore(owp): rebaseline the fork commit count to 110 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `fe6c5b58e0` | chore(owp): rebaseline the fork commit count to 112 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `pending` | chore(owp): render the fork table after the rebaseline | `docs/maintaining-owp-fork.md` | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. A row whose commit is still `pending` is the newest commit in the range — its hash is unknown until that commit lands, `forklift render` resolves it on the next render. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->
