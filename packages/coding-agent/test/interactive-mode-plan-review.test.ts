@@ -2055,6 +2055,33 @@ describe("InteractiveMode plan review rendering", () => {
 			});
 		});
 
+		it("reviews a plan just loaded by /plan load, whose draft has no -plan suffix", async () => {
+			// /plan load names the draft after the saved plan's stem, so a project plan
+			// like `forklift-bootstrap` lands at local://forklift-bootstrap.md. The
+			// discovery scan used to require a `plan.md` suffix and reported "No plan to
+			// review yet" for a plan that had loaded successfully.
+			const plansDir = path.join(tempDir.path(), ".omp", "plans");
+			await fs.mkdir(plansDir, { recursive: true });
+			await Bun.write(path.join(plansDir, "forklift-bootstrap.md"), "# Forklift bootstrap\n\nbody\n");
+
+			const status = vi.spyOn(mode, "showStatus");
+			await mode.handlePlanLoadCommand("forklift-bootstrap");
+			expect(status.mock.calls.map(call => String(call[0])).join(" ")).toContain('Loaded plan "forklift-bootstrap"');
+			expect(mode.planModePlanFilePath).toBe("local://forklift-bootstrap.md");
+
+			const approval = vi.spyOn(mode, "handlePlanApproval").mockResolvedValue();
+			const warn = vi.spyOn(mode, "showWarning");
+
+			await mode.openPlanReview();
+
+			expect(warn).not.toHaveBeenCalled();
+			expect(approval).toHaveBeenCalledWith({
+				planFilePath: "local://forklift-bootstrap.md",
+				title: "Forklift-bootstrap",
+				planExists: true,
+			});
+		});
+
 		it("warns and does not start approval when plan mode is inactive", async () => {
 			await Bun.write(localPath("local://auth-plan.md"), "# Auth\n\nbody");
 			mode.planModeEnabled = false;

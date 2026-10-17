@@ -4062,14 +4062,20 @@ export class InteractiveMode implements InteractiveModeContext {
 
 	/** `local://` URLs of plan files in the session-local root, newest first.
 	 *  A fallback for `resolveApprovedPlan` when the agent dropped `extra.title`,
-	 *  so the plan it wrote is still found by scanning recent `*-plan.md` files. */
+	 *  so the plan it wrote is still found by scanning recent `*.md` files.
+	 *
+	 *  Matches any markdown draft, not just `*-plan.md`: `/plan load` names its
+	 *  draft after the saved plan's stem (`local://<stem>.md`), so a project plan
+	 *  like `forklift-bootstrap` lands here as `forklift-bootstrap.md` — which the
+	 *  old `/plan\.md$/i` filter rejected, making `/plan-review` report "No plan to
+	 *  review yet" for a plan that had just loaded successfully. */
 	async #listLocalPlanFiles(): Promise<string[]> {
 		const localRoot = this.#resolvePlanFilePath("local://");
 		try {
 			const entries = await fs.readdir(localRoot, { withFileTypes: true });
 			const plans = await Promise.all(
 				entries
-					.filter(entry => entry.isFile() && /plan\.md$/i.test(entry.name))
+					.filter(entry => entry.isFile() && /\.md$/i.test(entry.name))
 					.map(async name => {
 						const stat = await fs.stat(path.join(localRoot, name.name)).catch(() => null);
 						return { url: `local://${name.name}`, mtime: stat?.mtimeMs ?? 0 };
@@ -5507,7 +5513,7 @@ export class InteractiveMode implements InteractiveModeContext {
 			this.showWarning("Plan mode is not active.");
 			return;
 		}
-		const noPlan = "No plan to review yet — write one to a local://<slug>-plan.md file first.";
+		const noPlan = "No plan to review yet — write one to local://, or run /plan load <name>, first.";
 		const [planFilePath] = await this.#listLocalPlanFiles();
 		if (!planFilePath) {
 			this.showWarning(noPlan);

@@ -20,7 +20,14 @@ import { SearchProvider } from "./base";
 
 const GOOGLE_AI_SEARCH_URL = "https://www.google.com/search?udm=50";
 const BROWSER_TIMEOUT_MS = 45_000;
-const POST_NAVIGATION_WAIT_MS = 5_000;
+/** Settle window whose only remaining job is giving bot-wall markers time to paint. */
+const POST_NAVIGATION_SETTLE_MS = 2_000;
+/** Answer text must hold still this long once citations exist before we trust it. */
+const ANSWER_STABLE_MS = 1_200;
+/** Longer window for citation-less answers, which give us no "answer landed" signal. */
+const ANSWER_STABLE_UNCITED_MS = 4_000;
+const ANSWER_POLL_MS = 400;
+const ANSWER_READY_TIMEOUT_MS = 20_000;
 const MAX_SOURCES = 10;
 
 interface SelectorSet {
@@ -78,6 +85,87 @@ async function detectCaptcha(page: Page): Promise<boolean> {
 	});
 }
 
+/**
+ * Markers the AI Mode shell shows while the answer is still being generated.
+ * Matched per-line against the tail of the text so a rendered answer that
+ * merely mentions them is unaffected.
+ */
+const LOADING_SHELL_PATTERNS = [/^\s*Searching\b/m, /^\s*Skip to previous prompt\b/m];
+
+/** True while the snapshot looks like an unfinished shell rather than an answer. */
+function isLoadingShell(text: string): boolean {
+	const trimmed = text.trim();
+	if (trimmed.length < 80) return true;
+	const tail = trimmed.slice(-400);
+	return LOADING_SHELL_PATTERNS.some(re => re.test(tail));
+}
+
+/**
+ * Wait until AI Mode has actually finished producing an answer.
+ *
+ * `#main` / `#cnt` exist the moment the shell paints, and the answer streams
+ * into that same node for seconds afterwards — selector presence is therefore
+ * not a readiness signal. Readiness is measured on the very snapshot the
+ * extractor reads: answer-text length plus the citation-link count, both using
+ * the selectors `extractAnswer` / `extractSources` already rely on.
+ *
+ * @returns `true` once that snapshot has held still for the required window,
+ *          `false` if a CAPTCHA appears, the deadline passes, or the page is
+ *          still an uncited loading shell when time runs out.
+ */
+export async function waitForAnswerReady(
+	page: Page,
+	deadlineMs: number,
+	notify?: (message: string) => void,
+): Promise<boolean> {
+	let lastLength = -1;
+	let stableSince = Date.now();
+	let lastNotifiedSec = -1;
+
+	for (;;) {
+		if (Date.now() >= deadlineMs) return false;
+		// A bot wall during the wait is not "an answer that never settled".
+		if (await detectCaptcha(page)) return false;
+
+		const { text, citations } = await page.evaluate(() => {
+			// Puppeteer types `document` inside a PageFunction with no query API at
+			// all, so name the exact slice this probe touches rather than widening
+			// to `any`.
+			type DomSlice = {
+				querySelector(selectors: string): { innerText?: string } | null;
+				querySelectorAll(selectors: string): ArrayLike<unknown>;
+			};
+			const d = document as unknown as DomSlice;
+			return {
+				text: d.querySelector("#main, #cnt .main, #cnt")?.innerText ?? "",
+				citations: d.querySelectorAll("a.vIWmYe[href], a.H23r4e[href]").length,
+			};
+		});
+
+		const length = text.trim().length;
+		if (length !== lastLength) {
+			lastLength = length;
+			stableSince = Date.now();
+		} else if (Date.now() - stableSince >= (citations >= 1 ? ANSWER_STABLE_MS : ANSWER_STABLE_UNCITED_MS)) {
+			// Citations are the strongest "the answer landed" signal. Without
+			// them a stable snapshot is only an answer if it is not the bare
+			// loading shell — that shell is stable too, and reading it as an
+			// answer is how mid-generation junk used to get extracted.
+			if (citations >= 1 || !isLoadingShell(text)) return true;
+		}
+
+		if (notify) {
+			const remainingSec = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1_000));
+			if (remainingSec !== lastNotifiedSec) {
+				lastNotifiedSec = remainingSec;
+				notify(`Waiting for the AI answer to finish rendering (${remainingSec}s remaining)`);
+			}
+		}
+
+		await Bun.sleep(ANSWER_POLL_MS);
+	}
+}
+
 /** Normalize whitespace in extracted text. */
 function normalizeText(text: string): string {
 	return text
@@ -87,7 +175,7 @@ function normalizeText(text: string): string {
 }
 
 /** Extract the AI-synthesized answer from Google AI Mode page. */
-async function extractAnswer(page: Page, query: string): Promise<string | null> {
+export async function extractAnswer(page: Page, query: string): Promise<string | null> {
 	return page.evaluate((q: string) => {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const d = document as any;
@@ -106,7 +194,9 @@ async function extractAnswer(page: Page, query: string): Promise<string | null> 
 		// actual answer: "AI Mode", "All", "Images", "Videos", "News", "More",
 		// "Sign in", "AI Mode Conversation", etc. These often appear on a
 		// single line without newlines, so strip them as a prefix pattern.
-		text = text.replace(/^(?:\s*(?:AI Mode|All|Images|Videos|News|More|Sign in|Search)\s*)+\s*/i, "");
+		// Each token is word-bounded: without it "Search" ate the front of the
+		// streaming marker "Searching", leaving the non-empty stub "ing".
+		text = text.replace(/^(?:\s*(?:AI Mode|All|Images|Videos|News|More|Sign in|Search)\b\s*)+\s*/i, "");
 
 		// Strip the query echo and "AI Mode Conversation:" / "Conversation" prefix
 		text = text.replace(/^(?:AI Mode\s+)?[Cc]onversation[:\s]+/i, "");
@@ -187,6 +277,9 @@ async function extractAnswer(page: Page, query: string): Promise<string | null> 
 			"Privacy Policy",
 			"Terms of Service",
 			"make a legal removal request",
+			// Mid-generation shell markers: present only while the answer streams.
+			// Treating them as content is what produced bogus "Searching" answers.
+			"Skip to previous prompt",
 		];
 		const minBoilerplatePos = Math.max(0, text.length - 800);
 		for (const marker of boilerplate) {
@@ -195,6 +288,9 @@ async function extractAnswer(page: Page, query: string): Promise<string | null> 
 				text = text.slice(0, idx).trim();
 			}
 		}
+		// "Searching" opens the shell but is never the answer; anchor on the tail
+		// so a finished answer that happens to contain the word survives.
+		text = text.replace(/(?:^|\n)\s*Searching\s*$/, "").trim();
 
 		// Strip source reference blocks: "Domain Name\n+N\n" but preserve if part of content
 		text = text.replace(/\n([A-Za-z][A-Za-z0-9\s.&()-]+)\n\+\d+\s*\n/g, "\n");
@@ -407,14 +503,21 @@ export class GoogleAIProvider extends SearchProvider {
 				timeout: BROWSER_TIMEOUT_MS,
 			});
 
-			// Allow JS-rendered content and AI response to settle
-			await Bun.sleep(POST_NAVIGATION_WAIT_MS);
+			// Only enough settle for bot-wall markers to paint. The answer itself is
+			// gated on real readiness below, never on a fixed sleep.
+			await Bun.sleep(POST_NAVIGATION_SETTLE_MS);
 
-			// CAPTCHA / bot-wall detection
-			if (await detectCaptcha(page)) {
-				const captchaBehavior = params.captchaBehavior ?? "wait";
-				const captchaTimeout = params.captchaTimeout ?? 90;
+			const captchaBehavior = params.captchaBehavior ?? "wait";
+			const captchaTimeout = params.captchaTimeout ?? 90;
+			const notify = params.onUpdate;
+			const answerWaitMs = Math.min(ANSWER_READY_TIMEOUT_MS, params.timeoutMs ?? ANSWER_READY_TIMEOUT_MS);
 
+			/**
+			 * Handle a Google bot wall: wait for the user to solve it, then wait for
+			 * the answer to finish rendering before extracting. Every failure path
+			 * retains the browser so a retry reuses the already-solved session.
+			 */
+			const runCaptchaFlow = async (): Promise<SearchResponse> => {
 				if (captchaBehavior === "error") {
 					// Immediate fallback: keep browser open, throw error
 					captchaDetected = true;
@@ -428,13 +531,12 @@ export class GoogleAIProvider extends SearchProvider {
 				}
 
 				// "wait" mode: notify user and wait for them to solve the CAPTCHA
-				const notify = params.onUpdate;
 				if (notify) {
 					notify(`CAPTCHA detected — solve it in the browser window (${captchaTimeout}s remaining)`);
 				}
 
-				const CAPTCHA_TIMEOUT_MS = captchaTimeout * 1_000;
-				const deadline = Date.now() + CAPTCHA_TIMEOUT_MS;
+				const deadline = Date.now() + captchaTimeout * 1_000;
+				let captchaSolved = false;
 
 				while (Date.now() < deadline) {
 					const remaining = deadline - Date.now();
@@ -456,61 +558,102 @@ export class GoogleAIProvider extends SearchProvider {
 					await Bun.sleep(1_500);
 
 					// Check if CAPTCHA is actually solved (not just a page refresh)
-					if (!(await detectCaptcha(page))) {
-						// CAPTCHA solved — extract results
-						let answer = await extractAnswer(page, params.query);
-						if (answer) {
-							answer = normalizeText(answer);
+					if (await detectCaptcha(page)) {
+						// Still present — notify remaining time and keep waiting
+						const remainingSec = Math.max(0, Math.ceil((deadline - Date.now()) / 1_000));
+						if (notify && remainingSec > 0) {
+							notify(`CAPTCHA still present — solve it in the browser (${remainingSec}s remaining)`);
 						}
-
-						const maxResults = Math.min(params.numSearchResults ?? params.limit ?? MAX_SOURCES, MAX_SOURCES);
-						const sources = await extractSources(page, maxResults);
-
-						if (!answer) {
-							const html = await page.content();
-							const url = buildSearchUrl(params.query);
-							const readable = await extractReadableFromHtml(html, url, "text");
-							if (readable?.text) {
-								answer = normalizeText(readable.text);
-							}
-						}
-
-						// Success — close browser and clear CAPTCHA reference
-						this.#captchaBrowser = null;
-						captchaDetected = false;
-						try {
-							await browser.close();
-						} catch (closeErr) {
-							logger.error("Failed to close browser in GoogleAIProvider", { error: closeErr });
-						}
-
-						if (!answer && sources.length === 0) {
-							throw new SearchProviderError(
-								"google-ai",
-								"Google AI Mode returned no extractable content after CAPTCHA solve.",
-							);
-						}
-
-						return {
-							provider: "google-ai",
-							answer: answer ?? undefined,
-							sources,
-						};
+						continue;
 					}
 
-					// CAPTCHA still present — notify remaining time and continue waiting
-					const remainingSec = Math.max(0, Math.ceil((deadline - Date.now()) / 1_000));
-					if (notify && remainingSec > 0) {
-						notify(`CAPTCHA still present — solve it in the browser (${remainingSec}s remaining)`);
+					captchaSolved = true;
+
+					// Solving can bounce back to the plain results page instead of
+					// resuming the AI answer — re-issue the query when it does.
+					if (!page.url().includes("udm=50")) {
+						await page.goto(buildSearchUrl(params.query), {
+							waitUntil: "domcontentloaded",
+							timeout: BROWSER_TIMEOUT_MS,
+						});
 					}
+					notify?.("CAPTCHA solved — waiting for the AI answer to finish rendering…");
+
+					const ready = await waitForAnswerReady(page, Math.min(deadline, Date.now() + answerWaitMs), notify);
+					// Wall came back or the answer never rendered; the tail below owns
+					// both the error message and the browser-retention bookkeeping.
+					if (!ready) break;
+
+					let answer = await extractAnswer(page, params.query);
+					if (answer) {
+						answer = normalizeText(answer);
+					}
+
+					const maxResults = Math.min(params.numSearchResults ?? params.limit ?? MAX_SOURCES, MAX_SOURCES);
+					const sources = await extractSources(page, maxResults);
+
+					if (!answer) {
+						const html = await page.content();
+						const readable = await extractReadableFromHtml(html, url, "text");
+						if (readable?.text) {
+							answer = normalizeText(readable.text);
+						}
+					}
+
+					// Emptiness check BEFORE closing: a retained window is exactly what
+					// lets the caller retry without paying for another CAPTCHA.
+					if (!answer && sources.length === 0) {
+						captchaDetected = true;
+						this.#captchaBrowser = browser;
+						throw new SearchProviderError(
+							"google-ai",
+							"Google AI Mode returned no extractable content after CAPTCHA solve. The browser window is still open — retry the search to reuse it.",
+							undefined,
+							true,
+						);
+					}
+
+					// Success — close browser and clear CAPTCHA reference
+					this.#captchaBrowser = null;
+					captchaDetected = false;
+					try {
+						await browser.close();
+					} catch (closeErr) {
+						logger.error("Failed to close browser in GoogleAIProvider", { error: closeErr });
+					}
+
+					return {
+						provider: "google-ai",
+						answer: answer ?? undefined,
+						sources,
+					};
 				}
 
-				// Timeout expired — keep browser open, let fallback chain continue
+				// Timed out — keep browser open, let fallback chain continue
 				captchaDetected = true;
 				this.#captchaBrowser = browser;
 				throw new SearchProviderError(
 					"google-ai",
-					`Google served a CAPTCHA and the ${captchaTimeout}s timeout expired. The browser window is still open — you can solve the CAPTCHA there and retry the search.`,
+					captchaSolved
+						? `CAPTCHA was solved, but the AI answer had not rendered within ${Math.round(answerWaitMs / 1_000)}s. The browser window is still open — retry the search to reuse it.`
+						: `Google served a CAPTCHA and the ${captchaTimeout}s timeout expired. The browser window is still open — you can solve the CAPTCHA there and retry the search.`,
+					undefined,
+					true,
+				);
+			};
+
+			if (await detectCaptcha(page)) return await runCaptchaFlow();
+
+			const ready = await waitForAnswerReady(page, Date.now() + answerWaitMs);
+			// A bot wall can surface only after the answer container has appeared.
+			if (await detectCaptcha(page)) return await runCaptchaFlow();
+
+			if (!ready) {
+				captchaDetected = true;
+				this.#captchaBrowser = browser;
+				throw new SearchProviderError(
+					"google-ai",
+					`Google AI Mode did not finish rendering an answer within ${Math.round(answerWaitMs / 1_000)}s. The browser window is still open — retry the search to reuse it.`,
 					undefined,
 					true,
 				);
