@@ -159,9 +159,9 @@ Total: 108 fork commits on top of `upstream/main..main`.
 | `9fbac47879` | chore(owp): register the rendered sync-upstream skill path | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 | `784e1c3b38` | chore(owp): rebaseline the fork commit count to 106 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 | `2b616a3c75` | chore(owp): acknowledge python/omp-rpc as a deliberate port | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `b84dc7dd57` | chore(owp): rebaseline the fork commit count to 108 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `pending` | chore(owp): rebaseline the fork commit count to 108 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 
-> **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
+> **Note:** Generated from `git log upstream/main..main`. A row whose commit is still `pending` is the newest commit in the range — its hash is unknown until that commit lands, `forklift render` resolves it on the next render. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->
 
 ## Owned Symbols in Shared Files
