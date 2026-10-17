@@ -7,7 +7,7 @@ This repository is a **fork** of oh-my-pi kept in sync by forklift. Everything b
 ## Fork Identity & Remotes
 - **Fork remote/branch**: `origin/main`
 - **Upstream remote/branch**: `upstream/main`
-- **Expected fork commits**: `108`
+- **Expected fork commits**: `112`
 
 ## Fork-Owned Features
 These are the paths this fork owns; prefer ours when they conflict with upstream, and register any new fork-owned path in `.forklift/registry.yaml` before relying on it.
