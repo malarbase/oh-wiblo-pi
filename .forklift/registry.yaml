@@ -568,6 +568,7 @@ features:
       - ".omp/skills/forklift-doctor/"
       - ".omp/skills/forklift-init/"
       - ".omp/skills/forklift-maintain/"
+      - ".omp/skills/sync-upstream/"
       - "AGENT.md"
 
 # Intentional divergences — files that upstream owns and we always take upstream for.
