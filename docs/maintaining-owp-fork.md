@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `forklift render` — do not edit it by hand; run the command instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 101 fork commits on top of `upstream/main..main`.
+Total: 103 fork commits on top of `upstream/main..main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -153,6 +153,8 @@ Total: 101 fork commits on top of `upstream/main..main`.
 | `358bf134a8` | chore(owp): render the Conflict Walk into the sync-upstream skill | `.omp/commands/sync-upstream.md`, `.omp/skills/forklift-doctor/SKILL.md`, `.omp/skills/forklift-init/SKILL.md`, `.omp/skills/sync-upstream/SKILL.md`, `docs/maintaining-owp-fork.md` | chore |
 | `ed51e2c7d4` | feat(google-ai): gate extraction on answer readiness, not a fixed sleep | `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/web/search/providers/google-ai.ts`, `packages/coding-agent/test/interactive-mode-plan-review.test.ts`, `packages/coding-agent/test/tools/web-search-google-ai.test.ts` | code |
 | `36c52dfe58` | feat(zen): read the console session token as the free-tier identity | `.forklift/registry.yaml`, `.omp/extensions/opencode-zen-free-tier.ts`, `AGENT.md`, `docs/maintaining-owp-fork.md` | code |
+| `8959a77331` | chore(owp): track the forklift install output and npm-publish plans | `.gitignore`, `.omp/plans/Forklift-npm-publish-path-two-small-features.md`, `.omp/plans/done/forklift-npm-publish-plan.done.md`, `.omp/plans/reports/forklift-npm-publish-plan.report.md`, `.omp/skills/forklift-maintain/SKILL.md`, … (1 more) | chore |
+| `b18f452250` | chore(owp): rebaseline the fork commit count to 102 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->
