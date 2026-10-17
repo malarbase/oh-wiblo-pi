@@ -1,7 +1,7 @@
 # OWP Feature Registry — Single source of truth for fork-owned files and divergences.
 # Both SKILL.md and sync.ts consume this file.
 # Add new features here, then regenerate SKILL.md with:
-#   bun .omp/skills/sync-upstream/generate-skill-md.ts
+#   forklift render
 #
 # Optional per-feature field: obsoleted_fixes
 #   - pre_rebase_hash:      string (the hash before rebase)
@@ -40,7 +40,7 @@ harness:
     typecheck_command: "bun check"
     test_command: "bun test"
     lint_command: "bun run lint"
-    conflict_marker_globs: ["packages/**/*.ts", "packages/**/*.tsx"]
+    conflict_marker_globs: ["packages/**/*.ts", "packages/**/*.tsx", "packages/**/*.js", "packages/**/*.mjs", "crates/**/*.rs"]
     package_aliases:
       "@oh-my-pi/pi-agent-core": "packages/agent/src"
       "@oh-my-pi/pi-ai": "packages/ai/src"
@@ -66,12 +66,34 @@ harness:
       prefix: "__piNativesV"
     footprint_baseline: ".forklift/footprint-baseline.json"
     excludes: [".forklift/"]
-  sync_command: "bun .omp/skills/sync-upstream/sync.ts"
-  sync_runner: "sync.ts"
+  sync_command: "forklift sync"
+  sync_runner: "forklift sync"
   sync_state_path: "~/.omp/sync-state.json"
   sync_log_path: "~/.omp/sync-log.jsonl"
-  registry_path: ".omp/skills/sync-upstream/feature-registry.yaml"
+  registry_path: ".forklift/registry.yaml"
   fork_doc: "docs/maintaining-owp-fork.md"
+  render_fork_commits: true
+  shared_files:
+    - "packages/coding-agent/src/sdk.ts"
+    - "packages/coding-agent/src/config/model-registry.ts"
+    - "packages/coding-agent/src/config/settings-schema.ts"
+    - "packages/coding-agent/src/modes/components/status-line/presets.ts"
+    - "packages/coding-agent/src/modes/components/status-line/segments.ts"
+    - "packages/coding-agent/src/modes/components/status-line-segment-editor.ts"
+    - "packages/coding-agent/src/modes/components/settings-selector.ts"
+    - "packages/coding-agent/src/modes/components/theme/theme.ts"
+    - "packages/tui/src/components/settings-list.ts"
+    - "packages/ai/src/types.ts"
+    - "packages/ai/src/providers/anthropic.ts"
+  src_paths:
+    - "packages/coding-agent/src/"
+    - "packages/ai/src/"
+  extension_advisory: "Shared files where OWP adds symbols inside upstream-owned structure. Touching any of these warrants updating the Owned Symbols registry."
+  rules_advisory: |
+    When modifying shared files that contain OWP fork-owned symbols (such as `settings-selector.ts`, `settings-list.ts`, `theme.ts`, `sdk.ts`, `model-registry.ts`):
+
+    1. Ensure `.forklift/registry.yaml` is updated under `owned_symbols`.
+    2. Run `forklift render` to update the sync-upstream `SKILL.md`.
 
 features:
   - name: "Settings layering (project/global scope + revert)"
@@ -218,10 +240,8 @@ features:
       - "packages/coding-agent/src/extensibility/custom-commands/loader.ts"
 
   - name: "History reorganization tooling"
-    description: "reorganize-history skill and slash command"
-    owned_paths:
-      - ".omp/skills/reorganize-history/"
-      - ".omp/commands/reorganize-fork.md"
+    description: "lifted into `forklift reorg` (npm @whiteblossom/forklift) — no paths owned in this repo"
+    owned_paths: []
 
   - name: "Test filter scope fix"
     owned_paths:
@@ -313,13 +333,17 @@ features:
       - "packages/utils/src/sanitize-text.ts"
 
   - name: "sync-upstream skill and script"
+    description: "legacy skill dir retired; the harness now lives in npm @whiteblossom/forklift and renders into this repo"
     owned_paths:
-      - ".omp/skills/sync-upstream/"
+      - ".forklift/registry.yaml"
+      - ".omp/commands/sync-upstream.md"
+      - ".omp/rules/owp-feature-registry.md"
 
   - name: "feature-checklist extension"
-    description: "Loaded at runtime by the extension loader from the workspace .omp/extensions directory; never imported, so the import-liveness check cannot apply."
+    description: "Loaded at runtime by the extension loader from the workspace .omp/extensions directory; never imported, so the import-liveness check cannot apply. The .generated.ts sibling is rewrite-owned by forklift render/install."
     owned_paths:
       - ".omp/extensions/feature-checklist.ts"
+      - ".omp/extensions/owp-checklist.generated.ts"
     liveness_exempt: "runtime-loaded extension (workspace .omp/extensions), not an import target"
 
   - name: "Cast node Blob to Web Blob for tsgo"

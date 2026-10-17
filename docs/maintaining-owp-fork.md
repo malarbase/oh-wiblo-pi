@@ -45,10 +45,10 @@ Update this section after each successful rebase.
 
 ## Fork Features (Curated Stack)
 
-> fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `.omp/skills/sync-upstream/generate-skill-md.ts` — do not edit it by hand; run the script instead.
+> fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `forklift render` — do not edit it by hand; run the command instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 94 fork commits on top of `upstream/main`.
+Total: 97 fork commits on top of `upstream/main..main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -146,8 +146,11 @@ Total: 94 fork commits on top of `upstream/main`.
 | `4007419f03` | fix(catalog): bound the haiku budget rule so models.dev slices build | `packages/catalog/src/compat/rules.json`, `packages/catalog/src/compat/rules/classes/anthropic.kdl`, `packages/catalog/test/build.test.ts` | code |
 | `53439897cc` | test(catalog): isolate provider tests from the real agent model cache | `packages/catalog/test/generated-policies.test.ts`, `packages/catalog/test/synthetic-provider.test.ts`, `packages/catalog/test/yolo-auto-provider.test.ts` | code |
 | `d7acf9ca05` | chore(owp): land the forklift harness — registry, skills, rendered artifacts | `.forklift/README.md`, `.forklift/footprint-baseline.json`, `.forklift/harness.lock`, `.forklift/registry.yaml`, `.omp/plans/done/forklift-bootstrap-plan.done.md`, … (7 more) | chore |
+| `3b27b42cec` | chore(owp): rebaseline fork commit count and regenerate the fork table | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/feature-registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
+| `70dec9e86b` | chore(owp): register forklift doctor/init skills in the feature registry | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml` | chore |
+| `f409191165` | chore(owp): generate AGENT.md and register it as fork-owned | `.forklift/registry.yaml`, `.omp/skills/forklift-doctor/SKILL.md`, `.omp/skills/forklift-init/SKILL.md`, `.omp/skills/sync-upstream/SKILL.md`, `.omp/skills/sync-upstream/feature-registry.yaml`, … (1 more) | chore |
 
-> **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `bun .omp/skills/sync-upstream/generate-skill-md.ts`, never by hand.
+> **Note:** Generated from `git log upstream/main..main`. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->
 
 ## Owned Symbols in Shared Files
@@ -187,7 +190,7 @@ Use `.omp/commands/sync-upstream.md` to trigger the sync (LLM agent or manual).
 The sync script handles fetch, rebase, conflict reporting, type-check, and optional push:
 
 ```bash
-bun .omp/skills/sync-upstream/sync.ts --push
+forklift sync --push
 ```
 
 Run without `--push` for a dry run that shows what would happen. During rebase, the agent resolves conflicts using the decision tree below.
@@ -195,13 +198,13 @@ Run without `--push` for a dry run that shows what would happen. During rebase, 
 To create backup tags (pre-sync and post-sync) as remote rollback points:
 
 ```bash
-bun .omp/skills/sync-upstream/sync.ts --push --tag
+forklift sync --push --tag
 ```
 
 If the rebase stops with conflicts, resolve them, `git add`, then continue:
 
 ```bash
-bun .omp/skills/sync-upstream/sync.ts --continue --push
+forklift sync --continue --push
 ```
 
 To abort an in-progress rebase:
@@ -213,8 +216,8 @@ git rebase --abort
 To check the last sync attempt or revert to the pre-sync HEAD:
 
 ```bash
-bun .omp/skills/sync-upstream/sync.ts --status
-bun .omp/skills/sync-upstream/sync.ts --revert
+forklift sync --status
+forklift sync --revert
 ```
 
 To roll back a pushed sync using a pre-sync tag:
@@ -357,7 +360,7 @@ The agent then has to manually verify that the change is present upstream. For f
    ```
 5. Regenerate `SKILL.md`:
    ```bash
-   bun .omp/skills/sync-upstream/generate-skill-md.ts
+   forklift render
    ```
 
 ### How sync.ts uses it
@@ -390,7 +393,7 @@ Features that own their own files rebase cleanly. Features that scatter inline c
   commit that touches shared files. This is the single source of truth; both `sync.ts` and the
   generated `SKILL.md` consume it. After editing the YAML, regenerate `SKILL.md`:
   ```bash
-  bun .omp/skills/sync-upstream/generate-skill-md.ts
+  forklift render
   ```
 
 ### Git workflow
@@ -405,13 +408,13 @@ Features that own their own files rebase cleanly. Features that scatter inline c
 
 2. Open a PR to fork/main. Merge strategy: **squash**.
 
-3. After merge, run `bun .omp/skills/sync-upstream/generate-skill-md.ts` to regenerate the Fork Features table from git history.
+3. After merge, run `forklift render` to regenerate the Fork Features table from git history.
 
 4. Audit the contact surface:
    - How many hunks does this commit add to sdk.ts?
    - What shared-file symbols does it own? (add to `feature-registry.yaml` § owned_symbols)
    - Are all owned files listed in `feature-registry.yaml` § features?
-     Run `bun .omp/skills/sync-upstream/sync.ts --dry-run` to confirm no unregistered files.
+     Run `forklift sync --dry-run` to confirm no unregistered files.
 
 ---
 
@@ -471,7 +474,7 @@ Monitor upstream for major refactors or breaking changes in your owned files/int
 If a sync goes wrong, use the automatic revert before pushing:
 
 ```bash
-bun .omp/skills/sync-upstream/sync.ts --revert
+forklift sync --revert
 ```
 
 This resets `fork/main` to the exact pre-sync commit recorded in `~/.omp/sync-state.json`. It only works if the sync was not yet marked `completed`; completed syncs must be reverted manually to avoid accidentally discarding upstream changes.
@@ -479,7 +482,7 @@ This resets `fork/main` to the exact pre-sync commit recorded in `~/.omp/sync-st
 Check sync history anytime:
 
 ```bash
-bun .omp/skills/sync-upstream/sync.ts --status
+forklift sync --status
 ```
 
 Manual fallback:

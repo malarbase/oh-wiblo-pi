@@ -1,25 +1,12 @@
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
-
-// Shared files where OWP adds symbols inside upstream-owned structure.
-// Touching any of these warrants updating the Owned Symbols registry.
-const SHARED_FILES = [
-	"packages/coding-agent/src/sdk.ts",
-	"packages/coding-agent/src/config/model-registry.ts",
-	"packages/coding-agent/src/config/settings-schema.ts",
-	"packages/coding-agent/src/modes/components/status-line/presets.ts",
-	"packages/coding-agent/src/modes/components/status-line/segments.ts",
-	"packages/coding-agent/src/modes/components/status-line-segment-editor.ts",
-	"packages/coding-agent/src/modes/components/settings-selector.ts",
-	"packages/coding-agent/src/modes/theme/theme.ts",
-	"packages/tui/src/components/settings-list.ts",
-	"packages/ai/src/types.ts",
-	"packages/ai/src/providers/anthropic.ts",
-];
-
-const FORK_FEATURES_DOC = "docs/maintaining-owp-fork.md";
-const SKILL_DOC = ".omp/skills/sync-upstream/SKILL.md";
-const REGISTRY = ".omp/skills/sync-upstream/feature-registry.yaml";
-const SRC_PATHS = ["packages/coding-agent/src/", "packages/ai/src/"];
+import {
+	FORK_DOC_PATH,
+	REGISTRY,
+	SHARED_FILES,
+	SKILL_DOC,
+	SRC_PATHS,
+	UPSTREAM_RANGE,
+} from "./owp-checklist.generated";
 
 export default function (pi: ExtensionAPI) {
 	pi.on("agent_end", async (_event, ctx) => {
@@ -50,32 +37,28 @@ export default function (pi: ExtensionAPI) {
 		// in-progress edits or when the table was already updated in a prior commit.
 		const logResult = await pi.exec(
 			"git",
-			["log", "--format=%h", "-n", "20", "upstream/main..HEAD", "--", ...SRC_PATHS],
+			["log", "--format=%h", "-n", "20", UPSTREAM_RANGE, "--", ...SRC_PATHS],
 			{ cwd: ctx.cwd },
 		);
 		if (logResult.code === 0) {
 			const srcCommits = logResult.stdout.trim().split("\n").filter(Boolean);
 			if (srcCommits.length > 0) {
-				const catResult = await pi.exec("cat", [FORK_FEATURES_DOC], { cwd: ctx.cwd });
+				const catResult = await pi.exec("cat", [FORK_DOC_PATH], { cwd: ctx.cwd });
 				const tableContent = catResult.code === 0 ? catResult.stdout : "";
 				const undocumented = srcCommits.filter(hash => hash && !tableContent.includes(hash));
 				if (undocumented.length > 0) {
 					reminders.push(
-						`**Fork Features table not updated.** The table in \`${FORK_FEATURES_DOC} § Fork Features\` ` +
+						`**Fork Features table not updated.** The table in \`${FORK_DOC_PATH} § Fork Features\` ` +
 							`is generated from git history; refresh it with: ` +
-							"`bun .omp/skills/sync-upstream/generate-skill-md.ts`.",
+							"`forklift render`.",
 					);
 				}
 			}
 		}
 
 		// Reminder 3: Registry completeness — fires when any committed src change
-		// modifies a file not covered by feature-registry.yaml § features or § divergences.
-		const logAllResult = await pi.exec(
-			"git",
-			["log", "--format=%h", "upstream/main..HEAD", "--name-only"],
-			{ cwd: ctx.cwd },
-		);
+		// modifies a file not covered by .forklift/registry.yaml § features or § divergences.
+		const logAllResult = await pi.exec("git", ["log", "--format=%h", UPSTREAM_RANGE, "--name-only"], { cwd: ctx.cwd });
 		if (logAllResult.code === 0) {
 			const lines = logAllResult.stdout.trim().split("\n");
 			// Build set of files touched by any fork commit from this session
@@ -114,7 +97,7 @@ export default function (pi: ExtensionAPI) {
 											.replace(/\*\*/g, "<<<DS>>>")
 											.replace(/\*/g, "[^/]*")
 											.replace(/<<<DS>>>/g, ".*") +
-									"$",
+										"$",
 								);
 								if (regex.test(file)) return true;
 							}
@@ -128,12 +111,12 @@ export default function (pi: ExtensionAPI) {
 						const more = unregistered.length - SHOW;
 						let msg =
 							`**Feature registry incomplete.** ${unregistered.length} file(s) touched by fork commits ` +
-								`are not listed in \`${REGISTRY}\`:\n` +
-								shown.map(f => `- \`${f}\``).join("\n");
+							`are not listed in \`${REGISTRY}\`:\n` +
+							shown.map(f => `- \`${f}\``).join("\n");
 						if (more > 0) msg += `\n- *… and ${more} more*`;
 						msg +=
 							`\n\nAdd them to § features or § divergences, then regenerate SKILL.md with ` +
-							`\`bun .omp/skills/sync-upstream/generate-skill-md.ts\`.`;
+							`\`forklift render\`.`;
 						reminders.push(msg);
 					}
 				}

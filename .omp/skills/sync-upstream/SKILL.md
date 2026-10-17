@@ -1,17 +1,17 @@
 ---
 name: sync-upstream
-description: Rebase oh-wiblo-pi (owp) fork/main against oh-my-pi (omp) upstream/main. Handles conflict resolution automatically for trivial cases and escalates semantic conflicts. Read this skill before running sync.ts.
+description: Rebase oh-wiblo-pi (owp) fork/main against oh-my-pi (omp) upstream/main. Handles conflict resolution automatically for trivial cases and escalates semantic conflicts. Read this skill before running forklift sync.
 ---
 <!-- forklift v1 -->
 
 # Sync Upstream (owp ← omp)
 
-Rebase `fork/main` against `upstream/main` (omp). Run `sync.ts` to execute. This skill provides the knowledge you need to resolve conflicts correctly during the rebase.
+Rebase `fork/main` against `upstream/main` (omp). Run `forklift sync` to execute. This skill provides the knowledge you need to resolve conflicts correctly during the rebase.
 
 ## Script
 
 ```bash
-bun .omp/skills/sync-upstream/sync.ts
+forklift sync
 ```
 
 Git operations run through the command above. You resolve conflicts using the decision tree below, then signal the script to continue or abort.
@@ -198,10 +198,10 @@ Use `--tag` to create lightweight annotated tags as remote backups of known-work
 
 ```bash
 # Full sync with tags and push
-bun .omp/skills/sync-upstream/sync.ts --push --tag
+forklift sync --push --tag
 
 # Tags created locally; push separately
-bun .omp/skills/sync-upstream/sync.ts --tag
+forklift sync --tag
 # ... later ...
 git push origin main --force-with-lease --follow-tags
 ```
@@ -230,7 +230,7 @@ git push origin main --force-with-lease
 
 After all conflicts are resolved and compilation passes, perform these bookkeeping steps before force-pushing:
 
-- **Regenerate generated docs.** Run `forklift render --registry .forklift/registry.yaml` — it regenerates SKILL.md and, when `harness.registry_path` is set, the legacy runner's registry copy from the registry.
+- **Regenerate generated docs.** Run `forklift render --registry .forklift/registry.yaml` — it regenerates SKILL.md and, when `harness.render_fork_commits` is set, refreshes the fork-commits table in `docs/maintaining-owp-fork.md` from git history.
 - **Update feature registry.** If new files were added, removed, or moved, update `.forklift/registry.yaml` and re-render (above).
 - **Update divergence list.** If a previously divergent file is now owned by owp, update both lists.
 
@@ -257,7 +257,7 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | Provider onboarding wizard | `packages/coding-agent/src/modes/components/provider-onboarding-wizard.ts`, `packages/tui/src/overlays/settings-defs.ts` |
 | Install-binary custom command | `packages/coding-agent/src/extensibility/custom-commands/bundled/install-binary/` |
 | @mariozechner/* loader aliases | `packages/coding-agent/src/extensibility/plugins/legacy-pi-compat.ts`, `packages/coding-agent/src/extensibility/extensions/loader.ts`, `packages/coding-agent/src/extensibility/custom-commands/loader.ts` |
-| History reorganization tooling | `.omp/skills/reorganize-history/`, `.omp/commands/reorganize-fork.md` |
+| History reorganization tooling |  |
 | Test filter scope fix | `packages/coding-agent/test/utils/filter-user-extensions.ts` |
 | Unified agent mode cycle (alt+k) | `packages/tui/src/status-line/`, `packages/tui/src/app-keybindings.ts`, `packages/coding-agent/src/modes/controllers/input-controller.ts`, `packages/coding-agent/src/config/settings-schema.ts` |
 | Session directory event + jiti loader + authHeader fix | `packages/coding-agent/src/sdk.ts`, `packages/coding-agent/src/session/`, `packages/coding-agent/src/capability/`, `packages/coding-agent/src/extensibility/extensions/loader.ts` |
@@ -269,8 +269,8 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | Fix plan-mode approval UI + omp bin entry + ETXTBSY fix | `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/coding-agent/package.json`, `packages/coding-agent/src/extensibility/custom-commands/bundled/install-binary/index.ts`, `packages/coding-agent/test/tools/bash-interceptor.test.ts` |
 | Google search provider + hashline recovery + mode fixes | `.omp/extensions/pi-peon/`, `.omp/skills/owp-developer/`, `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/web/search/` |
 | Upstream-deleted module stubs | `packages/coding-agent/src/tools/approval.ts`, `packages/coding-agent/src/tools/output-schema-validator.ts`, `packages/utils/src/sanitize-text.ts` |
-| sync-upstream skill and script | `.omp/skills/sync-upstream/` |
-| feature-checklist extension | `.omp/extensions/feature-checklist.ts` |
+| sync-upstream skill and script | `.forklift/registry.yaml`, `.omp/commands/sync-upstream.md`, `.omp/rules/owp-feature-registry.md` |
+| feature-checklist extension | `.omp/extensions/feature-checklist.ts`, `.omp/extensions/owp-checklist.generated.ts` |
 | Cast node Blob to Web Blob for tsgo | `packages/utils/src/stream.ts` |
 | mise.toml + native rebuild docs | `mise.toml`, `.omp/commands/sync-upstream.md` |
 | Bazel build config (hermetic PATH, crate annotations) | `.bazelrc`, `MODULE.bazel`, `MODULE.bazel.lock` |
@@ -615,7 +615,7 @@ These omp files exist but owp intentionally doesn't override them. Always take u
 
 ## Obsoleted Fixes
 
-These commits were previously part of the fork but became empty during rebase because upstream independently applied the same fix (or made it unnecessary). They are tracked here so sync.ts can suppress false-positive dropped-commit warnings.
+These commits were previously part of the fork but became empty during rebase because upstream independently applied the same fix (or made it unnecessary). They are tracked here so forklift sync can suppress false-positive dropped-commit warnings.
 
 ### Compiled-binary boot fixes (bytecode ESM + addon archive extraction)
 
@@ -626,7 +626,7 @@ These commits were previously part of the fork but became empty during rebase be
 
 ## Intentional Removals (deleted vs upstream)
 
-These upstream paths are intentionally absent from owp. `sync.ts --verify` fails if any other upstream file goes missing.
+These upstream paths are intentionally absent from owp. `forklift sync --verify` fails if any other upstream file goes missing.
 
 - `python/robomp/` — The fork carries only a trimmed subset of upstream robomp (59 tracked files); the remaining upstream paths are absent on purpose and would otherwise be restored by the next sync. The subset that IS kept is fork-modified and is registered under features (OWP Python RPC), not here.
 - `packages/hashline/` — JS hashline retired — upstream native engine (crates/pi-edit) adopted
@@ -690,7 +690,7 @@ question: adapt our feature to upstream's change, or drop the upstream change?
 
 ## Sync Options
 
-`sync.ts` supports additional flags beyond the basic rebase:
+`forklift sync` supports additional flags beyond the basic rebase:
 
 | Flag | Behavior |
 |------|----------|
@@ -717,7 +717,7 @@ Once all conflicts are resolved:
 
 - **Run the full verification suite — this is the check that matters:**
   ```bash
-  bun .omp/skills/sync-upstream/sync.ts --verify
+  forklift sync --verify
   ```
   It gates on exit code and covers, in order: conflict markers, symbol health,
   commit survival, protecting tests (feature behavioral contracts), **feature
@@ -729,7 +729,7 @@ Once all conflicts are resolved:
   registered but whose wiring was dropped: nothing imports it, so its own file
   still greps fine while the capability is dead.
 
-- **Verify owp-owned symbols survive:** prefer `sync.ts --verify`'s
+- **Verify owp-owned symbols survive:** prefer `forklift sync --verify`'s
   symbol-health step over ad-hoc greps; the § Owned Symbols table is partly
   auto-derived and its entries are local variable names, so a hand grep against it
   proves nothing about a feature's reachability.
@@ -764,7 +764,7 @@ Once all conflicts are resolved:
 
 ## Pre-Rebase Registry Validation
 
-`sync.ts` validates every file touched by fork commits against the registry *before* starting the rebase. If any file is unregistered (not in features or divergences), the script aborts:
+`forklift sync` validates every file touched by fork commits against the registry *before* starting the rebase. If any file is unregistered (not in features or divergences), the script aborts:
 
 ```
 ERROR: Unregistered file in fork commit <sha>: <path>
@@ -776,11 +776,11 @@ This prevents silent loss of features on the next sync.
 
 ## Post-Rebase Automated Verification
 
-Run `sync.ts --verify` after a completed rebase to run the full verification suite:
+Run `forklift sync --verify` after a completed rebase to run the full verification suite:
 
 | Check | Method | Fail behavior |
 |-------|--------|---------------|
-| Conflict markers | `git grep -n '<<<<<<<' -- 'packages/**/*.ts' 'packages/**/*.tsx'` | Hard fail |
+| Conflict markers | `git grep -n '<<<<<<<' -- 'packages/**/*.ts' 'packages/**/*.tsx' 'packages/**/*.js' 'packages/**/*.mjs' 'crates/**/*.rs'` | Hard fail |
 | Symbol health | `grep` each owp-owned symbol from § Owned Symbols | Report PASS/MISSING |
 | Commit survival | `git rev-list --count upstream/main..main` | Report expected vs actual |
 | Protecting tests | `bun test <protecting_tests>` per registered file | Hard fail |
@@ -834,18 +834,18 @@ harmless if forgotten but should be deleted when the push completes.
 
 ## Rollback
 
-If the rebase introduces regressions, `sync.ts` records the pre-sync HEAD in `~/.omp/sync-state.json` before touching git.
+If the rebase introduces regressions, `forklift sync` records the pre-sync HEAD in `~/.omp/sync-state.json` before touching git.
 
 **Automatic revert (recommended):**
 ```bash
-bun .omp/skills/sync-upstream/sync.ts --revert
+forklift sync --revert
 ```
 This resets `fork/main` to the exact pre-sync commit without touching the reflog.
 It only works if the last sync was not yet marked `completed`; completed syncs must be reverted manually to avoid accidentally discarding upstream changes.
 
 **Check sync history:**
 ```bash
-bun .omp/skills/sync-upstream/sync.ts --status
+forklift sync --status
 ```
 Shows the last sync attempt, pre-sync HEAD, upstream base, and last 5 log entries from `~/.omp/sync-log.jsonl`.
 
