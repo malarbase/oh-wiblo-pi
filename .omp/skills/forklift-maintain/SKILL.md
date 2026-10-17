@@ -77,6 +77,27 @@ forklift doctor                    # the drift audit (registry completeness, sta
 
 Order matters: `render` regenerates from the registry, `install` writes what the registry describes, `doctor` audits the result. Skipping `render` before `install` ships stale text.
 
+### Rebasing the commit count converges in one atomic commit
+
+`expected_fork_commit_count` self-references: the rebaseline commit grows the range by one, so the count must be the value measured **after** that commit lands, not before. A render that lands in the same commit writes `Total` from a range that does not yet contain it, so `Total` ends one behind and re-rendering dirties the doc again.
+
+Verified recipe:
+
+```bash
+git rev-list --count <upstream>/<branch>..<fork>/<branch>   # actual BEFORE the rebaseline: N
+# set expected_fork_commit_count to N+1 (the rebaseline commit itself), render, commit once
+forklift render && forklift install && git add -A .forklift/registry.yaml AGENT.md <fork_doc>
+git commit -m "chore(owp): rebaseline the fork commit count to N+1"
+# then amend once to refresh Total, or make Total the render of a NEW commit
+forklift render --registry .forklift/registry.yaml
+git add <fork_doc> && git commit --amend --no-edit
+```
+
+`render` emits the newest row's hash as `pending` (0.3.1+) rather than the commit's own hash, which does not exist yet — so amending this commit is safe and does not restart the loop. Two mistakes to avoid:
+
+- **Never set the count to `N+2`.** The atomic commit lands exactly one commit, so `N+1` is the converged value; `N+2` leaves the table and the registry describing a range that does not exist.
+- **Never `render` a rebaseline into a *fresh* commit and re-render after it.** Each additional commit grows the range again, and the `Total` it wrote is one behind forever. Amend instead — the `pending` row makes amend idempotent.
+
 ## Last Sync Point
 
 After every successful sync, update the `Last Sync Point` bookkeeping in `harness.fork_doc`. `forklift sync` prints the exact values — the upstream head it rebased onto, the fork commit count, and the date — so copy them from its output rather than recomputing. A fork doc that lags is the first thing the next session misreads.
