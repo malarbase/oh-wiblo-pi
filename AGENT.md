@@ -76,7 +76,7 @@ These are the paths this fork owns; prefer ours when they conflict with upstream
 | OWP GitHub config | — | `.github/` |
 | OWP root config and assets | — | `package.json`<br>`bunfig.toml`<br>`Cargo.toml`<br>`.gitattributes`<br>`rust-toolchain.toml`<br>`rustfmt.toml`<br>`rust-analyzer.toml`<br>`Dockerfile`<br>`.dockerignore`<br>`LICENSE`<br>`AGENTS.md`<br>`.fallowrc.jsonc`<br>`tsconfig.json`<br>`tsconfig.base.json`<br>`tsconfig.tools.json`<br>`packages/tsconfig.workspace.json`<br>`assets/`<br>`types/` |
 | Command dispatch composition | Upstream satellite command arrays spread into the registry; fork deltas stay inline (last-wins) for add-provider/refresh-models/drop/agent/ask | `packages/coding-agent/src/slash-commands/builtin-registry.ts`<br>`packages/coding-agent/src/slash-commands/builtin-modes.ts`<br>`packages/coding-agent/src/modes/controllers/event-controller.ts`<br>`packages/tui/src/overlays/extensions/extension-list.ts` |
-| Forklift harness | Project registry and install lock consumed by the forklift sync harness; registry.yaml is rewritten by forklift render. The doctor/init skills are the agent-facing entry points installed by forklift install | `.forklift/`<br>`.omp/skills/forklift-doctor/`<br>`.omp/skills/forklift-init/`<br>`AGENT.md` |
+| Forklift harness | Project registry and install lock consumed by the forklift sync harness; registry.yaml is rewritten by forklift render. The doctor/init/maintain skills are the agent-facing entry points installed by forklift install | `.forklift/`<br>`.omp/skills/forklift-doctor/`<br>`.omp/skills/forklift-init/`<br>`.omp/skills/forklift-maintain/`<br>`AGENT.md` |
 
 ## Verification Commands
 - **Typecheck**: `bun check`
@@ -152,6 +152,14 @@ These are the paths this fork owns; prefer ours when they conflict with upstream
 - `packages/tui/test/shimmer.test.ts` — chore(owp): remove upstream-only components
 - `packages/tui/test/status-line-cache-hit.test.ts` — chore(owp): remove upstream-only components
 - `packages/tui/test/task-nested-live-render.test.ts` — chore(owp): remove upstream-only components
+- `.omp/skills/sync-upstream/SKILL.md.template` — legacy harness template — replaced by the forklift-rendered SKILL.md (45d420a076)
+- `.omp/skills/sync-upstream/feature-registry.yaml` — legacy feature registry — superseded by .forklift/registry.yaml (45d420a076)
+- `.omp/skills/sync-upstream/footprint-baseline.json` — legacy footprint baseline — superseded by .forklift/footprint-baseline.json (45d420a076)
+- `.omp/skills/sync-upstream/generate-skill-md.ts` — legacy SKILL.md generator — superseded by `forklift render` (45d420a076)
+- `.omp/skills/sync-upstream/sync.ts` — legacy sync runner — superseded by `forklift sync` (45d420a076)
+- `.omp/skills/reorganize-history/SKILL.md` — reorganize-history skill — lifted into `forklift reorg` (45d420a076)
+- `.omp/skills/reorganize-history/organize.ts` — reorganize-history script — lifted into `forklift reorg` (45d420a076)
+- `.omp/commands/reorganize-fork.md` — legacy slash command for the retired reorganize-history skill (45d420a076)
 <!-- GENERATED:FORKLIFT_END -->
 
 ## Repository Specific Notes

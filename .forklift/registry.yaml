@@ -562,11 +562,12 @@ features:
       - "test/keybindings-selector-navigation.test.ts"
       - "test/input-controller-followup-image.test.ts"
   - name: "Forklift harness"
-    description: "Project registry and install lock consumed by the forklift sync harness; registry.yaml is rewritten by forklift render. The doctor/init skills are the agent-facing entry points installed by forklift install"
+    description: "Project registry and install lock consumed by the forklift sync harness; registry.yaml is rewritten by forklift render. The doctor/init/maintain skills are the agent-facing entry points installed by forklift install"
     owned_paths:
       - ".forklift/"
       - ".omp/skills/forklift-doctor/"
       - ".omp/skills/forklift-init/"
+      - ".omp/skills/forklift-maintain/"
       - "AGENT.md"
 
 # Intentional divergences — files that upstream owns and we always take upstream for.
@@ -739,6 +740,27 @@ removals:
     reason: "chore(owp): remove upstream-only components"
   - path: "packages/tui/test/task-nested-live-render.test.ts"
     reason: "chore(owp): remove upstream-only components"
+  # Seeded from triage: deleting commit 45d420a076 "chore(owp): complete the forklift
+  # cutover — retire the legacy sync layer". The six-file legacy harness under
+  # .omp/skills/sync-upstream/ is replaced by the npm @whiteblossom/forklift CLI,
+  # which renders a v1-stamped SKILL.md in its place; reorganize-history is lifted
+  # into `forklift reorg`. None of these paths may be restored by a sync.
+  - path: ".omp/skills/sync-upstream/SKILL.md.template"
+    reason: "legacy harness template — replaced by the forklift-rendered SKILL.md (45d420a076)"
+  - path: ".omp/skills/sync-upstream/feature-registry.yaml"
+    reason: "legacy feature registry — superseded by .forklift/registry.yaml (45d420a076)"
+  - path: ".omp/skills/sync-upstream/footprint-baseline.json"
+    reason: "legacy footprint baseline — superseded by .forklift/footprint-baseline.json (45d420a076)"
+  - path: ".omp/skills/sync-upstream/generate-skill-md.ts"
+    reason: "legacy SKILL.md generator — superseded by `forklift render` (45d420a076)"
+  - path: ".omp/skills/sync-upstream/sync.ts"
+    reason: "legacy sync runner — superseded by `forklift sync` (45d420a076)"
+  - path: ".omp/skills/reorganize-history/SKILL.md"
+    reason: "reorganize-history skill — lifted into `forklift reorg` (45d420a076)"
+  - path: ".omp/skills/reorganize-history/organize.ts"
+    reason: "reorganize-history script — lifted into `forklift reorg` (45d420a076)"
+  - path: ".omp/commands/reorganize-fork.md"
+    reason: "legacy slash command for the retired reorganize-history skill (45d420a076)"
 
 # Owned symbols inside shared files. During rebase, take upstream structure, graft these symbols.
 owned_symbols:

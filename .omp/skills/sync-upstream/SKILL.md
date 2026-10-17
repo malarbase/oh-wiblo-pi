@@ -345,7 +345,7 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | OWP GitHub config | `.github/` |
 | OWP root config and assets | `package.json`, `bunfig.toml`, `Cargo.toml`, `.gitattributes`, `rust-toolchain.toml`, `rustfmt.toml`, `rust-analyzer.toml`, `Dockerfile`, `.dockerignore`, `LICENSE`, `AGENTS.md`, `.fallowrc.jsonc`, `tsconfig.json`, `tsconfig.base.json`, `tsconfig.tools.json`, `packages/tsconfig.workspace.json`, `assets/`, `types/` |
 | Command dispatch composition | `packages/coding-agent/src/slash-commands/builtin-registry.ts`, `packages/coding-agent/src/slash-commands/builtin-modes.ts`, `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/tui/src/overlays/extensions/extension-list.ts` |
-| Forklift harness | `.forklift/`, `.omp/skills/forklift-doctor/`, `.omp/skills/forklift-init/`, `AGENT.md` |
+| Forklift harness | `.forklift/`, `.omp/skills/forklift-doctor/`, `.omp/skills/forklift-init/`, `.omp/skills/forklift-maintain/`, `AGENT.md` |
 
 > **Note:** The § Owned Symbols table below is generally more current than this § Feature Stack, because new shared-file symbols are registered immediately while high-level feature rows may lag. After any feature merge, audit both tables.
 
@@ -717,6 +717,14 @@ These upstream paths are intentionally absent from owp. `forklift sync --verify`
 - `packages/tui/test/shimmer.test.ts` — chore(owp): remove upstream-only components
 - `packages/tui/test/status-line-cache-hit.test.ts` — chore(owp): remove upstream-only components
 - `packages/tui/test/task-nested-live-render.test.ts` — chore(owp): remove upstream-only components
+- `.omp/skills/sync-upstream/SKILL.md.template` — legacy harness template — replaced by the forklift-rendered SKILL.md (45d420a076)
+- `.omp/skills/sync-upstream/feature-registry.yaml` — legacy feature registry — superseded by .forklift/registry.yaml (45d420a076)
+- `.omp/skills/sync-upstream/footprint-baseline.json` — legacy footprint baseline — superseded by .forklift/footprint-baseline.json (45d420a076)
+- `.omp/skills/sync-upstream/generate-skill-md.ts` — legacy SKILL.md generator — superseded by `forklift render` (45d420a076)
+- `.omp/skills/sync-upstream/sync.ts` — legacy sync runner — superseded by `forklift sync` (45d420a076)
+- `.omp/skills/reorganize-history/SKILL.md` — reorganize-history skill — lifted into `forklift reorg` (45d420a076)
+- `.omp/skills/reorganize-history/organize.ts` — reorganize-history script — lifted into `forklift reorg` (45d420a076)
+- `.omp/commands/reorganize-fork.md` — legacy slash command for the retired reorganize-history skill (45d420a076)
 
 ## Escalation Format
 
