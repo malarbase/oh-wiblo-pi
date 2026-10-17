@@ -1,25 +1,44 @@
 /**
  * OpenCode Zen free-tier unlock.
  *
- * OpenCode's Zen gateway rejects free-tier (`-free`) models with
+ * OpenCode's Zen gateway rejects free-tier (`-free`) model requests with
  * `403 FreeTierError: OpenCode's free tier can only be used from within
- * OpenCode` unless the request looks like it came from the genuine client.
- * The gate is server-side and absent from the public opencode source, so it was
- * established behaviorally by capturing a real `opencode` run and bisecting the
- * request. A free-model request is accepted when ALL of these hold:
+ * OpenCode` unless the request carries a genuine opencode client identity.
+ * The gate is server-side and absent from the public opencode source, so it
+ * was established behaviorally by capturing a real `opencode` request on the
+ * wire (`OPENCODE_CONFIG` baseURL override to a local server) and bisecting
+ * header-by-header, body-field-by-body-field. A free-model request is accepted
+ * when ALL of these hold:
  *
- *   1. `stream: true` in the body            — omp always sends this.
- *   2. `tools` contains `bash` and `read`    — both are essential built-ins.
- *   3. `User-Agent` starts with `opencode/`.
- *   4. `x-opencode-session` names a session a real `opencode` process used.
- *   5. NO `Authorization` header. A valid Zen API key is itself a 403 trigger:
- *      it routes the request onto the authenticated billing path, where the
- *      workspace has no entitlement to the free pool.
+ *   1. `stream: true` and a free (`-free`) model id — omp always sends both.
+ *   2. `tools` contains a `read` entry whose `parameters.properties` is a
+ *      non-empty object. That single fingerprint is the entire body check:
+ *      description text, `bash`/other tools, `$schema`, `filePath`, `required`,
+ *      `tool_choice`, `max_tokens` and `stream_options` are all irrelevant
+ *      (all verified by replaying minimised bodies against the live gate).
+ *   3. `User-Agent: opencode/<version>` — a real version is required;
+ *      `opencode/0.0.1` gets `426 Upgrade Required`.
+ *   4. `authorization: Bearer st_…` — the opencode *console session* token
+ *      from `~/.local/share/opencode/opencode.db` (`account.access_token`).
+ *      Missing → 403; forged → 401. An `oc_sk_` API key is only accepted when
+ *      it happens to belong to the same workspace as the org header (one of
+ *      omp's two zen keys passes, the other 403s), so the console token is the
+ *      only self-consistent choice: it is read together with its workspace.
+ *   5. `x-opencode-org-id: wrk_…` — `account_state.active_org_id`, same db.
+ *      Missing → 403; forged → 403.
+ *   6. `x-opencode-session` AND `x-opencode-session-id` — must both name a
+ *      session a real `opencode run` process created (verified: either missing,
+ *      forged, or mismatched → 403).
  *
- * omp already satisfies 1 and 2, but fails 3, 4 and 5. This extension fixes
- * those three by wrapping the process-wide `fetch`, which is the only seam that
- * runs AFTER `applyInferenceHeaders` has stamped omp's own session id and the
- * client's auth header onto the request.
+ *   Optional on the gate (drop verified safe): `x-opencode-project`,
+ *   `x-opencode-client`, `x-opencode-request`, and any extra headers.
+ *
+ * omp already satisfies 1 and 2 (its read tool has a real `filePath` schema)
+ * but fails 3–6: it sends `User-Agent: omp/…`, stamps its own install id as
+ * `x-opencode-session`, has no org/session-id headers at all, and carries its
+ * `oc_sk_` zen key. This extension fixes 3–6 by wrapping the process-wide
+ * `fetch`, the only seam that runs AFTER `applyInferenceHeaders` has stamped
+ * omp's own session id and auth header onto the request.
  *
  * Why not `pi.registerProvider({ headers })`? Because
  * `applyInferenceHeaders` (`packages/ai/src/providers/inference-headers.ts:49`)
@@ -32,21 +51,34 @@
  * built-in API names (`packages/ai/src/api-registry.ts:62-66`), and
  * `openai-completions` is exactly the name this provider needs.
  *
+ * Token lifecycle: the console session token expires (~6 days). A full
+ * `opencode run` — which the harvest performs — runs opencode's own auth
+ * cycle, so the identity is re-read from the database after every refresh and
+ * on every request. When the login is missing or unrefreshable the problem is
+ * surfaced to the user (TUI notification + file log) instead of leaving a bare
+ * FreeTierError to be misread as a quota problem.
+ *
  * Off by default. Enable with `opencodeZenFreeTier: true` in
  * `~/.omp/agent/config.yml`.
  */
 
-import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
-import { settings } from "@oh-my-pi/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
+import { logger, settings } from "@oh-my-pi/pi-coding-agent";
+import { Database } from "bun:sqlite";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 const ZEN_HOST = "opencode.ai";
 const ZEN_PATH_MARKER = "/zen/";
 const FREE_SUFFIX = "-free";
-const OPENCODE_UA = "opencode/1.18.31";
+const DEFAULT_OPENCODE_UA = "opencode/1.18.31";
 const HARVEST_TIMEOUT_MS = 90_000;
 const HARVEST_PROMPT = "hi";
+/** Refresh the console token when it expires within this window. */
+const TOKEN_REFRESH_MARGIN_MS = 60_000;
+
+/** opencode's local database: console session token + active workspace. */
+const OPENCODE_DB_PATH = join(homedir(), ".local", "share", "opencode", "opencode.db");
 
 /** Fallback location when `opencode` is not on PATH (mise-managed install). */
 const OPENCODE_FALLBACK_PATHS = [
@@ -57,11 +89,32 @@ const OPENCODE_FALLBACK_PATHS = [
 const INSTALLED = Symbol.for("omp.opencodeZenFreeTier.installed");
 
 interface FetchLike {
-	(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+	(input: string | URL | Request, init?: RequestInit): Promise<Response>;
 }
 
+/** The opencode console login, read as one atomic token+workspace pair. */
+interface ZenIdentity {
+	token: string;
+	orgId: string;
+	/** Epoch ms; `0` when the database does not say. */
+	expiresAt: number;
+}
+
+interface FreeTierAnalysis {
+	freeTier: boolean;
+	/** Whether the body satisfies the gate's `read`-tool fingerprint. */
+	gateSatisfied: boolean;
+}
+
+/** Why the request cannot be gated; `detail` carries harvest error context. */
+type PrepFailure = "no-login" | "harvest" | "expired";
+
+type Prep = { headers: Headers; identity: ZenIdentity } | { failure: PrepFailure; detail?: string };
+
+type SurfaceLevel = "info" | "warning" | "error";
+
 /** Extract a URL string from the three shapes `fetch` accepts. */
-function urlOf(input: RequestInfo | URL): string {
+function urlOf(input: string | URL | Request): string {
 	if (typeof input === "string") return input;
 	if (input instanceof URL) return input.href;
 	return input.url;
@@ -78,7 +131,32 @@ export function isFreeTierModel(modelId: string | undefined): boolean {
 }
 
 /**
- * Decide whether a request body targets a free-tier model.
+ * True when the parsed body carries a `read` tool with a non-empty
+ * `parameters.properties` — the gate's entire body-side fingerprint.
+ */
+function hasGateReadTool(body: Record<string, unknown>): boolean {
+	const tools = body.tools;
+	if (!Array.isArray(tools)) return false;
+	return tools.some((entry) => {
+		if (!entry || typeof entry !== "object") return false;
+		const fn = (entry as { function?: unknown }).function;
+		if (!fn || typeof fn !== "object") return false;
+		const { name, parameters } = fn as { name?: unknown; parameters?: unknown };
+		if (name !== "read") return false;
+		if (!parameters || typeof parameters !== "object") return false;
+		const properties = (parameters as { properties?: unknown }).properties;
+		return (
+			!!properties &&
+			typeof properties === "object" &&
+			!Array.isArray(properties) &&
+			Object.keys(properties).length > 0
+		);
+	});
+}
+
+/**
+ * Decide whether a request body targets a free-tier model, and whether it
+ * already satisfies the gate's body fingerprint.
  *
  * The body is only inspected when it is a string, which is the shape the
  * OpenAI-compatible client sends; any other body (stream, bytes) is treated as
@@ -86,19 +164,21 @@ export function isFreeTierModel(modelId: string | undefined): boolean {
  * paid request to lose its credentials. Non-mutation matters here: the same
  * body string is forwarded verbatim below.
  */
-function isFreeTierRequest(body: BodyInit | null | undefined): boolean {
-	if (typeof body !== "string") return false;
+function analyzeRequestBody(body: RequestInit["body"]): FreeTierAnalysis {
+	const absent: FreeTierAnalysis = { freeTier: false, gateSatisfied: false };
+	if (typeof body !== "string") return absent;
 	// Cheap pre-filter: only pay for JSON.parse when the suffix is present.
-	if (!body.includes(FREE_SUFFIX)) return false;
+	if (!body.includes(FREE_SUFFIX)) return absent;
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(body);
 	} catch {
-		return false;
+		return absent;
 	}
-	if (!parsed || typeof parsed !== "object" || !("model" in parsed)) return false;
-	const model = parsed.model;
-	return typeof model === "string" && isFreeTierModel(model);
+	if (!parsed || typeof parsed !== "object" || !("model" in parsed)) return absent;
+	const model = (parsed as { model?: unknown }).model;
+	if (!isFreeTierModel(typeof model === "string" ? model : undefined)) return absent;
+	return { freeTier: true, gateSatisfied: hasGateReadTool(parsed as Record<string, unknown>) };
 }
 
 /**
@@ -153,31 +233,91 @@ async function resolveOpenCodeBinary(): Promise<string | null> {
 }
 
 /**
- * Run the genuine client once and read the session id off its JSON event
- * stream. `opencode run --format json` emits one JSON object per line, each
- * carrying a top-level `sessionID`; the first line already has one.
+ * Read the console session token and its workspace as one pair.
  *
- * Rejects when the binary is missing, the process exits first, or no
- * `sessionID` appears before the timeout — the caller then leaves the request
- * untouched so the gateway's own 403 still surfaces.
+ * Fresh on every call so a token opencode refreshed mid-process is picked up
+ * immediately, and so token and org can never come from different logins.
+ * Returns `null` when opencode has no console login (fresh install, signed
+ * out) — the caller surfaces that instead of guessing an identity.
+ */
+async function readOpenCodeIdentity(): Promise<ZenIdentity | null> {
+	if (!(await Bun.file(OPENCODE_DB_PATH).exists())) return null;
+	let db: Database | undefined;
+	try {
+		db = new Database(OPENCODE_DB_PATH, { readonly: true });
+		const state = db
+			.query<{ active_account_id: string | null; active_org_id: string | null }, []>(
+				"SELECT active_account_id, active_org_id FROM account_state ORDER BY id LIMIT 1",
+			)
+			.get();
+		if (!state?.active_org_id || !state.active_account_id) return null;
+		const account = db
+			.query<{ access_token: string | null; token_expiry: number | null }, [string]>(
+				"SELECT access_token, token_expiry FROM account WHERE id = ?",
+			)
+			.get(state.active_account_id);
+		if (!account?.access_token) return null;
+		return {
+			token: account.access_token,
+			orgId: state.active_org_id,
+			expiresAt: account.token_expiry ?? 0,
+		};
+	} catch (err) {
+		logger.warn("opencode-zen-free-tier: cannot read opencode database", {
+			path: OPENCODE_DB_PATH,
+			err,
+		});
+		return null;
+	} finally {
+		db?.close();
+	}
+}
+
+/**
+ * Run the genuine client once to completion and read the session id off its
+ * JSON event stream. `opencode run --format json` emits one JSON object per
+ * line, each carrying a top-level `sessionID`; the first line already has one.
+ *
+ * The run is awaited to completion (not killed at the first event) for two
+ * reasons: a finished run has completed opencode's auth cycle, so a token that
+ * was near expiry is already refreshed in the database by the time this
+ * returns; and a non-zero exit — an unrefreshable login, a gateway error — is
+ * rejected instead of yielding a session that was never synced.
  */
 async function harvestSessionId(binPath: string): Promise<string> {
-	const proc = Bun.spawn([binPath, "run", "--format", "json", "--model", "opencode/mimo-v2.6-flash-free", HARVEST_PROMPT], {
-		stdout: "pipe",
-		stderr: "ignore",
-		env: { ...process.env } as Record<string, string>,
-	});
+	const proc = Bun.spawn(
+		[binPath, "run", "--format", "json", "--model", "opencode/mimo-v2.6-flash-free", HARVEST_PROMPT],
+		{
+			stdout: "pipe",
+			stderr: "ignore",
+			env: { ...process.env } as Record<string, string>,
+		},
+	);
 
 	const reader = proc.stdout.getReader();
 	const decoder = new TextDecoder();
 	let buffer = "";
+	let session: string | null = null;
+	let timedOut = false;
 	const deadline = Date.now() + HARVEST_TIMEOUT_MS;
 
 	try {
-		while (Date.now() < deadline) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			buffer += decoder.decode(value, { stream: true });
+		while (!timedOut) {
+			const remaining = deadline - Date.now();
+			if (remaining <= 0) {
+				timedOut = true;
+				break;
+			}
+			const outcome = await Promise.race([
+				reader.read(),
+				Bun.sleep(remaining).then(() => "timed-out" as const),
+			]);
+			if (outcome === "timed-out") {
+				timedOut = true;
+				break;
+			}
+			if (outcome.done) break;
+			buffer += decoder.decode(outcome.value, { stream: true });
 			const lines = buffer.split("\n");
 			buffer = lines.pop() ?? "";
 			for (const line of lines) {
@@ -189,25 +329,27 @@ async function harvestSessionId(binPath: string): Promise<string> {
 				} catch {
 					continue;
 				}
-				if (parsed && typeof parsed === "object" && "sessionID" in parsed) {
-					const id = parsed.sessionID;
-					if (typeof id === "string" && id.length > 0) {
-						void reader.cancel().catch(() => {});
-						proc.kill();
-						return id;
-					}
-				}
+				if (session !== null || !parsed || typeof parsed !== "object") continue;
+				if (!("sessionID" in parsed)) continue;
+				const id = parsed.sessionID;
+				if (typeof id === "string" && id.length > 0) session = id;
 			}
 		}
 	} finally {
 		void reader.cancel().catch(() => {});
 	}
 
-	proc.kill();
-	throw new Error(`no sessionID in opencode output within ${HARVEST_TIMEOUT_MS}ms`);
+	if (timedOut) {
+		proc.kill();
+		throw new Error(`opencode run did not finish within ${HARVEST_TIMEOUT_MS}ms`);
+	}
+	const exitCode = await proc.exited;
+	if (exitCode !== 0) throw new Error(`opencode run exited with code ${exitCode}`);
+	if (!session) throw new Error("no sessionID in opencode output");
+	return session;
 }
 
-export default async function (_pi: ExtensionAPI) {
+export default async function (pi: ExtensionAPI) {
 	if (!(await isFreeTierEnabled())) return;
 
 	const state = globalThis as unknown as Record<symbol, unknown>;
@@ -215,11 +357,32 @@ export default async function (_pi: ExtensionAPI) {
 
 	const binary = await resolveOpenCodeBinary();
 	if (!binary) {
-		console.error(
+		logger.error(
 			"[opencode-zen-free-tier] disabled: `opencode` binary not found on PATH or in the mise install dir",
 		);
 		return;
 	}
+
+	// Latest UI context, captured so fetch-time failures can talk to the user.
+	let uiContext: ExtensionContext | undefined;
+	pi.on("session_start", (_event, ctx) => {
+		uiContext = ctx;
+	});
+	pi.on("before_provider_request", (_event, ctx) => {
+		uiContext = ctx;
+	});
+
+	// Notify at most once per distinct message; always mirror to the file log.
+	const surfaced = new Set<string>();
+	const surface = (message: string, level: SurfaceLevel): void => {
+		if (level === "error") logger.error(message);
+		else if (level === "warning") logger.warn(message);
+		else logger.info(message);
+		const ui = uiContext?.ui;
+		if (!ui || surfaced.has(message)) return;
+		surfaced.add(message);
+		ui.notify(message, level);
+	};
 
 	// Harvest lazily and exactly once: a session that never touches a free model
 	// neither spawns the binary nor pays the round trip.
@@ -232,34 +395,154 @@ export default async function (_pi: ExtensionAPI) {
 		});
 		return sessionPromise;
 	};
+	const invalidateSession = (): void => {
+		sessionPromise = null;
+	};
+
+	// `opencode --version` once per process; the gate enforces a version floor.
+	let uaPromise: Promise<string> | null = null;
+	const openCodeUserAgent = (): Promise<string> => {
+		uaPromise ??= (async () => {
+			try {
+				const proc = Bun.spawn([binary, "--version"], { stdout: "pipe", stderr: "ignore" });
+				const out = (await new Response(proc.stdout).text()).trim();
+				await proc.exited;
+				const version = out.split(/\s+/).pop();
+				if (version && /^[\w.+-]+$/.test(version)) return `opencode/${version}`;
+			} catch (err) {
+				logger.debug("opencode-zen-free-tier: cannot read opencode version", { err });
+			}
+			return DEFAULT_OPENCODE_UA;
+		})();
+		return uaPromise;
+	};
+
+	/**
+	 * Build the gate-satisfying headers: fresh identity from opencode's
+	 * database plus a session from a real `opencode run`. `refresh` forces a
+	 * new run first, which is what re-mints an expired console token.
+	 */
+	const prepareHeaders = async (base: Headers, refresh: boolean): Promise<Prep> => {
+		if (refresh) invalidateSession();
+		let identity = await readOpenCodeIdentity();
+		if (!identity) return { failure: "no-login" };
+		const nearExpiry =
+			identity.expiresAt > 0 && identity.expiresAt <= Date.now() + TOKEN_REFRESH_MARGIN_MS;
+		if (nearExpiry) invalidateSession();
+
+		let session: string;
+		try {
+			session = await sessionId();
+		} catch (err) {
+			return { failure: "harvest", detail: err instanceof Error ? err.message : String(err) };
+		}
+
+		if (nearExpiry) {
+			// The run above completed opencode's auth cycle; re-read the token.
+			identity = (await readOpenCodeIdentity()) ?? identity;
+			if (identity.expiresAt > 0 && identity.expiresAt <= Date.now()) {
+				return { failure: "expired" };
+			}
+		}
+
+		const headers = new Headers(base);
+		headers.set("User-Agent", await openCodeUserAgent());
+		headers.set("Authorization", `Bearer ${identity.token}`);
+		headers.set("x-opencode-org-id", identity.orgId);
+		headers.set("x-opencode-session", session);
+		headers.set("x-opencode-session-id", session);
+		return { headers, identity };
+	};
+
+	const failureMessage = (failure: PrepFailure, detail?: string): { text: string; level: SurfaceLevel } => {
+		switch (failure) {
+			case "no-login":
+				return {
+					text:
+						"OpenCode Zen free tier: no opencode console login found (~/.local/share/opencode). " +
+						"omp's own zen API key is not accepted for the free pool — run `opencode` and log in.",
+					level: "error",
+				};
+			case "expired":
+				return {
+					text:
+						"OpenCode Zen free tier: the opencode session expired and could not be refreshed — " +
+						"run `opencode` to log in again.",
+					level: "error",
+				};
+			case "harvest":
+				return {
+					text: `OpenCode Zen free tier: cannot start opencode for a session (${detail ?? "unknown"}) — check your \`opencode\` login.`,
+					level: "error",
+				};
+		}
+	};
+
+	const rejectedMessage = (status: number, detail: string): string => {
+		const excerpt = detail.replace(/\s+/g, " ").slice(0, 160);
+		if (status === 401) {
+			return (
+				"OpenCode Zen free tier: opencode rejected the session token (401) — " +
+				`run \`opencode\` to log in again. ${excerpt}`
+			);
+		}
+		return `OpenCode Zen free tier: still rejected by the free-tier gate (403): ${excerpt}`;
+	};
 
 	const originalFetch = globalThis.fetch as FetchLike;
+	let announcedSource = false;
 
 	const patchedFetch: FetchLike = async (input, init) => {
 		if (!isZenInference(urlOf(input))) return await originalFetch(input, init);
 		// Scope to free-tier models only. Paid Zen models keep their normal
-		// authenticated path: rewriting them would strip the API key they
-		// legitimately bill against.
-		if (!isFreeTierRequest(init?.body)) return await originalFetch(input, init);
+		// authenticated path: rewriting them would change what they bill against.
+		const analysis = analyzeRequestBody(init?.body);
+		if (!analysis.freeTier) return await originalFetch(input, init);
 
-		let id: string;
-		try {
-			id = await sessionId();
-		} catch (err) {
-			console.error("[opencode-zen-free-tier] session harvest failed:", err);
-			return await originalFetch(input, init);
+		if (!analysis.gateSatisfied) {
+			surface(
+				"OpenCode Zen free tier: this request carries no `read` tool, which the free-tier gate requires — the reply will be rejected.",
+				"warning",
+			);
 		}
 
-		// Rebuild from whatever the client assembled, then force the three
-		// gate-relevant fields. `Authorization` is dropped deliberately: a valid
-		// Zen key is what triggers FreeTierError in the first place.
-		const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
-		headers.set("User-Agent", OPENCODE_UA);
-		headers.set("x-opencode-session", id);
-		headers.delete("Authorization");
-		headers.delete("authorization");
+		const base = new Headers(
+			init?.headers ?? (input instanceof Request ? input.headers : undefined),
+		);
 
-		return await originalFetch(input, { ...init, headers });
+		// One retry: a 401 means the console token expired, a 403 the session
+		// went stale — both are cured by a fresh `opencode run`, which re-mints
+		// the token and yields a new session. Skipped when the body itself is
+		// missing the gate fingerprint, since no re-run can repair that.
+		let attempt = 0;
+		for (;;) {
+			const prep = await prepareHeaders(base, attempt > 0);
+			if ("failure" in prep) {
+				const { text, level } = failureMessage(prep.failure, prep.detail);
+				surface(text, level);
+				return await originalFetch(input, init);
+			}
+
+			if (!announcedSource) {
+				announcedSource = true;
+				const originalAuth = base.get("authorization") ?? "none";
+				surface(
+					`OpenCode Zen free tier: free-model calls use opencode's console session (${originalAuth.slice(0, 12)}… replaced by its st_ token), not omp's oc_sk_ zen key.`,
+					"info",
+				);
+			}
+
+			const res = await originalFetch(input, { ...init, headers: prep.headers });
+			if (res.status !== 401 && res.status !== 403) return res;
+
+			const detail = await res.clone().text().catch(() => "");
+			if (attempt === 0 && analysis.gateSatisfied) {
+				attempt = 1;
+				continue;
+			}
+			surface(rejectedMessage(res.status, detail), "error");
+			return res;
+		}
 	};
 
 	Object.defineProperty(globalThis, "fetch", {
@@ -268,7 +551,7 @@ export default async function (_pi: ExtensionAPI) {
 		value: patchedFetch as typeof globalThis.fetch,
 	});
 	state[INSTALLED] = true;
-	console.error(
+	logger.info(
 		`[opencode-zen-free-tier] enabled; free-tier requests will reuse a session from ${binary}`,
 	);
 }
