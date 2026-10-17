@@ -514,6 +514,9 @@ features:
   - name: "OWP Python RPC"
     owned_paths:
       - "python/omp-rpc/"
+    upstream_deleted_paths:
+      - path: "python/omp-rpc/"
+        note: "Upstream deleted python/omp-rpc/ upstream; the fork keeps it as its own RPC module and must not take-upstream the deletion. Pre-existing drift recorded here so check 6 reports PORT (acknowledged) instead of FAIL (it also predates the forklift cutover commits)."
 
   - name: "OWP documentation"
     owned_paths:
