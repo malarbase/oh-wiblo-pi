@@ -58,6 +58,15 @@
  * surfaced to the user (TUI notification + file log) instead of leaving a bare
  * FreeTierError to be misread as a quota problem.
  *
+ * Quota is shared, and saying so is part of the job. This extension lends omp
+ * opencode's console identity, so omp has no free allowance of its own — it
+ * draws from the single daily pool attached to the workspace. A `429
+ * FreeUsageLimitError` therefore means the pool is empty, NOT that the login
+ * broke, and the two are indistinguishable from the response alone. It is
+ * surfaced with its reset time instead of being passed through as a raw
+ * provider error, and never retried: a retry spends another request to earn
+ * the same rejection.
+ *
  * Off by default. Enable with `opencodeZenFreeTier: true` in
  * `~/.omp/agent/config.yml`.
  */
@@ -73,7 +82,34 @@ const ZEN_PATH_MARKER = "/zen/";
 const FREE_SUFFIX = "-free";
 const DEFAULT_OPENCODE_UA = "opencode/1.18.31";
 const HARVEST_TIMEOUT_MS = 90_000;
+/**
+ * Mandatory positional argument for `opencode run` — never transmitted. The
+ * harvest kills the process at the first `step_start` event, which opencode
+ * emits *before* it dispatches the provider call, so no request is ever made
+ * (verified against a capture server: zero `/chat/completions` hits). There is
+ * therefore nothing for prefix caching to reuse; a real session prompt would
+ * only risk `ARG_MAX` and expose user content in the process table.
+ */
 const HARVEST_PROMPT = "hi";
+/**
+ * The model the harvest run drives:
+ *
+ *   - The gate validates only that the session is real, never which model
+ *     created it. A session minted by a `mimo-v2.6-flash-free` run serves a
+ *     `space-bunny-free` request unchanged (verified on the wire), so there is
+ *     no correctness reason to mirror the caller's model.
+ *   - `gpt-5.4-nano` is opencode's own title model, so it is present in every
+ *     version by construction rather than by our guess. That is the whole
+ *     reason: the previous hardcoded `mimo-v2.6-flash-free` had already decayed
+ *     to a single occurrence in the 1.19.0 catalog, and a name that vanishes
+ *     breaks the harvest silently, degrading every free request to the raw
+ *     `oc_sk_` key with nothing in the log to explain it.
+ *   - Not the in-flight model either. That is always a `-free` model here
+ *     (`analyzeRequestBody` gates on it), and mirroring it would make the
+ *     harvest's success depend on the pool it exists to protect. Since the
+ *     harvest makes no model request at all, that dependency buys nothing.
+ */
+const HARVEST_MODEL = "opencode/gpt-5.4-nano";
 /** Refresh the console token when it expires within this window. */
 const TOKEN_REFRESH_MARGIN_MS = 60_000;
 
@@ -274,19 +310,28 @@ async function readOpenCodeIdentity(): Promise<ZenIdentity | null> {
 }
 
 /**
- * Run the genuine client once to completion and read the session id off its
- * JSON event stream. `opencode run --format json` emits one JSON object per
- * line, each carrying a top-level `sessionID`; the first line already has one.
+ * Run the genuine client once and read the session id off its JSON event stream.
+ * `opencode run --format json` emits one JSON object per line, each carrying a
+ * top-level `sessionID`; the first line already has one.
  *
- * The run is awaited to completion (not killed at the first event) for two
- * reasons: a finished run has completed opencode's auth cycle, so a token that
- * was near expiry is already refreshed in the database by the time this
- * returns; and a non-zero exit — an unrefreshable login, a gateway error — is
- * rejected instead of yielding a session that was never synced.
+ * `needAuthCycle` decides how far the run has to get. When the console token is
+ * already valid the session id is all this owes, so the run is stopped at the
+ * first event — the model call it would have made is pure latency. When the
+ * token is near expiry the run is awaited to completion instead, because that
+ * is what drives opencode's auth cycle and mints the refreshed token.
+ *
+ * A non-zero exit is deliberately NOT an error. opencode creates and persists
+ * the session before it calls the model, and the gateway accepts a session from
+ * a run whose model call failed: verified by replaying a free-model request
+ * against a session harvested from a run that exited 1 with `Cannot connect to
+ * API`, which answered 200. The exit code therefore carries nothing the caller
+ * can act on, and rejecting it only turned a recoverable situation into a full
+ * timeout followed by a misleading "check your login" message. Token freshness
+ * is guarded separately by the post-run re-read in `prepareHeaders`.
  */
-async function harvestSessionId(binPath: string): Promise<string> {
+async function harvestSessionId(binPath: string, needAuthCycle: boolean): Promise<string> {
 	const proc = Bun.spawn(
-		[binPath, "run", "--format", "json", "--model", "opencode/mimo-v2.6-flash-free", HARVEST_PROMPT],
+		[binPath, "run", "--format", "json", "--model", HARVEST_MODEL, HARVEST_PROMPT],
 		{
 			stdout: "pipe",
 			stderr: "ignore",
@@ -334,9 +379,15 @@ async function harvestSessionId(binPath: string): Promise<string> {
 				const id = parsed.sessionID;
 				if (typeof id === "string" && id.length > 0) session = id;
 			}
+			if (session !== null && !needAuthCycle) break;
 		}
 	} finally {
 		void reader.cancel().catch(() => {});
+	}
+
+	if (session !== null && !needAuthCycle) {
+		proc.kill();
+		return session;
 	}
 
 	if (timedOut) {
@@ -344,7 +395,7 @@ async function harvestSessionId(binPath: string): Promise<string> {
 		throw new Error(`opencode run did not finish within ${HARVEST_TIMEOUT_MS}ms`);
 	}
 	const exitCode = await proc.exited;
-	if (exitCode !== 0) throw new Error(`opencode run exited with code ${exitCode}`);
+	if (needAuthCycle && exitCode !== 0) throw new Error(`opencode run exited with code ${exitCode}`);
 	if (!session) throw new Error("no sessionID in opencode output");
 	return session;
 }
@@ -373,22 +424,24 @@ export default async function (pi: ExtensionAPI) {
 	});
 
 	// Notify at most once per distinct message; always mirror to the file log.
+	// `key` lets a message that embeds a moving timestamp (the quota reset time)
+	// still collapse to a single notification per process.
 	const surfaced = new Set<string>();
-	const surface = (message: string, level: SurfaceLevel): void => {
+	const surface = (message: string, level: SurfaceLevel, key: string = message): void => {
 		if (level === "error") logger.error(message);
 		else if (level === "warning") logger.warn(message);
 		else logger.info(message);
 		const ui = uiContext?.ui;
-		if (!ui || surfaced.has(message)) return;
-		surfaced.add(message);
+		if (!ui || surfaced.has(key)) return;
+		surfaced.add(key);
 		ui.notify(message, level);
 	};
 
 	// Harvest lazily and exactly once: a session that never touches a free model
 	// neither spawns the binary nor pays the round trip.
 	let sessionPromise: Promise<string> | null = null;
-	const sessionId = (): Promise<string> => {
-		sessionPromise ??= harvestSessionId(binary).catch((err: unknown) => {
+	const sessionId = (needAuthCycle: boolean): Promise<string> => {
+		sessionPromise ??= harvestSessionId(binary, needAuthCycle).catch((err: unknown) => {
 			// Allow a later turn to retry rather than caching the failure forever.
 			sessionPromise = null;
 			throw err;
@@ -432,7 +485,7 @@ export default async function (pi: ExtensionAPI) {
 
 		let session: string;
 		try {
-			session = await sessionId();
+			session = await sessionId(nearExpiry);
 		} catch (err) {
 			return { failure: "harvest", detail: err instanceof Error ? err.message : String(err) };
 		}
@@ -489,6 +542,54 @@ export default async function (pi: ExtensionAPI) {
 		return `OpenCode Zen free tier: still rejected by the free-tier gate (403): ${excerpt}`;
 	};
 
+	/**
+	 * `retry-after-ms`, then `retry-after` seconds, then the `retry-after-ms=` hint
+	 * the gateway embeds in the error body — the same precedence
+	 * `@oh-my-pi/pi-utils`' `fetchWithRetry` applies, so the number shown here is
+	 * the one omp actually backed off against.
+	 */
+	const parseRetryAfterMs = (headers: Headers, detail: string): number | undefined => {
+		const rawMs = headers.get("retry-after-ms");
+		if (rawMs) {
+			const ms = Number.parseFloat(rawMs);
+			if (Number.isFinite(ms) && ms > 0) return ms;
+		}
+		const rawSeconds = headers.get("retry-after");
+		if (rawSeconds) {
+			const seconds = Number.parseFloat(rawSeconds);
+			if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
+		}
+		const fromBody = /retry-after-ms=(\d+)/.exec(detail);
+		if (fromBody?.[1]) {
+			const ms = Number.parseInt(fromBody[1], 10);
+			if (Number.isFinite(ms) && ms > 0) return ms;
+		}
+		return undefined;
+	};
+
+	/**
+	 * A 429 is a quota fact, not a credential fact, and the two look identical
+	 * from the outside — the gateway returns a bare `FreeUsageLimitError` for a
+	 * pool that every client on this workspace shares. Say so, because the
+	 * default reading of "free tier rejected me" is a broken login, and acting
+	 * on that sends people to re-authenticate a session that is working fine.
+	 */
+	const quotaMessage = (headers: Headers, detail: string): string => {
+		const retryAfterMs = parseRetryAfterMs(headers, detail);
+		let reset = "";
+		if (retryAfterMs !== undefined && retryAfterMs <= 7 * 24 * 3_600_000) {
+			const hours = Math.floor(retryAfterMs / 3_600_000);
+			const minutes = Math.round((retryAfterMs % 3_600_000) / 60_000);
+			const wait = hours > 0 ? `about ${hours}h ${minutes}m` : `${minutes}m`;
+			reset = ` It should reopen in ${wait}, around ${new Date(Date.now() + retryAfterMs).toLocaleTimeString()}.`;
+		}
+		return (
+			"OpenCode Zen free tier: this workspace's shared free-model quota is exhausted (429) — not a credential problem. " +
+			"omp borrows opencode's console identity by design, so it shares one daily pool with standalone opencode; " +
+			`anything using free Zen models can exhaust it.${reset}`
+		);
+	};
+
 	const originalFetch = globalThis.fetch as FetchLike;
 	let announcedSource = false;
 
@@ -533,6 +634,18 @@ export default async function (pi: ExtensionAPI) {
 			}
 
 			const res = await originalFetch(input, { ...init, headers: prep.headers });
+
+			// A 429 is terminal and must not be retried: the pool is empty, so a
+			// fresh harvest would spend another request to earn the same rejection
+			// and re-enter this branch. Surface it once per process — the reset
+			// time moves, so the message needs its own dedupe key — then hand the
+			// response back untouched.
+			if (res.status === 429) {
+				const quotaDetail = await res.clone().text().catch(() => "");
+				surface(quotaMessage(res.headers, quotaDetail), "warning", "zen-free-quota");
+				return res;
+			}
+
 			if (res.status !== 401 && res.status !== 403) return res;
 
 			const detail = await res.clone().text().catch(() => "");
