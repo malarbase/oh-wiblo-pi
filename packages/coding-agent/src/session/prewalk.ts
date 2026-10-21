@@ -133,6 +133,8 @@ export class PrewalkCoordinator {
 	#autoArm: Prewalk | undefined;
 	/** Session-local opt-out from auto-prewalk: `/prewalk off`, or `--no-prewalk` at startup. `/new` clears it. */
 	#autoSuppressed: boolean;
+	/** The installed plan-yolo proposal handler, kept so a failed finalize can reinstall the identical instance. */
+	#planYoloProposalHandler: PlanProposalHandler | undefined;
 
 	constructor(host: PrewalkCoordinatorHost, options: PrewalkCoordinatorOptions = {}) {
 		this.#host = host;
@@ -514,7 +516,8 @@ export class PrewalkCoordinator {
 			enabled: previousEnabledTools.filter(name => !isMCPToolName(name)),
 			mounted: previousMountedTools.filter(name => !isMCPToolName(name)),
 		};
-		this.#host.setPlanProposalHandler(title => this.#finalizePlanYoloProposal(title));
+		this.#planYoloProposalHandler = title => this.#finalizePlanYoloProposal(title);
+		this.#host.setPlanProposalHandler(this.#planYoloProposalHandler);
 	}
 
 	#scrubPlanNudge(liveMessages?: AgentMessage[], includeContinuation = false): void {
@@ -595,11 +598,18 @@ export class PrewalkCoordinator {
 			}
 		} catch (error) {
 			this.#host.setPlanModeState(state);
+			// Re-enabling plan mode rewires the proposal handler to the generic
+			// prepare-for-review path; put the plan-yolo finalizer back — the same
+			// instance xd://propose is holding — so a retry finalizes instead of
+			// merely validating the plan.
+			const handler = this.#planYoloProposalHandler;
+			if (handler) this.#host.setPlanProposalHandler(handler);
 			throw error;
 		}
 		this.#host.setPlanProposalHandler(null);
 		this.#planYolo = undefined;
 		this.#planYoloPreviousNonMCPPresentation = undefined;
+		this.#planYoloProposalHandler = undefined;
 		await this.#host.setModelTemporary(planYolo.target, planYolo.thinkingLevel, { ephemeral: true });
 		this.#host.emitNotice(
 			"info",
