@@ -1,4 +1,15 @@
+// Lazy registry of web search providers.
+//
+// Each provider is loaded on first use; importing this module loads zero
+// provider implementations. Provider modules are heavy (each pulls in
+// fetch/parse/format helpers) and only one — at most — is needed per session,
+// so eager construction was wasted work at startup.
+//
+// Provider modules are loaded lazily; display metadata lives in types.ts so UI
+// listings can share it without importing provider implementations.
 import type { WebSearchGrounding } from "@oh-my-pi/pi-catalog/types";
+import type { AuthStorage } from "@oh-my-pi/pi-ai";
+import { SEARCH_PROVIDER_ORDER, type OwpSearchEngineId, type SearchProviderId } from "./types";
 import type { SearchProvider } from "./providers/base";
 import { getSearchProviderLabel, type SearchEngineId, SearchProviderError } from "./types";
 
@@ -47,6 +58,15 @@ const GROUNDED_PROVIDER_LOADERS: ProviderRegistry<WebSearchGrounding> = {
 	openrouter: () => import("./providers/openrouter").then(m => new m.OpenRouterGroundedProvider()),
 	openai: () => import("./providers/openai").then(m => new m.OpenAIProvider()),
 };
+
+// OWP fork engines beyond upstream's catalog `web/*` set: registered into the
+// same lazy lookup table so `isRegisteredSearchEngine`/`getSearchProvider`
+// resolve them exactly like the catalog engines.
+const OWP_PROVIDER_LOADERS: ProviderRegistry<OwpSearchEngineId> = {
+	"google-ai": () => import("./providers/google-ai").then(m => new m.GoogleAIProvider()),
+	serpapi: () => import("./providers/serpapi").then(m => new m.SerpApiProvider()),
+};
+Object.assign(PROVIDER_LOADERS, OWP_PROVIDER_LOADERS);
 
 const providerInstances = new Map<string, Promise<SearchProvider>>();
 
@@ -98,4 +118,89 @@ export function getSearchProvider(id: string): Promise<SearchProvider> {
 /** Resolve the grounding backend declared by a selected chat model. */
 export function getGroundedSearchProvider(grounding: WebSearchGrounding): Promise<SearchProvider> {
 	return loadProvider(`grounded:${grounding}`, GROUNDED_PROVIDER_LOADERS[grounding]);
+}
+
+/** Provider fallback order set via settings (default: built-in order). */
+let orderedProvIds: readonly SearchProviderId[] = SEARCH_PROVIDER_ORDER;
+/** Providers the user explicitly listed in `providers.webSearchOrder`. */
+let explicitProvIds = new Set<SearchProviderId>();
+
+/**
+ * Prioritize configured providers while retaining every unlisted provider in
+ * its built-in relative order. Invalid IDs are ignored defensively. Listed
+ * providers are treated as explicit selections: they resolve through
+ * `isExplicitlyAvailable`, so e.g. a hand-listed Perplexity may fall back to
+ * anonymous search exactly like the retired single-preference setting did.
+ *
+ * OWP: the automatic role-chain resolution lives in the search tool itself
+ * ({@link ../index}); these helpers keep the settings-driven order/exclude
+ * selection (`providers.webSearchOrder`, `providers.webSearchExclude`) alive.
+ */
+export function setSearchProviderOrder(providers: readonly SearchProviderId[]): void {
+	const prioritized = new Set(providers.filter(id => SEARCH_PROVIDER_ORDER.includes(id)));
+	explicitProvIds = prioritized;
+	orderedProvIds =
+		prioritized.size === 0
+			? SEARCH_PROVIDER_ORDER
+			: [...prioritized, ...SEARCH_PROVIDER_ORDER.filter(id => !prioritized.has(id))];
+}
+
+/** Providers excluded from web search resolution via settings. */
+let excludedProvIds = new Set<SearchProviderId>();
+
+/** Set providers that web search should never use, including fallbacks. */
+export function setExcludedSearchProviders(providers: readonly SearchProviderId[]): void {
+	excludedProvIds = new Set(providers);
+}
+
+/** `true` when settings exclude `id` from web search (auto chain and the Public Web fan-out). */
+export function isSearchProviderExcluded(id: SearchProviderId): boolean {
+	return excludedProvIds.has(id);
+}
+
+export interface SearchProviderCandidate {
+	id: SearchProviderId;
+	explicit: boolean;
+}
+
+/**
+ * Return provider candidates in fallback order without loading their modules.
+ * `forcedProvider` (a per-request `provider` argument) is terminal-first and
+ * bypasses exclusion; configured-order entries carry `explicit: true`.
+ */
+export function resolveProviderCandidates(forcedProvider?: SearchProviderId): SearchProviderCandidate[] {
+	const candidates: SearchProviderCandidate[] = [];
+
+	if (forcedProvider !== undefined && !isSearchProviderExcluded(forcedProvider)) {
+		candidates.push({ id: forcedProvider, explicit: true });
+	}
+
+	for (const id of orderedProvIds) {
+		if (id === forcedProvider || isSearchProviderExcluded(id)) continue;
+		candidates.push({ id, explicit: explicitProvIds.has(id) });
+	}
+
+	return candidates;
+}
+
+/**
+ * Resolve the complete available provider chain.
+ *
+ * This compatibility helper loads every candidate. Search execution should use
+ * {@link resolveProviderCandidates} so fallback modules load only when reached.
+ */
+export async function resolveProviderChain(
+	authStorage: AuthStorage,
+	forcedProvider?: SearchProviderId,
+): Promise<SearchProvider[]> {
+	const providers: SearchProvider[] = [];
+
+	for (const candidate of resolveProviderCandidates(forcedProvider)) {
+		const provider = await getSearchProvider(candidate.id);
+		const available = candidate.explicit
+			? await provider.isExplicitlyAvailable(authStorage)
+			: await provider.isAvailable(authStorage);
+		if (available) providers.push(provider);
+	}
+	return providers;
 }

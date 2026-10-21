@@ -1,5 +1,17 @@
+/**
+ * Web Search Types
+ *
+ * Unified types for web search responses across supported providers.
+ * The canonical provider ids, labels, and response shapes live in
+ * `@oh-my-pi/pi-tui/tools/web-search-types` and are re-exported here.
+ * The fork widens them with its serpapi and google-ai engines.
+ */
+
 import type { WebSearchGrounding } from "@oh-my-pi/pi-catalog/types";
-import type { SearchProviderId, SearchResponse } from "@oh-my-pi/pi-tui/tools/web-search-types";
+import {
+	SEARCH_PROVIDER_LABELS as UPSTREAM_SEARCH_PROVIDER_LABELS,
+	type SearchProviderId as UpstreamSearchProviderId,
+} from "@oh-my-pi/pi-tui/tools/web-search-types";
 
 export * from "@oh-my-pi/pi-tui/tools/web-search-types";
 
@@ -14,8 +26,114 @@ export const DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS = 60;
 /** Maximum configurable hard timeout for each web-search provider transport. */
 export const MAX_WEB_SEARCH_TIMEOUT_SECONDS = 300;
 
-/** Pure search engines represented by `web/*` catalog models. */
-export type SearchEngineId = Exclude<SearchProviderId, WebSearchGrounding>;
+/** Fork-added pure search engines beyond upstream's catalog `web/*` set. */
+export type OwpSearchEngineId = "serpapi" | "google-ai";
+
+/** Every provider id the fork's web search reports: upstream's set plus the fork's engines. */
+export type SearchProviderId = UpstreamSearchProviderId | OwpSearchEngineId;
+
+/** Labels for the fork's engine ids, which upstream's label map does not carry. */
+const OWP_SEARCH_PROVIDER_LABELS: Record<OwpSearchEngineId, string> = {
+	serpapi: "SerpAPI",
+	"google-ai": "Google AI",
+};
+
+/** Display labels across upstream's ids and the fork's engines. */
+export const SEARCH_PROVIDER_LABELS = {
+	...UPSTREAM_SEARCH_PROVIDER_LABELS,
+	...OWP_SEARCH_PROVIDER_LABELS,
+} as Record<SearchProviderId, string>;
+
+/** Label for a provider id; ids from older transcripts fall back to the raw id. */
+export function getSearchProviderLabel(id: SearchProviderId): string {
+	return SEARCH_PROVIDER_LABELS[id] ?? id;
+}
+
+/** Pure search engines: upstream's catalog `web/*` set plus the fork's scrapers. */
+export type SearchEngineId = Exclude<UpstreamSearchProviderId, WebSearchGrounding> | OwpSearchEngineId;
+
+/**
+ * Auto-resolution priority order: upstream's engine order (label-map order)
+ * first, then any of the fork's engines the upstream map does not already
+ * carry, so the settings/setup dropdown and the provider chain share one
+ * source of truth and never drift apart.
+ */
+export const SEARCH_PROVIDER_ORDER: readonly SearchProviderId[] = [
+	...new Set([
+		...(Object.keys(UPSTREAM_SEARCH_PROVIDER_LABELS) as UpstreamSearchProviderId[]),
+		"serpapi",
+		"google-ai",
+	] as SearchProviderId[]),
+];
+
+/** Concrete provider choices (no `auto` sentinel) — for list-valued settings like order/exclude. */
+export const SEARCH_PROVIDER_CHOICES: ReadonlyArray<{ value: SearchProviderId; label: string }> =
+	SEARCH_PROVIDER_ORDER.map(id => ({ value: id, label: SEARCH_PROVIDER_LABELS[id] }));
+
+export const SEARCH_PROVIDER_PREFERENCES: readonly (SearchProviderId | "auto")[] = [
+	"auto",
+	...SEARCH_PROVIDER_ORDER,
+];
+
+export function isSearchProviderId(value: string): value is SearchProviderId {
+	return (SEARCH_PROVIDER_PREFERENCES as readonly string[]).includes(value);
+}
+
+export function isSearchProviderPreference(value: string): value is SearchProviderId | "auto" {
+	return (SEARCH_PROVIDER_PREFERENCES as readonly string[]).includes(value);
+}
+
+/** Source returned by search (all providers) */
+export interface SearchSource {
+	title: string;
+	url: string;
+	snippet?: string;
+	/** ISO date string or relative ("2d ago") */
+	publishedDate?: string;
+	/** Age in seconds for consistent formatting */
+	ageSeconds?: number;
+	author?: string;
+}
+
+/** Citation with text reference (LLM-mediated providers) */
+export interface SearchCitation {
+	url: string;
+	title: string;
+	citedText?: string;
+}
+
+/** Usage metrics */
+export interface SearchUsage {
+	inputTokens?: number;
+	outputTokens?: number;
+	/** Anthropic: number of web search requests made */
+	searchRequests?: number;
+	/** Perplexity: combined token count */
+	totalTokens?: number;
+}
+
+/** Unified response across providers */
+export interface SearchResponse {
+	provider: SearchProviderId | "none";
+	/** Synthesized answer text (LLM-mediated providers) */
+	answer?: string;
+	/** Search result sources */
+	sources: SearchSource[];
+	/** Text citations with context */
+	citations?: SearchCitation[];
+	/** Intermediate search queries (anthropic) */
+	searchQueries?: string[];
+	/** Follow-up question suggestions (provider-dependent) */
+	relatedQuestions?: string[];
+	/** Token usage metrics */
+	usage?: SearchUsage;
+	/** Model used */
+	model?: string;
+	/** Request ID for debugging */
+	requestId?: string;
+	/** Authentication mode used by the provider (e.g. oauth, api-key) */
+	authMode?: string;
+}
 
 /** Provider-specific error with optional HTTP status */
 export class SearchProviderError extends Error {
@@ -23,6 +141,11 @@ export class SearchProviderError extends Error {
 		public readonly provider: SearchProviderId,
 		message: string,
 		public readonly status?: number,
+		/**
+		 * When true, the fallback chain should stop — the browser is
+		 * still open for the user to solve a CAPTCHA manually.
+		 */
+		public readonly captcha = false,
 	) {
 		super(message);
 		this.name = "SearchProviderError";
