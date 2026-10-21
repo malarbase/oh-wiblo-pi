@@ -348,7 +348,12 @@ class "anthropic" {
 	on "amazon-bedrock" "anthropic" "cloudflare-ai-gateway" "github-copilot" "gitlab-duo" \
 		"google-vertex" "opencode-zen" "snowflake" "vercel-ai-gateway" {
 		family "haiku" {
-			thinking-mode "budget"
+			// Bounded like the sonnet rule above: 4.7+ Haiku follows the adaptive
+			// generation below, and an unbounded budget rule ties with it on axis
+			// `mode` — AmbiguousOverlapError then discards the models.dev slice.
+			revision "<4.7" {
+				thinking-mode "budget"
+			}
 			// Haiku 5.5 is the first adaptive Haiku: `budget_tokens` is a 400.
 			// An omitted `thinking` is adaptive, but unlike Sonnet/Opus 5.5 it
 			// accepts `disabled` at effort `high` or below, so Off is explicit.
