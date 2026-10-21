@@ -81,7 +81,22 @@ Order matters: `render` regenerates from the registry, `install` writes what the
 
 `expected_fork_commit_count` self-references: the rebaseline commit grows the range by one, so the count must be the value measured **after** that commit lands, not before. A render that lands in the same commit writes `Total` from a range that does not yet contain it, so `Total` ends one behind and re-rendering dirties the doc again.
 
-Verified recipe:
+**Let the tool do it (0.4.0+):**
+
+```bash
+forklift sync --rebaseline          # after a rebase, before the push
+forklift sync --rebaseline-only     # on its own: never fetches, never rebases
+```
+
+`--rebaseline` records the count the range will have once the rebaseline commit lands
+(`N+1`, where `N` is the count right now), re-renders every artifact the registry describes
+(the sync skill, `AGENT.md`, the fork-commits table in the fork doc), commits them as one
+atomic commit, then renders once more and amends that commit so `Total` matches. It prints the
+`Last Sync Point` values afterwards. When the bookkeeping is already converged it says so and
+commits nothing.
+
+The manual recipe below is the fallback for a fork that cannot use the flag (an old CLI, a
+custom runner). It is the same sequence the flag executes:
 
 ```bash
 git rev-list --count <upstream>/<branch>..<fork>/<branch>   # actual BEFORE the rebaseline: N
