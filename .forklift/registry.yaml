@@ -19,7 +19,7 @@
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
 generatedAt: "2026-10-21T17:42:46Z"
-expected_fork_commit_count: 76
+expected_fork_commit_count: 77
 
 harness:
   version: 1
@@ -1469,8 +1469,6 @@ owned_symbols:
   - file: "packages/coding-agent/src/web/search/types.ts"
     feature: "SerpAPI search provider"
     symbols:
-      - name: "SEARCH_PROVIDER_OPTIONS"
-        description: "Fork graft (auto-derived from live diff)"
       - name: "SEARCH_PROVIDER_LABELS"
         description: "Fork graft (auto-derived from live diff)"
   - file: "packages/coding-agent/src/session/auth-broker-config.ts"
