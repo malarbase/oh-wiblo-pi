@@ -1,9 +1,9 @@
 /**
- * ExtensionList - Inventory list with Master Switch and fuzzy search.
+ * ExtensionList - Inventory list with Master Switch, skill grouping, and fuzzy search.
  *
  * When viewing a specific provider (not "ALL"), Row #0 is the Master Switch
  * that toggles the entire provider. All items below are dimmed when the
- * master switch is off.
+ * master switch is off. Skills can be grouped by directory, tag, repo, or author.
  */
 import type { TspPickerGroup, TspPickerItem, TspProps, TspSpan, TspTone } from "@oh-my-pi/pi-wire";
 import type { Component } from "../../tui";
@@ -44,13 +44,20 @@ import {
 	isShadowedExtension,
 } from "./types";
 
+export type GroupingAxis = "dir" | "tag" | "repo" | "author";
+
 export interface ExtensionListCallbacks {
 	getProviders?: () => readonly ExtensionProvider[];
 	onSelectionChange?: (extension: Extension | null) => void;
 	onToggle?: (extensionId: string, enabled: boolean) => void;
 	onMasterToggle?: (providerId: string) => void;
 	onUserSourceToggle?: (providerId: string) => void;
+	/** Called when skill group is toggled */
+	onGroupToggle?: (groupAxis: GroupingAxis, groupValue: string, enabled: boolean) => void;
+	/** Provider ID for master switch (null = no master switch) */
 	masterSwitchProvider?: string | null;
+	/** Provider enablement check (injected: lives app-side in the capability registry) */
+	isProviderEnabled?: (providerId: string) => boolean;
 	mcpSource?: MCPRuntimeSource;
 	toolSource?: ToolRuntimeSource;
 }
@@ -64,6 +71,8 @@ function getListItemKey(item: ListItem): string {
 			return `master:${item.providerId}`;
 		case "user-source":
 			return `user-source:${item.providerId}`;
+		case "group-header":
+			return `group:${item.groupAxis}:${item.groupValue}`;
 		case "kind-header":
 			return `kind:${item.kind}`;
 		case "extension":
@@ -84,6 +93,8 @@ function getListItemSearchText(item: ListItem): string {
 			return `Enable ${item.providerName} Master Switch ${item.providerId}`;
 		case "user-source":
 			return `Load ${item.providerName} config user source ${item.providerId}`;
+		case "group-header":
+			return `${item.groupAxis} ${item.label}`;
 		case "kind-header":
 			return `${item.label} ${item.kind}`;
 		case "extension":
@@ -114,7 +125,16 @@ type ListItem =
 	| { type: "master"; providerId: string; providerName: string; enabled: boolean }
 	| { type: "user-source"; providerId: string; providerName: string; enabled: boolean }
 	| { type: "kind-header"; kind: ExtensionKind; label: string; icon: string; count: number }
-	| { type: "extension"; item: Extension };
+	| {
+			type: "group-header";
+			groupAxis: GroupingAxis;
+			groupValue: string;
+			label: string;
+			count: number;
+			enabled: boolean;
+			mixed: boolean;
+	  }
+	| { type: "extension"; item: Extension; grouped?: boolean };
 
 /** Picker dot tone of each MCP connection health, matching the ANSI health glyph colours. */
 const MCP_HEALTH_TONE: Record<MCPConnectionHealth, TspTone> = {
@@ -131,11 +151,14 @@ export class ExtensionList implements Component {
 	#masterSwitchProvider: string | null = null;
 	#maxVisible: number;
 	#hoveredIndex: number | null = null;
+	#groupingAxis: GroupingAxis = "dir";
 	/** Item rows rendered in the last frame, for mouse hit-testing. */
 	#visibleCount = 0;
 	#mcpSource: MCPRuntimeSource | undefined;
 	#toolSource: ToolRuntimeSource | undefined;
 	#toolFrame: ToolRuntimeSource | undefined;
+	/** Provider enablement check (injected: lives app-side in the capability registry) */
+	#isProviderEnabled: (providerId: string) => boolean = () => true;
 
 	#extensions: Extension[];
 	readonly #callbacks: ExtensionListCallbacks;
@@ -149,6 +172,9 @@ export class ExtensionList implements Component {
 		this.#mcpSource = callbacks.mcpSource;
 		this.#toolSource = callbacks.toolSource;
 		this.#maxVisible = maxVisible ?? DEFAULT_MAX_VISIBLE;
+		this.#isProviderEnabled =
+			callbacks.isProviderEnabled ??
+			(id => this.#callbacks.getProviders?.().find(provider => provider.id === id)?.enabled !== false);
 		this.#search.prompt = "";
 		this.#menu = new MenuSelection<ListItem>(this.#buildListItems(""), {
 			getKey: getListItemKey,
@@ -178,6 +204,22 @@ export class ExtensionList implements Component {
 		this.#masterSwitchProvider = providerId;
 		this.#menu.setItems(this.#buildListItems(""));
 		this.#syncScroll();
+	}
+
+	cycleGroupingAxis(): GroupingAxis {
+		const order: GroupingAxis[] = ["dir", "tag", "repo", "author"];
+		const nextIdx = (order.indexOf(this.#groupingAxis) + 1) % order.length;
+		this.#groupingAxis = order[nextIdx];
+		const keepIndex = this.#menu.selectedIndex;
+		this.#menu.setItems(this.#buildListItems(this.#menu.query));
+		this.#menu.setSelectedIndex(keepIndex);
+		this.#syncScroll();
+		this.#notifySelectionChange();
+		return this.#groupingAxis;
+	}
+
+	getGroupingAxis(): GroupingAxis {
+		return this.#groupingAxis;
 	}
 
 	setMcpSource(source: MCPRuntimeSource | undefined): void {
@@ -252,10 +294,7 @@ export class ExtensionList implements Component {
 		}
 
 		// Determine if master switch is off (for dimming child items)
-		const masterDisabled =
-			this.#masterSwitchProvider !== null &&
-			this.#callbacks.getProviders?.().find(provider => provider.id === this.#masterSwitchProvider)?.enabled ===
-				false;
+		const masterDisabled = this.#isMasterDisabled();
 
 		// Calculate visible range (one fixed row per item)
 		const { start: startIdx, end: endIdx } = viewportRange(items.length, this.#maxVisible, this.#scrollOffset);
@@ -278,8 +317,10 @@ export class ExtensionList implements Component {
 				rowStr = this.#renderUserSourceSwitch(listItem, isSelected, masterDisabled, rowWidth);
 			} else if (listItem.type === "kind-header") {
 				rowStr = this.#renderKindHeader(listItem, isSelected, rowWidth);
+			} else if (listItem.type === "group-header") {
+				rowStr = this.#renderGroupHeader(listItem, isSelected, rowWidth);
 			} else {
-				rowStr = this.#renderExtensionRow(listItem.item, isSelected, rowWidth, masterDisabled);
+				rowStr = this.#renderExtensionRow(listItem.item, isSelected, rowWidth, masterDisabled, listItem.grouped);
 			}
 			if (isHovered) rowStr = theme.bg("selectedBg", rowStr);
 			rows.push(rowStr);
@@ -307,7 +348,7 @@ export class ExtensionList implements Component {
 		const hits: Record<string, [number, number][]> = {};
 		let grouped = false;
 		for (const entry of this.#menu.visibleItems) {
-			if (entry.type === "kind-header") {
+			if (entry.type === "kind-header" || entry.type === "group-header") {
 				grouped = true;
 				order.push({ group: nativeItemId(entry), label: entry.label, count: entry.count });
 				continue;
@@ -324,22 +365,24 @@ export class ExtensionList implements Component {
 		return {
 			items,
 			order,
-			selected: selected && selected.type !== "kind-header" ? nativeItemId(selected) : null,
+			selected: selected && selected.type !== "kind-header" && selected.type !== "group-header"
+				? nativeItemId(selected)
+				: null,
 			hits,
 			grouped,
 		};
 	}
 
 	/**
-	 * The visible rows as a native `list` (kind headers included, so the
-	 * selection matches the keyboard's), for terminals without `picker`.
+	 * The visible rows as a native `list` (kind + skill-group headers included,
+	 * so the selection matches the keyboard's), for terminals without `picker`.
 	 */
 	describeList(key: string): NativeNode {
 		this.#toolFrame = snapshotToolRuntimeSource(this.#toolSource);
 		const masterDisabled = this.#isMasterDisabled();
 		const rows: NativeNode[] = [];
 		for (const entry of this.#menu.visibleItems) {
-			if (entry.type === "kind-header") {
+			if (entry.type === "kind-header" || entry.type === "group-header") {
 				rows.push(
 					node(
 						"item",
@@ -406,10 +449,10 @@ export class ExtensionList implements Component {
 		return true;
 	}
 
-	/** The selected row's switch, or undefined on a kind header or an empty list. */
+	/** The selected row's switch, or undefined on a header row or an empty list. */
 	selectedSwitch(): ExtensionListSwitch | undefined {
 		const item = this.#menu.selectedItem;
-		if (!item || item.type === "kind-header") return undefined;
+		if (!item || item.type === "kind-header" || item.type === "group-header") return undefined;
 		if (item.type === "master") return { on: item.enabled };
 		if (item.type === "user-source") {
 			const providerOff =
@@ -423,11 +466,7 @@ export class ExtensionList implements Component {
 	}
 
 	#isMasterDisabled(): boolean {
-		return (
-			this.#masterSwitchProvider !== null &&
-			this.#callbacks.getProviders?.().find(provider => provider.id === this.#masterSwitchProvider)?.enabled ===
-				false
-		);
+		return this.#masterSwitchProvider !== null && !this.#isProviderEnabled(this.#masterSwitchProvider);
 	}
 
 	/** A text status glyph for the `list` fallback, matching the ANSI row icons. */
@@ -444,7 +483,7 @@ export class ExtensionList implements Component {
 		}
 	}
 
-	#pickerItem(entry: Exclude<ListItem, { type: "kind-header" }>, masterDisabled: boolean): TspPickerItem {
+	#pickerItem(entry: Exclude<ListItem, { type: "kind-header" } | { type: "group-header" }>, masterDisabled: boolean): TspPickerItem {
 		const id = nativeItemId(entry);
 		if (entry.type === "master") {
 			return {
@@ -580,7 +619,42 @@ export class ExtensionList implements Component {
 		return truncateToWidth(line, width);
 	}
 
-	#renderExtensionRow(ext: Extension, isSelected: boolean, width: number, masterDisabled: boolean): string {
+	#renderGroupHeader(item: ListItem & { type: "group-header" }, isSelected: boolean, width: number): string {
+		const checkbox = item.enabled
+			? item.mixed
+				? theme.fg("warning", theme.checkbox?.checked ?? "[x]")
+				: theme.fg("success", theme.checkbox?.checked ?? "[x]")
+			: theme.fg("dim", theme.checkbox?.unchecked ?? "[ ]");
+
+		const iconMap: Record<GroupingAxis, string> = {
+			dir: theme.icon?.folder ?? "📁",
+			tag: "#",
+			repo: "📦",
+			author: "@",
+		};
+		const icon = iconMap[item.groupAxis] ?? "📁";
+		const countBadge = theme.fg("muted", `(${item.count})`);
+		const axisPrefix = theme.fg("dim", `${item.groupAxis}:`);
+
+		let line = `  ${checkbox} ${icon} ${axisPrefix}${item.label} ${countBadge}`;
+
+		if (isSelected) {
+			line = theme.bold(theme.fg("accent", line));
+			line = theme.bg("selectedBg", line);
+		} else if (!item.enabled) {
+			line = theme.fg("dim", line);
+		}
+
+		return truncateToWidth(line, width);
+	}
+
+	#renderExtensionRow(
+		ext: Extension,
+		isSelected: boolean,
+		width: number,
+		masterDisabled: boolean,
+		grouped = false,
+	): string {
 		const shadowed = isShadowedExtension(ext);
 		const effectivelyDisabled = masterDisabled || ext.state === "disabled";
 		const mcpSnap = this.#mcpSnapshot(ext, shadowed, effectivelyDisabled);
@@ -593,8 +667,9 @@ export class ExtensionList implements Component {
 		let name = sanitizeDisplayLine(ext.displayName);
 		const nameWidth = Math.min(24, width - 16);
 
-		// Build the line with indentation (visually "inside" the master switch)
-		let line = `   ${stateIcon} `;
+		// Build the line with indentation (visually "inside" the master switch,
+		// or nested one more level under a skill-group header)
+		let line = grouped ? `     ${stateIcon} ` : `   ${stateIcon} `;
 
 		if (isSelected && !masterDisabled) {
 			name = theme.bold(theme.fg("accent", name));
@@ -696,10 +771,26 @@ export class ExtensionList implements Component {
 		return text + padding(targetWidth - width);
 	}
 
+	#skillGroupKeys(ext: Extension): string[] {
+		if (this.#groupingAxis === "tag") {
+			return ext.tags && ext.tags.length > 0 ? ext.tags : [];
+		}
+		const key = this.#skillGroupKey(ext);
+		return key !== null ? [key] : [];
+	}
+
+	#skillGroupKey(ext: Extension): string | null {
+		if (this.#groupingAxis === "repo") return ext.repo ?? null;
+		if (this.#groupingAxis === "author") return ext.author ?? null;
+		if (this.#groupingAxis === "dir") return ext.group ?? null;
+		return null;
+	}
+
 	/**
 	 * Rebuild the flattened list for `query`: a flat applyFilter hit list while
 	 * searching, otherwise the master-switch rows (provider scope) or the
-	 * kind-grouped ALL view with headers.
+	 * kind-grouped ALL view with headers. Skills are grouped by the active
+	 * {@link #groupingAxis} in both views.
 	 */
 	#buildListItems(query: string): ListItem[] {
 		const items: ListItem[] = [];
@@ -710,7 +801,7 @@ export class ExtensionList implements Component {
 		// When searching, show flat list
 		if (query.length > 0) {
 			for (const ext of filtered) {
-				items.push({ type: "extension", item: ext });
+				items.push({ type: "extension", item: ext, grouped: false });
 			}
 			return items;
 		}
@@ -736,8 +827,12 @@ export class ExtensionList implements Component {
 				});
 			}
 
-			for (const ext of filtered) {
-				items.push({ type: "extension", item: ext });
+			if (filtered.some(e => e.kind === "skill")) {
+				this.#pushGroupedSkills(items, filtered);
+			} else {
+				for (const ext of filtered) {
+					items.push({ type: "extension", item: ext, grouped: false });
+				}
 			}
 			return items;
 		}
@@ -775,11 +870,67 @@ export class ExtensionList implements Component {
 				count: kindItems.length,
 			});
 
-			for (const ext of kindItems) {
-				items.push({ type: "extension", item: ext });
+			if (kind === "skill") {
+				this.#pushGroupedSkills(items, kindItems);
+			} else {
+				for (const ext of kindItems) {
+					items.push({ type: "extension", item: ext, grouped: false });
+				}
 			}
 		}
 		return items;
+	}
+
+	/**
+	 * Push the given extensions as rows, grouping skill rows under one
+	 * group-header item per active-axis key (header checkbox state derives
+	 * from the group's members). Non-skill extensions stay flat.
+	 */
+	#pushGroupedSkills(items: ListItem[], entries: Extension[]): void {
+		const groups = new Map<string, Extension[]>();
+		const ungrouped: Extension[] = [];
+		const nonSkills: Extension[] = [];
+
+		for (const ext of entries) {
+			if (ext.kind !== "skill") {
+				nonSkills.push(ext);
+				continue;
+			}
+			const keys = this.#skillGroupKeys(ext);
+			if (keys.length > 0) {
+				for (const key of keys) {
+					const list = groups.get(key) ?? [];
+					list.push(ext);
+					groups.set(key, list);
+				}
+			} else {
+				ungrouped.push(ext);
+			}
+		}
+
+		for (const [groupValue, skills] of groups) {
+			const allDisabled = skills.every(s => s.state === "disabled");
+			const anyDisabled = skills.some(s => s.state === "disabled");
+			items.push({
+				type: "group-header",
+				groupAxis: this.#groupingAxis,
+				groupValue,
+				label: groupValue,
+				count: skills.length,
+				enabled: !allDisabled,
+				mixed: anyDisabled && !allDisabled,
+			});
+			for (const skill of skills) {
+				items.push({ type: "extension", item: skill, grouped: true });
+			}
+		}
+
+		for (const ext of ungrouped) {
+			items.push({ type: "extension", item: ext, grouped: false });
+		}
+		for (const ext of nonSkills) {
+			items.push({ type: "extension", item: ext, grouped: false });
+		}
 	}
 
 	#getKindLabel(kind: ExtensionKind): string {
@@ -820,7 +971,7 @@ export class ExtensionList implements Component {
 		);
 	}
 
-	/** Toggle the selected item, or flip the provider master switch when on it (Space/Enter). */
+	/** Toggle the selected item, group, or flip the provider master switch (Space/Enter). */
 	activateSelected(): void {
 		const item = this.#menu.selectedItem;
 		if (item?.type === "master") {
@@ -828,15 +979,13 @@ export class ExtensionList implements Component {
 		} else if (item?.type === "user-source") {
 			if (this.#callbacks.getProviders?.().find(provider => provider.id === item.providerId)?.enabled !== false)
 				this.#callbacks.onUserSourceToggle?.(item.providerId);
+		} else if (item?.type === "group-header") {
+			this.#callbacks.onGroupToggle?.(item.groupAxis, item.groupValue, !item.enabled);
 		} else if (item?.type === "extension") {
 			// Shadowed same-name rows share the winner's id (`mcp:github`).
 			// Toggling them would mutate whichever config `find(id)` hits first.
 			if (isShadowedExtension(item.item)) return;
-			const masterDisabled =
-				this.#masterSwitchProvider !== null &&
-				this.#callbacks.getProviders?.().find(provider => provider.id === this.#masterSwitchProvider)?.enabled ===
-					false;
-			if (!masterDisabled) {
+			if (!this.#isMasterDisabled()) {
 				const newEnabled = item.item.state === "disabled";
 				this.#callbacks.onToggle?.(item.item.id, newEnabled);
 			}
@@ -893,7 +1042,7 @@ export class ExtensionList implements Component {
 			return;
 		}
 
-		// Space or Enter: activate the selected row (toggle item / master switch)
+		// Space or Enter: activate the selected row (toggle item / group / master switch)
 		if (data === " " || matchesKey(data, "enter") || matchesKey(data, "return") || data === "\n") {
 			this.activateSelected();
 			return;
