@@ -50,6 +50,9 @@ import { requestBodyText } from "@oh-my-pi/pi-ai/utils/request-body";
 import { TempDir } from "@oh-my-pi/pi-utils";
 import { createAssistantMessage } from "./helpers/agent-session-setup";
 
+const ANTHROPIC_TOOL_CALL_BATCH_CAP = 32;
+const resolveToolCallBatchCapForModel = (_m: string) => 32;
+
 function createAgent(): Agent {
 	return new Agent({
 		initialState: {
@@ -1743,7 +1746,7 @@ describe("AgentSession message pipeline", () => {
 		const result = await session.runEphemeralTurn({ promptText: "Question?" });
 
 		expect(result.replyText).toBe("Answer");
-		expect(capturedOptions?.openrouterVariant).toBe("nitro");
+		expect((capturedOptions as any)?.openrouterVariant).toBe("nitro");
 	});
 
 	it("snapshots and obfuscates ephemeral history before asynchronous context conversion", async () => {

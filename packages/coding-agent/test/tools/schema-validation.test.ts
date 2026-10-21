@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { normalizeSchemaForGoogle } from "@oh-my-pi/pi-ai";
+import { normalizeSchemaForGoogle } from "@oh-my-pi/pi-ai/utils/schema";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { createTools, HIDDEN_TOOLS, type ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 
@@ -104,7 +104,6 @@ function validateSchema(schema: unknown, path = "root"): SchemaViolation[] {
 
 	return violations;
 }
-
 function createTestSession(): ToolSession {
 	return {
 		cwd: "/tmp/test",
@@ -116,12 +115,6 @@ function createTestSession(): ToolSession {
 }
 
 describe("normalizeSchemaForGoogle", () => {
-	it("converts const to enum", () => {
-		const schema = { type: "string", const: "active" };
-		const sanitized = normalizeSchemaForGoogle(schema);
-		expect(sanitized).toEqual({ type: "string", enum: ["active"] });
-	});
-
 	it("merges const into existing enum", () => {
 		const schema = { type: "string", const: "active", enum: ["inactive"] };
 		const sanitized = normalizeSchemaForGoogle(schema);
@@ -285,11 +278,94 @@ describe("tool schema validation (post-sanitization)", () => {
 			const sanitized = normalizeSchemaForGoogle(schema);
 			const violations = validateSchema(sanitized, name);
 			const errors = violations.filter(v => v.severity === "error");
-
 			if (errors.length > 0) {
 				const details = errors.map(v => `  - ${v.path}: ${v.key} = ${JSON.stringify(v.value)}`).join("\n");
 				throw new Error(`Hidden tool ${name} has prohibited schema features after sanitization:\n${details}`);
 			}
 		}
+	});
+});
+
+describe("validateSchema helper", () => {
+	it("detects $schema declarations", () => {
+		const schema = { $schema: "https://json-schema.org/draft/2020-12/schema", type: "object" };
+		const violations = validateSchema(schema);
+		expect(violations.some(v => v.key === "$schema")).toBe(true);
+	});
+
+	it("detects $ref usage", () => {
+		const schema = { type: "object", properties: { foo: { $ref: "#/$defs/Foo" } } };
+		const violations = validateSchema(schema);
+		expect(violations.some(v => v.key === "$ref")).toBe(true);
+	});
+
+	it("detects $defs usage", () => {
+		const schema = { $defs: { Foo: { type: "string" } }, type: "object" };
+		const violations = validateSchema(schema);
+		expect(violations.some(v => v.key === "$defs")).toBe(true);
+	});
+
+	it("detects const usage (should be sanitized away)", () => {
+		const schema = { type: "object", properties: { status: { const: "active" } } };
+		const violations = validateSchema(schema);
+		expect(violations.some(v => v.key === "const")).toBe(true);
+	});
+
+	it("detects examples field", () => {
+		const schema = { type: "string", examples: ["foo", "bar"] };
+		const violations = validateSchema(schema);
+		expect(violations.some(v => v.key === "examples")).toBe(true);
+	});
+
+	it("detects prefixItems unsupported by the Google schema path", () => {
+		const schema = { type: "array", prefixItems: [{ type: "string" }] };
+		const violations = validateSchema(schema);
+		expect(violations.some(v => v.key === "prefixItems")).toBe(true);
+	});
+
+	it("detects unevaluatedProperties unsupported by the Google schema path", () => {
+		const schema = { type: "object", unevaluatedProperties: false };
+		const violations = validateSchema(schema);
+		expect(violations.some(v => v.key === "unevaluatedProperties")).toBe(true);
+	});
+
+	it("warns on additionalProperties: false", () => {
+		const schema = { type: "object", additionalProperties: false };
+		const violations = validateSchema(schema);
+		const warning = violations.find(v => v.key === "additionalProperties");
+		expect(warning?.severity).toBe("warning");
+	});
+
+	it("warns on format keyword", () => {
+		const schema = { type: "string", format: "uri" };
+		const violations = validateSchema(schema);
+		const warning = violations.find(v => v.key === "format");
+		expect(warning?.severity).toBe("warning");
+	});
+
+	it("recursively validates nested schemas", () => {
+		const schema = {
+			type: "object",
+			properties: {
+				nested: {
+					type: "object",
+					properties: {
+						deep: { $ref: "#/$defs/Deep" },
+					},
+				},
+			},
+		};
+		const violations = validateSchema(schema);
+		expect(violations.some(v => v.key === "$ref")).toBe(true);
+		expect(violations.find(v => v.key === "$ref")?.path).toContain("nested");
+	});
+
+	it("validates array prefixItems", () => {
+		const schema = {
+			type: "array",
+			prefixItems: [{ const: "first" }, { type: "string" }],
+		};
+		const violations = validateSchema(schema);
+		expect(violations.some(v => v.key === "const")).toBe(true);
 	});
 });

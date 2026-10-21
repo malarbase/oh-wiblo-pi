@@ -105,6 +105,8 @@ class FsCodeError extends Error {
 	}
 }
 
+import type { SettingPath } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
+
 describe("Settings", () => {
 	let settingsState: SettingsTestState | undefined;
 	let tempDir: TempDir;

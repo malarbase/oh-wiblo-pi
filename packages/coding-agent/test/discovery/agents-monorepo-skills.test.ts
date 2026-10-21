@@ -13,7 +13,12 @@ import * as path from "node:path";
 import { clearCache } from "@oh-my-pi/pi-coding-agent/capability/fs";
 import type { LoadContext } from "@oh-my-pi/pi-coding-agent/capability/types";
 import { getProjectPathCandidates } from "@oh-my-pi/pi-coding-agent/discovery/agents";
-import { scanSkillsFromDir } from "@oh-my-pi/pi-coding-agent/discovery/helpers";
+import {
+	buildRuleFromMarkdown,
+	calculateDepth,
+	loadFilesFromDir,
+	scanSkillsFromDir,
+} from "@oh-my-pi/pi-coding-agent/discovery/helpers";
 import { removeSyncWithRetries } from "@oh-my-pi/pi-utils";
 
 const PROVIDER_ID = "agents";
