@@ -1,0 +1,9 @@
+{
+	"name": "plan-author",
+	"version": "0.2.0",
+	"description": "Reports the plan-authoring session for a plan named directly, or for the plan a given session is implementing",
+	"type": "module",
+	"pi": {
+		"extensions": ["./index.ts"]
+	}
+}
