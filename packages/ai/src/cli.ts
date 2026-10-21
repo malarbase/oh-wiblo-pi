@@ -63,7 +63,7 @@ async function login(provider: OAuthProvider): Promise<void> {
 	const storage = await AuthStorage.create(getAgentDbPath());
 
 	try {
-		const identity = await storage.login(provider, {
+		const identity = await storage.oauth.login(provider, {
 			onAuth(info: OAuthAuthInfo) {
 				const { url } = info;
 				console.log(`\nOpen this URL in your browser:\n${url}\n`);

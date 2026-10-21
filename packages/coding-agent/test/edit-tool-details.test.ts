@@ -300,9 +300,10 @@ const inspectionCases: Array<{
 	{
 		mode: "sloppy",
 		args: {
-			// Native sloppy payload (fork's legacy <SM:EDIT> XML form is not
-			// parseable by the native engine's inspector).
-			input: ["*** SM:EDIT sloppy.ts", "«", "old", "»", "sloppy"].join("\n"),
+			// Native sloppy payload: the native engine's inspector only knows the
+			// `*** Edit File:` section header (the fork's legacy <SM:EDIT> XML
+			// header is not parseable); the `«`/`»` IR body is still authored.
+			input: ["*** Edit File: sloppy.ts", "«", "old", "»", "sloppy"].join("\n"),
 		},
 		path: "sloppy.ts",
 		digest: "«\n«\nold\n»\nsloppy",

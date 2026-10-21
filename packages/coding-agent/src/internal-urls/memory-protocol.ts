@@ -44,7 +44,7 @@ const HINDSIGHT_UNADDRESSABLE =
  * Each session has its own cwd (possibly a worktree), so subagents and main
  * may see different roots.
  */
-function memoryRootsFromRegistry(): string[] {
+export function memoryRootsFromRegistry(): string[] {
 	const agentDir = getAgentDir();
 	const roots: string[] = [];
 	for (const ref of AgentRegistry.global().list()) {
@@ -71,7 +71,7 @@ function memoryRootsForContext(context: ResolveContext | undefined, caller: Agen
 /**
  * Resolve a memory:// URL to an absolute filesystem path under memory root.
  */
-function resolveMemoryUrlToPath(url: InternalUrl, memoryRoot: string): string {
+export function resolveMemoryUrlToPath(url: InternalUrl, memoryRoot: string): string {
 	const namespace = url.rawHost || url.hostname;
 	if (!namespace) {
 		throw new Error("memory:// URL requires a namespace: memory://root");

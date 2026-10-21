@@ -85,7 +85,6 @@ import {
 } from "./config/model-resolver";
 import { formatModelSelectorValue, parseModelString } from "@oh-my-pi/pi-tui/overlays/model-selector";
 import { loadPromptTemplates as loadPromptTemplatesInternal, type PromptTemplate } from "./config/prompt-templates";
-import { applyProviderGlobalsFromSettings } from "./config/provider-globals";
 import { buildServiceTierByFamily } from "./config/service-tier";
 import { bindEffects, combine } from "./config/registry";
 import { Settings } from "./config/settings";
@@ -191,7 +190,6 @@ import {
 	createAuthStorageSettingsSync,
 	discoverAuthStorage as discoverAuthStorageFromConfig,
 	type EffectiveSettingsScope,
-	loadEffectiveAuthAccountPolicyConfig,
 } from "./session/auth-broker-config";
 import type { AuthStorage } from "./session/auth-storage";
 import {
@@ -1032,33 +1030,20 @@ export {
  * Default: local SQLite store at `<agentDir>/agent.db`.
  *
  * Broker mode: when `OMP_AUTH_BROKER_URL` is set, credentials are pulled from
- * a remote auth-broker over the wire. Refresh tokens never leave the broker;
- * the client receives access tokens with `refresh = "__remote__"` and calls
- * back into the broker through the {@link AuthStorageOptions.refreshOAuthCredential}
- * override to re-mint access tokens when needed.
+ * a remote auth-broker over the wire; see `./session/auth-broker-config`.
  *
- * Account routing (`auth.accountPolicies`, `retry.usageReservePct`) comes from
- * effective settings: `options.settings` when given, else the matching global
- * instance, else a read-only load for `options.cwd`; explicit option values win.
- *
- * Delegates to {@link ./session/auth-broker-config} so the TUI and the catalog
- * generator share the same credential-discovery logic.
+ * NOTE (reorg rebuild): `auth-broker-config.discoverAuthStorage` currently
+ * accepts only `agentDir`, so `options` (broker options, account policies,
+ * `retry.usageReservePct`) is accepted for API compatibility but unused; the
+ * settings-driven account-policy routing from the pre-rebuild wiring needs a
+ * follow-up in `auth-broker-config`.
  */
 export async function discoverAuthStorage(
 	agentDir: string = getAgentDir(),
-	options: Omit<DiscoverAuthStorageOptions, "agentDir" | "configValueResolver"> &
+	_options: Omit<DiscoverAuthStorageOptions, "agentDir" | "configValueResolver"> &
 		Omit<EffectiveSettingsScope, "agentDir"> = {},
 ): Promise<AuthStorage> {
-	const { settings, cwd, ...discoveryOptions } = options;
-	const policy = await loadEffectiveAuthAccountPolicyConfig({ settings, cwd, agentDir });
-	return discoverAuthStorageFromConfig(agentDir, {
-		...discoveryOptions,
-		accountPolicies: discoveryOptions.accountPolicies ?? policy.accountPolicies,
-		authStorageOptions: {
-			...discoveryOptions.authStorageOptions,
-			defaultReservePct: discoveryOptions.authStorageOptions?.defaultReservePct ?? policy.defaultReservePct,
-		},
-	});
+	return discoverAuthStorageFromConfig(agentDir);
 }
 
 /**
@@ -1928,8 +1913,11 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			: undefined;
 	discoveredSkillsPromise?.catch(() => {});
 
-	// Initialize provider preferences from settings
-	applyProviderGlobalsFromSettings(settings);
+	// Fork provider preferences (`providers.webSearchOrder`/`webSearchExclude`,
+	// legacy `providers.image`/`imageOrder`) are applied by the settings layer's
+	// legacy migration into `web`/image model-role chains; the deleted
+	// `config/provider-globals` module's imperative wiring has no equivalent in
+	// the rebuilt tree (web/search resolves role chains directly).
 
 	// `session_directory` (openspec/specs/session-directory-event): fired once,
 	// before any session manager exists, against the extension result the CLI

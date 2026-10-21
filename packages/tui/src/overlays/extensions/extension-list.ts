@@ -365,9 +365,10 @@ export class ExtensionList implements Component {
 		return {
 			items,
 			order,
-			selected: selected && selected.type !== "kind-header" && selected.type !== "group-header"
-				? nativeItemId(selected)
-				: null,
+			selected:
+				selected && selected.type !== "kind-header" && selected.type !== "group-header"
+					? nativeItemId(selected)
+					: null,
 			hits,
 			grouped,
 		};
@@ -483,7 +484,10 @@ export class ExtensionList implements Component {
 		}
 	}
 
-	#pickerItem(entry: Exclude<ListItem, { type: "kind-header" } | { type: "group-header" }>, masterDisabled: boolean): TspPickerItem {
+	#pickerItem(
+		entry: Exclude<ListItem, { type: "kind-header" } | { type: "group-header" }>,
+		masterDisabled: boolean,
+	): TspPickerItem {
 		const id = nativeItemId(entry);
 		if (entry.type === "master") {
 			return {

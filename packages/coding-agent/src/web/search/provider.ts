@@ -26,29 +26,40 @@ type ProviderLoader = () => Promise<SearchProvider>;
 
 type ProviderRegistry<TId extends string> = { [Id in TId]: ProviderLoader };
 
-const PROVIDER_LOADERS: ProviderRegistry<SearchEngineId> = {
-	perplexity: () => import("./providers/perplexity").then(m => new m.PerplexityProvider()),
-	zai: () => import("./providers/zai").then(m => new m.ZaiProvider()),
-	exa: () => import("./providers/exa").then(m => new m.ExaProvider()),
-	tinyfish: () => import("./providers/tinyfish").then(m => new m.TinyFishProvider()),
-	jina: () => import("./providers/jina").then(m => new m.JinaProvider()),
-	kagi: () => import("./providers/kagi").then(m => new m.KagiProvider()),
-	tavily: () => import("./providers/tavily").then(m => new m.TavilyProvider()),
-	firecrawl: () => import("./providers/firecrawl").then(m => new m.FirecrawlProvider()),
-	brave: () => import("./providers/brave").then(m => new m.BraveProvider()),
-	deepseek: () => import("./providers/deepseek").then(m => new m.DeepSeekProvider()),
-	kimi: () => import("./providers/kimi").then(m => new m.KimiProvider()),
-	parallel: () => import("./providers/parallel").then(m => new m.ParallelProvider()),
-	synthetic: () => import("./providers/synthetic").then(m => new m.SyntheticProvider()),
-	ollama: () => import("./providers/ollama").then(m => new m.OllamaProvider()),
-	searxng: () => import("./providers/searxng").then(m => new m.SearXNGProvider()),
-	duckduckgo: () => import("./providers/duckduckgo").then(m => new m.DuckDuckGoProvider()),
-	google: () => import("./providers/google").then(m => new m.GoogleProvider()),
-	ecosia: () => import("./providers/ecosia").then(m => new m.EcosiaProvider()),
-	startpage: () => import("./providers/startpage").then(m => new m.StartpageProvider()),
-	mojeek: () => import("./providers/mojeek").then(m => new m.MojeekProvider()),
-	public: () => import("./providers/public").then(m => new m.PublicWebProvider()),
+// OWP fork engines beyond upstream's catalog `web/*` set: registered into the
+// same lazy lookup table so `isRegisteredSearchEngine`/`getSearchProvider`
+// resolve them exactly like the catalog engines.
+const OWP_PROVIDER_LOADERS: ProviderRegistry<OwpSearchEngineId> = {
+	"google-ai": () => import("./providers/google-ai").then(m => new m.GoogleAIProvider()),
+	serpapi: () => import("./providers/serpapi").then(m => new m.SerpApiProvider()),
 };
+
+const PROVIDER_LOADERS: ProviderRegistry<SearchEngineId> = Object.assign(
+	{
+		perplexity: () => import("./providers/perplexity").then(m => new m.PerplexityProvider()),
+		zai: () => import("./providers/zai").then(m => new m.ZaiProvider()),
+		exa: () => import("./providers/exa").then(m => new m.ExaProvider()),
+		tinyfish: () => import("./providers/tinyfish").then(m => new m.TinyFishProvider()),
+		jina: () => import("./providers/jina").then(m => new m.JinaProvider()),
+		kagi: () => import("./providers/kagi").then(m => new m.KagiProvider()),
+		tavily: () => import("./providers/tavily").then(m => new m.TavilyProvider()),
+		firecrawl: () => import("./providers/firecrawl").then(m => new m.FirecrawlProvider()),
+		brave: () => import("./providers/brave").then(m => new m.BraveProvider()),
+		deepseek: () => import("./providers/deepseek").then(m => new m.DeepSeekProvider()),
+		kimi: () => import("./providers/kimi").then(m => new m.KimiProvider()),
+		parallel: () => import("./providers/parallel").then(m => new m.ParallelProvider()),
+		synthetic: () => import("./providers/synthetic").then(m => new m.SyntheticProvider()),
+		ollama: () => import("./providers/ollama").then(m => new m.OllamaProvider()),
+		searxng: () => import("./providers/searxng").then(m => new m.SearXNGProvider()),
+		duckduckgo: () => import("./providers/duckduckgo").then(m => new m.DuckDuckGoProvider()),
+		google: () => import("./providers/google").then(m => new m.GoogleProvider()),
+		ecosia: () => import("./providers/ecosia").then(m => new m.EcosiaProvider()),
+		startpage: () => import("./providers/startpage").then(m => new m.StartpageProvider()),
+		mojeek: () => import("./providers/mojeek").then(m => new m.MojeekProvider()),
+		public: () => import("./providers/public").then(m => new m.PublicWebProvider()),
+	},
+	OWP_PROVIDER_LOADERS,
+);
 
 const GROUNDED_PROVIDER_LOADERS: ProviderRegistry<WebSearchGrounding> = {
 	gemini: () => import("./providers/gemini").then(m => new m.GeminiProvider()),
@@ -58,15 +69,6 @@ const GROUNDED_PROVIDER_LOADERS: ProviderRegistry<WebSearchGrounding> = {
 	openrouter: () => import("./providers/openrouter").then(m => new m.OpenRouterGroundedProvider()),
 	openai: () => import("./providers/openai").then(m => new m.OpenAIProvider()),
 };
-
-// OWP fork engines beyond upstream's catalog `web/*` set: registered into the
-// same lazy lookup table so `isRegisteredSearchEngine`/`getSearchProvider`
-// resolve them exactly like the catalog engines.
-const OWP_PROVIDER_LOADERS: ProviderRegistry<OwpSearchEngineId> = {
-	"google-ai": () => import("./providers/google-ai").then(m => new m.GoogleAIProvider()),
-	serpapi: () => import("./providers/serpapi").then(m => new m.SerpApiProvider()),
-};
-Object.assign(PROVIDER_LOADERS, OWP_PROVIDER_LOADERS);
 
 const providerInstances = new Map<string, Promise<SearchProvider>>();
 

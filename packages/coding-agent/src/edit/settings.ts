@@ -18,6 +18,7 @@ function parseEditFuzzyEnv(raw: string): boolean | undefined {
 export const EDIT_MODES = [
 	"apply_patch",
 	"hashline",
+	"mimo",
 	"patch",
 	"replace",
 	"sloppy",

@@ -6380,6 +6380,9 @@ export class InteractiveMode implements InteractiveModeContext {
 				finalPlanFilePath: target.url,
 				title: stem,
 				preserveContext,
+				// No review overlay is open for a /plan run; a fresh token matches the
+				// idempotent ownership-bound hide semantics of the review path.
+				reviewOwner: {},
 			});
 		} catch (err) {
 			this.showError(`Failed to run plan: ${err instanceof Error ? err.message : String(err)}`);

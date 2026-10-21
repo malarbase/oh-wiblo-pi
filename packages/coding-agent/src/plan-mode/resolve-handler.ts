@@ -9,8 +9,7 @@
 import * as path from "node:path";
 import type { AgentToolResult } from "@oh-my-pi/pi-agent-core";
 import { isEnoent } from "@oh-my-pi/pi-utils";
-import { resolveLocalUrlToPath } from "../internal-urls";
-import { normalizeLocalScheme } from "../tools/path-utils";
+import { InternalUrlRouter, resolveLocalUrlToPath } from "../internal-urls";
 import { type ResolveDetails, runResolveInvocation } from "../tools/resolve";
 import { ToolError } from "../tools/tool-errors";
 import { type PlanApprovalDetails, resolvePlanTitle } from "./approved-plan";
@@ -27,7 +26,7 @@ export interface PlanApprovalSession {
 
 function resolvePlanFilePath(planFilePath: string, session: PlanApprovalSession): string {
 	if (planFilePath.startsWith("local:")) {
-		const normalized = normalizeLocalScheme(planFilePath);
+		const normalized = InternalUrlRouter.instance().normalize(planFilePath);
 		return resolveLocalUrlToPath(normalized, {
 			getArtifactsDir: () => session.getArtifactsDir(),
 			getSessionId: () => session.getSessionId(),

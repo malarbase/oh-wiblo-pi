@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import type { AuthStorage } from "@oh-my-pi/pi-ai";
+import type { Api, AuthStorage, Model } from "@oh-my-pi/pi-ai";
+import type { ModelRegistry } from "../../src/config/model-registry";
 import type { SearchParams } from "../../src/web/search/providers/base";
 import { buildSerpApiUrl, SerpApiProvider } from "../../src/web/search/providers/serpapi";
 
@@ -8,18 +9,27 @@ function makeParams(overrides: Partial<SearchParams> = {}): SearchParams {
 		query: "test query",
 		systemPrompt: "You are a helpful assistant.",
 		authStorage: makeAuthStorage(undefined),
+		model: {} as unknown as Model<Api>,
+		modelRegistry: {} as unknown as ModelRegistry,
 		...overrides,
 	};
 }
 
 function makeAuthStorage(apiKey: string | undefined): AuthStorage {
 	return {
-		hasAuth(provider: string) {
-			return provider === "serpapi" && Boolean(apiKey);
-		},
-		resolver(provider: string) {
-			expect(provider).toBe("serpapi");
-			return async () => apiKey;
+		keys: {
+			// Mirrors KeyCascade.source() precedence: stored key first, then the
+			// provider's dedicated env var (SERPAPI_API_KEY), else undefined.
+			source(provider: string) {
+				if (provider !== "serpapi") return undefined;
+				if (apiKey !== undefined) return { kind: "api_key", concrete: true };
+				if (process.env.SERPAPI_API_KEY) return { kind: "env", envVar: "SERPAPI_API_KEY", concrete: true };
+				return undefined;
+			},
+			resolver(provider: string) {
+				expect(provider).toBe("serpapi");
+				return async () => apiKey;
+			},
 		},
 	} as unknown as AuthStorage;
 }

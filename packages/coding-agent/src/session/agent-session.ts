@@ -539,7 +539,7 @@ import { cfgFollowUpMode } from "../modes/settings";
 import { cfgSteeringMode } from "../modes/settings";
 import { cfgDisabledProviders, cfgModelRoles } from "../config/model-settings";
 import { cfgEvalToolsEnabled } from "../eval/settings";
-import { cfgExtensions, type SkillsSettings } from "../extensibility/settings";
+import { cfgDisabledExtensions, cfgExtensions, type SkillsSettings } from "../extensibility/settings";
 import {
 	cfgImagesAutoResize,
 	cfgMagicKeyword,
@@ -6834,7 +6834,7 @@ export class AgentSession implements SettingsScope {
 	 * (sorted, so a re-ordered set still compares equal).
 	 */
 	#currentSkillsDiscoveryKey(): string {
-		return JSON.stringify([...(this.settings.get("disabledExtensions") ?? [])].sort());
+		return JSON.stringify([...cfgDisabledExtensions.get(this.settings)].sort());
 	}
 
 	/**

@@ -516,7 +516,6 @@ export async function scanSkillsFromDir(
 			const tags = parseArrayOrCSV(frontmatter.tags ?? rawMeta.tags);
 			const group = skillDirName;
 
-
 			items.push({
 				name,
 				path: skillPath,

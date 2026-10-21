@@ -65,7 +65,7 @@ harness:
     native_sentinel:
       path_glob: "packages/natives/native/pi_natives.*.node"
       version_source: "packages/natives/package.json#version"
-      prefix: "__piNativesV"
+      prefix: "PI_NATIVES_VERSION_STAMP:"
     footprint_baseline: ".forklift/footprint-baseline.json"
     excludes: [".forklift/"]
   sync_command: "forklift sync"

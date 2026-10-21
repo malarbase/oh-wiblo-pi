@@ -18,6 +18,7 @@ describe("modeSegment rendering", () => {
 			width: 100,
 			options: {},
 			compactThinkingLevel: false,
+			recording: false,
 			askMode: null,
 			debugMode: null,
 			planMode: null,

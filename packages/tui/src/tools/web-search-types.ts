@@ -37,6 +37,8 @@ export const SEARCH_PROVIDER_LABELS = {
 	google: "Google",
 	mojeek: "Mojeek",
 	public: "Public Web",
+	serpapi: "SerpAPI",
+	"google-ai": "Google AI",
 } as const;
 
 /** Id of a search implementation; see {@link SEARCH_PROVIDER_LABELS}. */

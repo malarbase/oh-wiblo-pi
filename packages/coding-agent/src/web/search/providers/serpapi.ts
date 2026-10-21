@@ -128,11 +128,11 @@ export class SerpApiProvider extends SearchProvider {
 	readonly label = "SerpAPI";
 
 	isAvailable(authStorage: AuthStorage): boolean {
-		return authStorage.hasAuth("serpapi") || !!getEnvApiKey("serpapi");
+		return authStorage.keys.source("serpapi") !== undefined || !!getEnvApiKey("serpapi");
 	}
 
 	search(params: SearchParams): Promise<SearchResponse> {
-		const keyOrResolver: ApiKey = params.authStorage.resolver("serpapi", {
+		const keyOrResolver: ApiKey = params.authStorage.keys.resolver("serpapi", {
 			sessionId: params.sessionId,
 		});
 		return withAuth(keyOrResolver, key => searchSerpApi(params, key), {

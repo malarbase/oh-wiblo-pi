@@ -70,10 +70,7 @@ export const SEARCH_PROVIDER_ORDER: readonly SearchProviderId[] = [
 export const SEARCH_PROVIDER_CHOICES: ReadonlyArray<{ value: SearchProviderId; label: string }> =
 	SEARCH_PROVIDER_ORDER.map(id => ({ value: id, label: SEARCH_PROVIDER_LABELS[id] }));
 
-export const SEARCH_PROVIDER_PREFERENCES: readonly (SearchProviderId | "auto")[] = [
-	"auto",
-	...SEARCH_PROVIDER_ORDER,
-];
+export const SEARCH_PROVIDER_PREFERENCES: readonly (SearchProviderId | "auto")[] = ["auto", ...SEARCH_PROVIDER_ORDER];
 
 export function isSearchProviderId(value: string): value is SearchProviderId {
 	return (SEARCH_PROVIDER_PREFERENCES as readonly string[]).includes(value);

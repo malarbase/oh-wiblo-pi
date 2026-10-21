@@ -34,11 +34,17 @@ import {
 	DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS,
 	MAX_WEB_SEARCH_TIMEOUT_SECONDS,
 	SearchProviderError,
+	type SearchProviderId,
 	type SearchResponse,
 	type SearchResultDetails,
 } from "./types";
 
-import { cfgProvidersAntigravityEndpoint, cfgProvidersWebSearchTimeoutSeconds } from "../../session/settings";
+import {
+	cfgProvidersAntigravityEndpoint,
+	cfgProvidersWebSearchCaptchaBehavior,
+	cfgProvidersWebSearchCaptchaTimeout,
+	cfgProvidersWebSearchTimeoutSeconds,
+} from "../../session/settings";
 
 /** Web search tool parameters schema */
 export const webSearchSchema = type({
@@ -211,7 +217,7 @@ async function executeSearch(
 
 	let captchaBehavior: "error" | "wait" = "wait";
 	try {
-		const configuredBehavior = settings.get("providers.webSearchCaptchaBehavior");
+		const configuredBehavior = cfgProvidersWebSearchCaptchaBehavior.get(settings);
 		if (configuredBehavior === "error" || configuredBehavior === "wait") {
 			captchaBehavior = configuredBehavior;
 		}
@@ -221,7 +227,7 @@ async function executeSearch(
 
 	let captchaTimeout = 90;
 	try {
-		const configuredTimeout = settings.get("providers.webSearchCaptchaTimeout");
+		const configuredTimeout = cfgProvidersWebSearchCaptchaTimeout.get(settings);
 		if (Number.isFinite(configuredTimeout) && configuredTimeout >= 10) {
 			captchaTimeout = Math.min(Math.max(configuredTimeout, 10), 300);
 		}
@@ -236,9 +242,9 @@ async function executeSearch(
 	for (const candidate of expanded) {
 		let provider: SearchProvider | undefined;
 		const candidateMeta = { id: candidate.model.id, label: candidate.model.name };
+		const model = candidate.model;
 		lastProvider = candidateMeta;
 		try {
-			const model = candidate.model;
 			if (isHostedPlaceholder(model)) {
 				if (!candidate.explicit) continue;
 				throw new Error("The session model has no web search grounding.");
@@ -341,7 +347,11 @@ async function executeSearch(
 			// provider. The user chose this provider for a reason and deserves
 			// to know it failed rather than seeing results from a different one.
 			if (candidate.explicit) {
-				throw error instanceof Error ? error : new SearchProviderError(provider?.id ?? model.id, String(error));
+				// `model.id` may be a fork engine or a non-engine candidate (e.g.
+				// `web/hosted`); old fork code passed it through as the error's
+				// provider id, so keep that value and assert the registry union.
+				const failedProvider = provider?.id ?? (model.id as SearchProviderId);
+				throw error instanceof Error ? error : new SearchProviderError(failedProvider, String(error));
 			}
 			failedResponseProvider = provider?.id ?? "none";
 			failures.push({ provider: provider ?? candidateMeta, error });

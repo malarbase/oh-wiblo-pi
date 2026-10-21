@@ -15,6 +15,7 @@ import { pluralize } from "@oh-my-pi/pi-utils";
 import { formatKeyHints, type KeyId } from "@oh-my-pi/pi-tui/app-keybindings";
 import { isSettingsInitialized, settings } from "../config/settings";
 import { getDefault } from "../config/settings-schema";
+import { cfgTuiMaxInlineImageColumns, cfgTuiMaxInlineImageRows } from "../modes/settings";
 import type { Theme } from "@oh-my-pi/pi-tui/theme";
 import { Hasher } from "@oh-my-pi/pi-tui/render/utils";
 import { formatDimensionNote, type ResizedImage } from "../utils/image-resize";
@@ -29,10 +30,12 @@ export { replaceTabs, truncateToWidth, wrapTextWithAnsi } from "@oh-my-pi/pi-tui
 /** Resolve inline image dimension caps from settings and viewport. */
 export function resolveImageOptions(): { maxWidthCells: number; maxHeightCells?: number } {
 	const activeSettings = isSettingsInitialized() ? settings : undefined;
-	const maxWidthCells = activeSettings?.get("tui.maxInlineImageColumns") ?? getDefault("tui.maxInlineImageColumns");
+	const maxWidthCells = activeSettings
+		? cfgTuiMaxInlineImageColumns.get(activeSettings)
+		: getDefault("tui.maxInlineImageColumns");
 	const rowSetting = Math.max(
 		0,
-		activeSettings?.get("tui.maxInlineImageRows") ?? getDefault("tui.maxInlineImageRows"),
+		activeSettings ? cfgTuiMaxInlineImageRows.get(activeSettings) : getDefault("tui.maxInlineImageRows"),
 	);
 	const viewportRows = process.stdout.rows;
 	const viewportFraction = viewportRows ? Math.floor(viewportRows * 0.6) : 0;

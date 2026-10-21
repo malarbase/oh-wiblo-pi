@@ -34,6 +34,28 @@ export const cfgPlanDefaultOnStartup = register({
 	},
 });
 
+export const cfgPlanStorage = register({
+	id: "plan.storage",
+	type: "enum",
+	values: ["session", "project"] as const,
+	default: "session",
+	ui: {
+		tab: "tasks",
+		group: "Modes",
+		label: "Plan Storage Location",
+		description:
+			"Where approved plans are saved. 'session' stores in session artifacts directory (local://), 'project' saves to .omp/plans/ in project root.",
+		options: [
+			{
+				value: "session",
+				label: "Session Artifacts",
+				description: "Default — stored in session artifacts (local://)",
+			},
+			{ value: "project", label: "Project Directory", description: "Saved to .omp/plans/ in workspace" },
+		],
+	},
+});
+
 export const cfgPlanAutosave = register({
 	id: "plan.autosave",
 	type: "boolean",

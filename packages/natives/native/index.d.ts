@@ -2007,7 +2007,7 @@ export declare function executeShell(options: ShellExecuteOptions, onChunk?: ((e
 /** Expand Windows 8.3 components without resolving symlinks or junctions. */
 export declare function expandWindowsLongPath(path: string): string
 
-/** Locate `*** SM:EDIT path` payloads the model emitted as plain text. */
+/** Locate `*** Edit File: path` payloads the model emitted as plain text. */
 export declare function extractInlineSloppyRegions(text: string): Array<InlineSloppyRegion>
 
 /**

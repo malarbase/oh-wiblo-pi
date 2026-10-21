@@ -826,6 +826,9 @@ export function lookup(id: string): AnySetting | undefined {
 	return byId.get(id);
 }
 
+/** Alias of {@link lookup} (the Settings-API name). */
+export const lookupSetting = lookup;
+
 /** Every registered setting, in declaration order. */
 export function all(): readonly AnySetting[] {
 	return ordered;

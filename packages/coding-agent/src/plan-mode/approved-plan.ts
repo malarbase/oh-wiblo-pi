@@ -3,7 +3,6 @@ import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
 import { resolveLocalUrlToPath } from "../internal-urls";
 import { InternalUrlRouter } from "../internal-urls/router";
-import { normalizeLocalScheme } from "../tools/path-utils";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 
 /** Shape forwarded from the plan-proposal handler to InteractiveMode's
@@ -223,7 +222,7 @@ function resolvePlanLikePath(
 	_label: "source" | "destination",
 	options: { getArtifactsDir: () => string | null; getSessionId: () => string | null },
 ): string {
-	const normalized = normalizeLocalScheme(planPath);
+	const normalized = InternalUrlRouter.instance().normalize(planPath);
 	if (normalized.startsWith("local:")) {
 		return resolveLocalUrlToPath(normalized, options);
 	}
