@@ -19,7 +19,7 @@
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
 generatedAt: "2026-10-21T17:42:46Z"
-expected_fork_commit_count: 78
+expected_fork_commit_count: 79
 
 harness:
   version: 1
@@ -1402,11 +1402,7 @@ owned_symbols:
   - file: "packages/stats/src/db.ts"
     feature: "OWP stats package"
     symbols:
-      - name: "getModelTimeSeries"
-        description: "Fork graft (auto-derived from live diff)"
       - name: "rows"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "getModelPerformanceSeries"
         description: "Fork graft (auto-derived from live diff)"
   - file: "packages/coding-agent/src/plan-mode/approved-plan.ts"
     feature: "Plan mode /plan load"
