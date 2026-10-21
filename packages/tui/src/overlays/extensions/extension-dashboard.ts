@@ -10,6 +10,7 @@
  * - Tab/Shift+Tab or ←/→: switch provider tab
  * - Up/Down or wheel: move list selection
  * - Space/Enter or click: toggle selected item (or provider master switch)
+ * - g: cycle the skill grouping axis (dir → tag → repo → author) while search is empty
  * - Wheel over the inspector, or PageUp/PageDown when the inspector overflows: scroll the detail pane
  * - Esc: clear search (if active) then close
  *
@@ -44,7 +45,7 @@ import { expandKeyHint } from "../../render/render-utils";
 import { formatKeyHint, formatKeyHints, formatTooltipKey } from "../../app-keybindings";
 import { boundKeys, editorKeys, interruptKey } from "../../chrome/keybinding-hints";
 import { bottomBorder, divider, PanelRows, row, topBorder } from "../../chrome/overlay-box";
-import { ExtensionList, type ExtensionListSwitch } from "./extension-list";
+import { ExtensionList, type ExtensionListSwitch, type GroupingAxis } from "./extension-list";
 import { InspectorPanel, type ToolRuntimeSource } from "./inspector-panel";
 import type { ExtensionInspectorSource } from "./inspector-model";
 import { snapshotToolRuntimeSource } from "./live-tool-session";
@@ -72,6 +73,7 @@ export interface ExtensionDashboardRuntime {
 	loadExtensions(disabledIds: string[]): Promise<Extension[]>;
 	toggleProvider(providerId: string): boolean;
 	toggleUserSource(providerId: string): boolean;
+	isProviderEnabled(providerId: string): boolean;
 	persistMcpToggle(name: string, enabled: boolean, sourcePath?: string): Promise<void>;
 	applyMcpToggle(name: string, enabled: boolean): Promise<void>;
 	subscribeMcpChanges(onChange: () => void): Array<() => void>;
@@ -89,7 +91,7 @@ function extFooter(): string {
 	const upDown = editorKeys("tui.select.up", "tui.select.down");
 	const pages = editorKeys("tui.select.pageUp", "tui.select.pageDown");
 	const close = interruptKey();
-	return ` ${upDown}: navigate · ${formatKeyHint("space")}: toggle · ${formatKeyHints(["left", "right"])}: provider · ${pages}: inspector · ${expandKeyHint()}: expand · ${close}: close`;
+	return ` ${upDown}: navigate · ${formatKeyHint("space")}: toggle · g: cycle group mode · ${formatKeyHints(["left", "right"])}: provider · ${pages}: inspector · ${expandKeyHint()}: expand · ${close}: close`;
 }
 
 /**
@@ -108,6 +110,48 @@ export function buildTabBarTabs(tabs: ProviderTab[]): Tab[] {
 		if (isDisabled) label = `${theme.status.disabled} ${label}`;
 		return { id: tab.id, label, short: tab.label, muted: isEmptyEnabled };
 	});
+}
+
+/**
+ * Persist the `disabledExtensions` list after toggling one skill group header,
+ * returning the new list. Flips by synthetic key (`skill-<axis>:<value>`)
+ * presence: adding writes the key plus every matching skill id so the
+ * synchronous list paint and the next `loadExtensions` resolve the same
+ * membership; removing drops both. The membership predicates mirror the
+ * app-side `isSkillDisabledByGroup` resolution so a group written here
+ * re-resolves identically on reload. `settings` is the dashboard runtime or
+ * any `ExtensionSettingsManager`-shaped adapter — both expose exactly these
+ * two methods.
+ */
+export function toggleSkillGroup(
+	extensions: readonly Extension[],
+	groupAxis: GroupingAxis,
+	groupValue: string,
+	settings: { getDisabledExtensions(): string[]; setDisabledExtensions(ids: string[]): void },
+): string[] {
+	const newDisabled = new Set(settings.getDisabledExtensions());
+	const syntheticKey = `skill-${groupAxis}:${groupValue}`;
+	const isGroupDisabled = newDisabled.has(syntheticKey);
+
+	const matchingSkills = extensions.filter(ext => {
+		if (ext.kind !== "skill") return false;
+		if (groupAxis === "tag") return ext.tags?.includes(groupValue);
+		if (groupAxis === "dir") return ext.group === groupValue;
+		if (groupAxis === "repo") return ext.repo === groupValue || ext.author === groupValue || ext.group === groupValue;
+		return ext.author === groupValue || ext.group === groupValue;
+	});
+
+	if (isGroupDisabled) {
+		newDisabled.delete(syntheticKey);
+		for (const skill of matchingSkills) newDisabled.delete(skill.id);
+	} else {
+		newDisabled.add(syntheticKey);
+		for (const skill of matchingSkills) newDisabled.add(skill.id);
+	}
+
+	const disabledList = Array.from(newDisabled);
+	settings.setDisabledExtensions(disabledList);
+	return disabledList;
 }
 
 /** The sheet/page title, shared by the ANSI frame and the native views. */
@@ -228,8 +272,10 @@ export class ExtensionDashboard implements Component {
 				},
 				onToggle: (extensionId, enabled) => this.#handleExtensionToggle(extensionId, enabled),
 				onMasterToggle: providerId => this.#handleProviderToggle(providerId),
+				onGroupToggle: (groupAxis, groupValue) => this.#handleGroupToggle(groupAxis, groupValue),
 				onUserSourceToggle: providerId => this.#handleUserSourceToggle(providerId),
 				masterSwitchProvider: this.#getActiveProviderId(),
+				isProviderEnabled: (providerId: string) => this.#runtime.isProviderEnabled(providerId),
 				mcpSource: this.#runtime.mcpSource,
 				toolSource: this.#toolSource,
 			},
@@ -469,6 +515,21 @@ export class ExtensionDashboard implements Component {
 		void this.#refreshFromState();
 	}
 
+	/**
+	 * Group-header activation flips the whole skill group: the synthetic
+	 * `skill-<axis>:<value>` key and every member id persist through the
+	 * runtime's settings seam (the same get/set the settings adapter wraps),
+	 * the list repaints synchronously with the new states, and the async
+	 * refresh reconciles without a visible second flip. Direction flips by
+	 * synthetic key presence — not the rendered header flag — matching the
+	 * app-side `toggleGroup`, which delegates to the same core.
+	 */
+	#handleGroupToggle(groupAxis: GroupingAxis, groupValue: string): void {
+		const disabled = toggleSkillGroup(this.#state.extensions, groupAxis, groupValue, this.#runtime);
+		this.#applyDisabledExtensions(disabled);
+		void this.#refreshFromState();
+	}
+
 	async #toggleMcpExtension(extensionId: string, enabled: boolean): Promise<void> {
 		const name = extensionId.slice("mcp:".length);
 		try {
@@ -581,6 +642,14 @@ export class ExtensionDashboard implements Component {
 		}
 		if (this.#body.pageInspector(page)) {
 			this.#requestRender();
+			return;
+		}
+
+		// g cycles the skill grouping axis (dir -> tag -> repo -> author) while
+		// the search query is empty — a bare "g" would otherwise seed the filter.
+		if (matchesKey(data, "g") && this.#state.searchQuery.length === 0) {
+			this.#mainList.cycleGroupingAxis();
+			this.onRequestRender?.();
 			return;
 		}
 
