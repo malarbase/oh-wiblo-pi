@@ -25,6 +25,7 @@
 		"directory": "packages/coding-agent"
 	},
 	"bin": {
+		"owp": "src/cli.ts",
 		"omp": "src/cli.ts"
 	},
 	"files": [

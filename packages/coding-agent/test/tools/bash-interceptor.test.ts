@@ -266,10 +266,41 @@ describe("BashTool argument validation", () => {
 			id: "tool-call",
 			name: tool.name,
 			arguments: { command: "echo should-not-run", async: true },
-		});
+		}) as unknown as BashToolInput;
 
-		await expect(tool.execute("tool-call", args as unknown as BashToolInput)).rejects.toThrow(
-			"Async bash execution is disabled",
-		);
+		await expect(tool.execute("tool-call", args)).rejects.toThrow("Async bash execution is disabled");
+	});
+});
+
+describe("BashTool head/tail stripping", () => {
+	function createBashToolWithStrip(stripEnabled: boolean): BashTool {
+		const session = {
+			cwd: process.cwd(),
+			getSessionFile: () => null,
+			settings: {
+				get(key: string) {
+					if (key === "bashInterceptor.enabled") return false;
+					if (key === "async.enabled") return false;
+					if (key === "bash.autoBackground.enabled") return false;
+					if (key === "bash.autoBackground.thresholdMs") return 60_000;
+					if (key === "bash.stripTrailingHeadTail") return stripEnabled;
+					return undefined;
+				},
+				getBashInterceptorRules() {
+					return [];
+				},
+			},
+		} as unknown as ToolSession;
+		return new BashTool(session);
+	}
+
+	it("does not strip when the setting is disabled", async () => {
+		const tool = createBashToolWithStrip(false);
+		const result = await tool.execute("tool-call", { command: "seq 1 100 | head -3" }, undefined, undefined, {
+			toolNames: ["bash"],
+		} as AgentToolContext);
+		const text = result.content.find(b => b.type === "text")?.text ?? "";
+		expect(text).toContain("1\n2\n3");
+		expect(text).not.toContain("100");
 	});
 });
