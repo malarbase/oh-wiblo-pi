@@ -56,8 +56,12 @@ describe("Windows release binary target", () => {
 	});
 });
 
-it("runs compiled bytecode containing dependency import.meta.resolve calls", async () => {
-	using temp = TempDir.createSync("@omp-bytecode-");
+// Guards the ESM format contract: bundled dependencies that call
+// import.meta.resolve must survive compilation. Bytecode is currently
+// disabled in compile-binary.ts (see docs/bugs/bytecode-childprocess-binding.md),
+// so this asserts the format: "esm" lowering, not the bytecode payload.
+it("runs the compiled binary with dependency import.meta.resolve calls", async () => {
+	using temp = TempDir.createSync("@omp-compile-");
 	const entrypoint = temp.join("entry.ts");
 	const outfile = temp.join(process.platform === "win32" ? "probe.exe" : "probe");
 	await Bun.write(entrypoint, 'console.log(import.meta.resolve("node:fs"));\n');
