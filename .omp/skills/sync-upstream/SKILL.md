@@ -680,7 +680,7 @@ These upstream paths are intentionally absent from owp. `forklift sync --verify`
 - `packages/coding-agent/src/edit/sloppy.lark` — JS sloppy grammar retired with the JS sloppy executor - native modes/sloppy adopted
 - `packages/coding-agent/src/edit/sloppy.md` — JS sloppy executor documentation retired with the JS sloppy executor
 - `packages/coding-agent/src/edit/sloppy.test.ts` — JS sloppy executor tests retired with the JS sloppy executor - native sloppy mode is covered by crates/pi-edit tests
-- `python/robomp/` — The fork carries only a trimmed subset of upstream robomp (59 tracked files); the remaining upstream paths are absent on purpose and would otherwise be restored by the next sync. The subset that IS kept is fork-modified and is registered under features (OWP Python RPC), not here.
+- `python/robomp/` — Upstream's robomp tree (134 files) is not shipped as-is. The fork keeps 59 files under python/robomp/ - 56 upstream-identical copies plus its own refreshed web bundle assets - registered under the feature OWP Python RPC, and drops the other 78 upstream paths on purpose: the Python service, the GitHub backend and the web app sources, which would otherwise be restored by the next sync. The pattern covers the whole directory, so it also matches the 59 kept files; the rebuild applies a removal pattern only to the paths the fork actually deleted, so the kept subset survives.
 - `packages/hashline/` — JS hashline retired — upstream native engine (crates/pi-edit) adopted
 - `packages/coding-agent/src/hashline/` — legacy ¶-era hashline module — superseded by native engine
 - `packages/coding-agent/src/edit/hashline/` — JS hashline executor retired — native engine adopted
