@@ -49,7 +49,10 @@ import { getApprovalGrants } from "../../tools/approval-cache";
 import { recoverAskQuestions } from "../../tools/ask";
 import { previewLine, PREVIEW_LIMITS, TRUNCATE_LENGTHS } from "@oh-my-pi/pi-tui/render/render-utils";
 import { PROPOSE_DEVICE_NAME } from "@oh-my-pi/pi-tui/tools/resolve";
-import { writeDeviceDispatch } from "../../tools/resolve";
+import { type ResolveDetails, writeDeviceDispatch } from "../../tools/resolve";
+import { type PlanApprovalDetails } from "../../plan-mode/approved-plan";
+import type { SwitchModeDetails } from "../../tools/switch-mode";
+import type { AskFollowupDetails } from "../../tools/ask-followup-question";
 import { nextActionableTask } from "../../tools/todo";
 import { SpeechEnhancer } from "../../tts/speech-enhancer";
 import { vocalizer } from "../../tts/vocalizer";
@@ -2242,29 +2245,43 @@ export class EventController {
 				typeof details.title === "string" &&
 				typeof details.planExists === "boolean"
 			) {
-				// Dispatch the approval WITHOUT blocking the serialized event
-				// dispatch chain. `handlePlanApproval` -> `#approvePlan` awaits
-				// `session.prompt` for the ENTIRE approved-execution turn; awaiting
-				// it here (this handler runs inside `#runSerialized`) would hold the
-				// single dispatch link for the whole run, so the run's own
-				// agent_start / message_start / tool / coalesced message_update
-				// events queue behind it on `#dispatchTail` and the chat stays blank
-				// until execution finishes (issue #7684, follow-up to #5688 which
-				// only closed the overlay). Detaching frees the link the moment this
-				// handler returns; the approval overlay and the turn's live events
-				// then render. The approval flow surfaces its own failures via
-				// `showError`, so only an unexpected rejection is logged here.
+				const approval = details as PlanApprovalDetails;
 				void this.ctx
 					.handlePlanApproval({
-						planFilePath: details.planFilePath,
-						title: details.title,
-						planExists: details.planExists,
+						planFilePath: approval.planFilePath,
+						finalPlanFilePath: approval.finalPlanFilePath,
+						title: approval.title,
+						planExists: approval.planExists,
 					})
 					.catch(err => {
 						logger.warn("Plan approval dispatch failed", {
 							error: err instanceof Error ? err.message : String(err),
 						});
 					});
+			}
+		}
+		if (event.toolName === "resolve" && !event.isError) {
+			const details = event.result.details as ResolveDetails | undefined;
+			if (details?.sourceToolName === "plan_approval" && details.action === "apply") {
+				const planDetails = details.sourceResultDetails as PlanApprovalDetails | undefined;
+				if (planDetails) {
+					await this.ctx.handlePlanApproval(planDetails);
+				}
+			}
+		}
+		if (event.toolName === "switch_mode" && !event.isError) {
+			const details = event.result.details as SwitchModeDetails | undefined;
+			if (details) {
+				await this.ctx.handleSwitchModeTool(details);
+			}
+		}
+		if (event.toolName === "ask_followup_question" && !event.isError) {
+			const details = event.result.details as AskFollowupDetails | undefined;
+			if (details?.selectedMode) {
+				await this.ctx.handleSwitchModeTool({
+					targetMode: details.selectedMode,
+					reason: details.reason,
+				});
 			}
 		}
 	}
