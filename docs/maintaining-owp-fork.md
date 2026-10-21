@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `forklift render` — do not edit it by hand; run the command instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 79 fork commits on top of `upstream/main..main`.
+Total: 83 fork commits on top of `upstream/main..main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -130,7 +130,11 @@ Total: 79 fork commits on top of `upstream/main..main`.
 | `af08a38ae8` | chore(owp): rebaseline the fork commit count to 76 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 | `4408f058e2` | chore(owp): drop the stale SEARCH_PROVIDER_OPTIONS owned symbol | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 | `18bd27a5ae` | chore(owp): refresh the owned-symbol registry after the rebuild | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `pending` | chore(owp): prune the stats owned symbols and record the new sync point | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `34d3feb4c9` | chore(owp): prune the stats owned symbols and record the new sync point | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `7aba8e7219` | feat(search): make the fork's serpapi and google-ai engines reachable again | `packages/catalog/src/compat/rules.json`, `packages/catalog/src/compat/rules/providers/web.kdl`, `packages/catalog/src/models.json`, `packages/coding-agent/src/web/search/provider.ts` | code |
+| `b67bc0cf90` | test(vibe): port the two hanging vibe-runtime tests to the current loader | `packages/coding-agent/test/vibe/vibe-runtime.test.ts` | code |
+| `ab487e5a0c` | chore(owp): sharpen the robomp removals rule and document the toolchain pins | `.forklift/registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
+| `pending` | chore(owp): rebaseline the fork commit count to 83 | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. A row whose commit is still `pending` is the newest commit in the range — its hash is unknown until that commit lands, `forklift render` resolves it on the next render. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->
