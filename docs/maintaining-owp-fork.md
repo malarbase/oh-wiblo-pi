@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `forklift render` — do not edit it by hand; run the command instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 73 fork commits on top of `upstream/main..main`.
+Total: 74 fork commits on top of `upstream/main..main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -124,7 +124,8 @@ Total: 73 fork commits on top of `upstream/main..main`.
 | `048b5e8c71` | owp: remove packages/tui/test/status-line-cache-hit.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/status-line-cache-hit.test.ts` | code |
 | `90c3081325` | owp: remove packages/tui/test/task-nested-live-render.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/task-nested-live-render.test.ts` | code |
 | `cc3858872c` | fix(coding-agent): repair the runtime seams after the upstream rebuild | `.forklift/registry.yaml`, `mise.toml`, `packages/ai/src/cli.ts`, `packages/ai/src/env-api-key.ts`, `packages/coding-agent/src/cli/web-search-cli.ts`, … (43 more) | code |
-| `pending` | chore(owp): rebaseline the fork commit count to 73 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `02cc6a07a4` | chore(owp): rebaseline the fork commit count to 73 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `pending` | chore(owp): register the rebuilt fork's own files and rebase the count | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md` | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. A row whose commit is still `pending` is the newest commit in the range — its hash is unknown until that commit lands, `forklift render` resolves it on the next render. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->

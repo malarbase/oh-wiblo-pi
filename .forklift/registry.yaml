@@ -19,7 +19,7 @@
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
 generatedAt: "2026-10-21T17:42:46Z"
-expected_fork_commit_count: 73
+expected_fork_commit_count: 74
 
 harness:
   version: 1
@@ -101,8 +101,8 @@ features:
   - name: "Settings layering (project/global scope + revert)"
     description: "Per-setting provenance (getLayer), scoped set({scope: project|global}) persisting to <project>/.omp/config.yml, clearGlobal/clearProject revert; settings UI layer badges + Ctrl+S scope toggle + Delete revert"
     owned_paths:
-      - "packages/coding-agent/src/config/settings.ts"
       - "packages/coding-agent/src/config/settings-ui.ts"
+      - "packages/coding-agent/src/config/settings.ts"
       - "packages/tui/src/overlays/settings-defs.ts"
       - "packages/tui/src/overlays/settings-selector.ts"
     protecting_tests:
@@ -118,18 +118,18 @@ features:
   - name: "Ask mode"
     owned_paths:
       - "packages/coding-agent/src/modes/ask-mode/"
+      - "packages/coding-agent/src/prompts/system/ask-mode-context.md"
       - "packages/coding-agent/src/session/agent-session.ts"
       - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
-      - "packages/coding-agent/src/prompts/system/ask-mode-context.md"
     protecting_tests:
       - "test/modes/ask-mode/"
 
   - name: "switch_mode tool"
     description: "Agent-initiated mode switch; always active at top level, never xd://-mounted"
     owned_paths:
-      - "packages/coding-agent/src/tools/switch-mode.ts"
-      - "packages/coding-agent/src/tools/index.ts"
       - "packages/coding-agent/src/prompts/tools/switch-mode.md"
+      - "packages/coding-agent/src/tools/index.ts"
+      - "packages/coding-agent/src/tools/switch-mode.ts"
     protecting_tests:
       - "test/tools/switch-mode.test.ts"
       - "test/tools/index.test.ts"
@@ -148,18 +148,18 @@ features:
   - name: "Local discovery + two-level scan"
     description: "Providers self-register on import; discovery/index.ts is the only trigger and MUST keep importing ./pi"
     owned_paths:
-      - "packages/coding-agent/src/discovery/pi.ts"
       - "packages/coding-agent/src/discovery/helpers.ts"
       - "packages/coding-agent/src/discovery/index.ts"
+      - "packages/coding-agent/src/discovery/pi.ts"
     protecting_tests:
       - "test/discovery/pi-provider.test.ts"
 
   - name: "Skill grouping"
     owned_paths:
-      - "packages/tui/src/overlays/extensions/extension-list.ts"
-      - "packages/tui/src/overlays/extensions/extension-dashboard.ts"
-      - "packages/coding-agent/src/modes/components/extensions/state-manager.ts"
       - "packages/coding-agent/src/capability/skill.ts"
+      - "packages/coding-agent/src/modes/components/extensions/state-manager.ts"
+      - "packages/tui/src/overlays/extensions/extension-dashboard.ts"
+      - "packages/tui/src/overlays/extensions/extension-list.ts"
     protecting_tests:
       - "test/extensions/skill-grouping.test.ts"
 
@@ -176,16 +176,16 @@ features:
   - name: "disableStrictTools escape hatch"
     coverage_exempt: "typecheck pins the ModelCompat field; wire behavior is upstream's, the fork only forwards the flag"
     owned_paths:
-      - "packages/ai/src/types.ts"
       - "packages/ai/src/providers/anthropic.ts"
+      - "packages/ai/src/types.ts"
       - "packages/coding-agent/src/config/model-registry.ts"
 
   - name: "Google search provider"
     coverage_exempt: "no dedicated google provider test; provider shape is exercised by the shared web-search suites"
     owned_paths:
-      - "packages/coding-agent/src/web/search/providers/google.ts"
-      - "packages/coding-agent/src/web/search/providers/google-ai.ts"
       - "packages/coding-agent/src/config/settings-schema.ts"
+      - "packages/coding-agent/src/web/search/providers/google-ai.ts"
+      - "packages/coding-agent/src/web/search/providers/google.ts"
     upstream_deleted_paths:
       - path: "packages/coding-agent/src/config/settings-schema.ts"
         upstream_removed_in: "6962d5cd2e"
@@ -194,19 +194,19 @@ features:
   - name: "SerpAPI search provider"
     description: "Scraper-backed provider; its credential key (LEGACY_ENV_KEYS) lives in the AI package, so a conflict there silently kills availability"
     owned_paths:
+      - "packages/ai/src/stream.ts"
+      - "packages/coding-agent/src/web/search/provider.ts"
       - "packages/coding-agent/src/web/search/providers/serpapi.ts"
       - "packages/coding-agent/src/web/search/types.ts"
-      - "packages/coding-agent/src/web/search/provider.ts"
-      - "packages/ai/src/stream.ts"
     protecting_tests:
       - "test/tools/web-search-serpapi.test.ts"
 
   - name: "Plan mode /plan load"
     owned_paths:
-      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
       - "packages/coding-agent/src/modes/ask-mode/bash-readonly.ts"
       - "packages/coding-agent/src/modes/ask-mode/tool-guard.ts"
       - "packages/coding-agent/src/plan-mode/state.ts"
+      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
     protecting_tests:
       - "test/plan-mode/"
 
@@ -217,11 +217,11 @@ features:
       - "test/plan-mode/approved-plan.test.ts"
       - "test/plan-mode/plan-run.test.ts"
     owned_paths:
+      - "packages/coding-agent/src/modes/controllers/event-controller.ts"
       - "packages/coding-agent/src/modes/interactive-mode.ts"
-      - "packages/coding-agent/src/plan-mode/storage.ts"
       - "packages/coding-agent/src/plan-mode/approved-plan.ts"
       - "packages/coding-agent/src/plan-mode/resolve-handler.ts"
-      - "packages/coding-agent/src/modes/controllers/event-controller.ts"
+      - "packages/coding-agent/src/plan-mode/storage.ts"
 
   - name: "Provider onboarding wizard"
     coverage_exempt: "covered by the models-config schema/validation suites plus interactive smoke"
@@ -238,9 +238,9 @@ features:
       - "test/pi-scope-aliases.test.ts"
     description: "Alias graph + bunfs virtual modules relocated upstream into legacy-pi-compat.ts; the loaders only install it"
     owned_paths:
-      - "packages/coding-agent/src/extensibility/plugins/legacy-pi-compat.ts"
-      - "packages/coding-agent/src/extensibility/extensions/loader.ts"
       - "packages/coding-agent/src/extensibility/custom-commands/loader.ts"
+      - "packages/coding-agent/src/extensibility/extensions/loader.ts"
+      - "packages/coding-agent/src/extensibility/plugins/legacy-pi-compat.ts"
 
   - name: "History reorganization tooling"
     description: "lifted into `forklift reorg` (npm @whiteblossom/forklift) — no paths owned in this repo"
@@ -253,9 +253,9 @@ features:
   - name: "Unified agent mode cycle (alt+k)"
     coverage_exempt: "keybinding wiring is asserted by the keybinding suites; no dedicated mode-cycle test"
     owned_paths:
-      - "packages/tui/src/app-keybindings.ts"
-      - "packages/coding-agent/src/modes/controllers/input-controller.ts"
       - "packages/coding-agent/src/config/settings-schema.ts"
+      - "packages/coding-agent/src/modes/controllers/input-controller.ts"
+      - "packages/tui/src/app-keybindings.ts"
       - "packages/tui/src/status-line/component.ts"
       - "packages/tui/src/status-line/segments.ts"
       - "packages/tui/src/status-line/types.ts"
@@ -266,8 +266,8 @@ features:
 
   - name: "Session directory event + jiti loader + authHeader fix"
     owned_paths:
-      - "packages/coding-agent/src/sdk.ts"
       - "packages/coding-agent/src/extensibility/extensions/loader.ts"
+      - "packages/coding-agent/src/sdk.ts"
       - "packages/coding-agent/src/session/auth-broker-config.ts"
       - "packages/coding-agent/src/session/prewalk.ts"
 
@@ -276,9 +276,9 @@ features:
   - name: "Cache write token tracking + bin/owp switcher"
     coverage_exempt: "token accounting is asserted upstream in pi-ai usage suites; the fork switcher is a shell script checked by the release build"
     owned_paths:
-      - "packages/ai/src/providers/openai-completions.ts"
       - "bin/owp"
       - "docs/cache-token-tracking.md"
+      - "packages/ai/src/providers/openai-completions.ts"
 
   - name: "Use jiti with virtualModules in custom command loader"
     coverage_exempt: "the jiti dependency was dropped in favour of legacy-pi-compat; liveness + the alias test cover the surviving path"
@@ -319,9 +319,9 @@ features:
   - name: "Fix plan-mode approval UI + omp bin entry + ETXTBSY fix"
     coverage_exempt: "ETXTBSY half has no unit seam; the plan-approval half is covered by test/plan-mode"
     owned_paths:
-      - "packages/coding-agent/src/modes/controllers/event-controller.ts"
       - "packages/coding-agent/package.json"
       - "packages/coding-agent/src/extensibility/custom-commands/bundled/install-binary/index.ts"
+      - "packages/coding-agent/src/modes/controllers/event-controller.ts"
       - "packages/coding-agent/test/tools/bash-interceptor.test.ts"
 
   - name: "Google search provider + hashline recovery + mode fixes"
@@ -365,8 +365,8 @@ features:
 
   - name: "mise.toml + native rebuild docs"
     owned_paths:
-      - "mise.toml"
       - ".omp/commands/sync-upstream.md"
+      - "mise.toml"
 
   - name: "Bazel build config (hermetic PATH, crate annotations)"
     owned_paths:
@@ -400,8 +400,8 @@ features:
   - name: "MiMo-Code edit mode"
     description: "Fork-only edit mode (exact-match replacer chain ported from MiMo-Code), running as a JS branch inside the upstream-native edit tool; mimo-model auto-selection in resolveEditMode"
     owned_paths:
-      - "packages/coding-agent/src/edit/modes/mimo.ts"
       - "packages/coding-agent/src/edit/index.ts"
+      - "packages/coding-agent/src/edit/modes/mimo.ts"
       - "packages/coding-agent/src/utils/edit-mode.ts"
       - "packages/tui/src/tools/edit.ts"
     protecting_tests:
@@ -417,10 +417,10 @@ features:
   - name: "Rediscover skills on /new after ECC toggles"
     description: "newSession() re-runs discovery through the existing refresh seam, gated on skills.rediscoverOnNewSession"
     owned_paths:
+      - "packages/coding-agent/src/capability/skill.ts"
+      - "packages/coding-agent/src/config/settings-schema.ts"
       - "packages/coding-agent/src/sdk.ts"
       - "packages/coding-agent/src/session/agent-session.ts"
-      - "packages/coding-agent/src/config/settings-schema.ts"
-      - "packages/coding-agent/src/capability/skill.ts"
     upstream_deleted_paths:
       - path: "packages/coding-agent/src/config/settings-schema.ts"
         upstream_removed_in: "6962d5cd2e"
@@ -435,10 +435,10 @@ features:
 
   - name: "OWP workspace and plans"
     owned_paths:
-      - ".omp/settings.json"
+      - ".omp/extensions/"
       - ".omp/plans/"
       - ".omp/rules/"
-      - ".omp/extensions/"
+      - ".omp/settings.json"
     upstream_deleted_paths:
       - path: ".omp/rules/"
         upstream_removed_in: "eb1a46baf5"
@@ -454,19 +454,19 @@ features:
 
   - name: "OWP skills"
     owned_paths:
-      - ".omp/skills/tmux-debug/"
       - ".omp/skills/google-ai-research/"
+      - ".omp/skills/onboard-provider/"
       - ".omp/skills/owp-developer/"
       - ".omp/skills/skill-installer/"
-      - ".omp/skills/onboard-provider/"
+      - ".omp/skills/tmux-debug/"
 
   - name: "OWP commands"
     owned_paths:
       - ".omp/commands/fix-issues.md"
-      - ".omp/commands/review-prs.md"
       - ".omp/commands/release.md"
-      - ".omp/commands/triage.md"
+      - ".omp/commands/review-prs.md"
       - ".omp/commands/sync-upstream.md"
+      - ".omp/commands/triage.md"
 
   - name: "OWP spec docs"
     owned_paths:
@@ -476,13 +476,14 @@ features:
       - "openspec/specs/dual-mode-extension-loader/"
       - "openspec/specs/install-binary-command/"
       - "openspec/specs/mode-cycle-keybinding/"
+      - "openspec/specs/rpc-ask-debug/"
       - "openspec/specs/session-directory-event/"
       - "openspec/specs/skill-rediscovery/"
-      - "openspec/specs/rpc-ask-debug/"
 
   - name: "OWP AI package"
     owned_paths:
       - "packages/ai/src/cli.ts"
+      - "packages/ai/src/env-api-key.ts"
       - "packages/ai/src/index.ts"
       - "packages/ai/src/utils/h2-fetch.ts"
       - "packages/ai/src/utils/schema/normalize-cca.ts"
@@ -532,13 +533,16 @@ features:
       - "packages/coding-agent/CHANGELOG.md"
       - "packages/coding-agent/scripts/legacy-pi-virtual-module.ts"
       - "packages/coding-agent/src/cli/gallery-fixtures/segments.ts"
+      - "packages/coding-agent/src/cli/web-search-cli.ts"
       - "packages/coding-agent/src/commands/install.ts"
+      - "packages/coding-agent/src/config/all-settings.ts"
       - "packages/coding-agent/src/config/file-lock.ts"
       - "packages/coding-agent/src/config/model-discovery.ts"
       - "packages/coding-agent/src/config/models-config-schema-bundle.ts"
       - "packages/coding-agent/src/config/models-config-schema.ts"
       - "packages/coding-agent/src/config/models-config-writer.ts"
       - "packages/coding-agent/src/config/provider-probe.ts"
+      - "packages/coding-agent/src/config/registry.ts"
       - "packages/coding-agent/src/config/schema-introspector.ts"
       - "packages/coding-agent/src/discovery/omp-plugins.ts"
       - "packages/coding-agent/src/edit/blackbox.ts"
@@ -547,9 +551,13 @@ features:
       - "packages/coding-agent/src/edit/normalize.ts"
       - "packages/coding-agent/src/edit/notebook.ts"
       - "packages/coding-agent/src/edit/read-file.ts"
+      - "packages/coding-agent/src/edit/settings.ts"
       - "packages/coding-agent/src/eval/llm-bridge.ts"
       - "packages/coding-agent/src/extensibility/extensions/types.ts"
+      - "packages/coding-agent/src/extensibility/settings.ts"
       - "packages/coding-agent/src/internal-urls/docs-index.generated.ts"
+      - "packages/coding-agent/src/internal-urls/memory-protocol.ts"
+      - "packages/coding-agent/src/irc/settings.ts"
       - "packages/coding-agent/src/launch/broker.ts"
       - "packages/coding-agent/src/main.ts"
       - "packages/coding-agent/src/markit/converters/mammoth.d.ts"
@@ -567,6 +575,7 @@ features:
       - "packages/coding-agent/src/modes/debug-mode/log-server.ts"
       - "packages/coding-agent/src/modes/debug-mode/state.ts"
       - "packages/coding-agent/src/modes/types.ts"
+      - "packages/coding-agent/src/plan-mode/settings.ts"
       - "packages/coding-agent/src/prompts/agents/oracle.md"
       - "packages/coding-agent/src/prompts/system/ask-mode-off.md"
       - "packages/coding-agent/src/prompts/system/debug-mode-off.md"
@@ -576,6 +585,7 @@ features:
       - "packages/coding-agent/src/prompts/tools/mimo.md"
       - "packages/coding-agent/src/prompts/tools/patch.md"
       - "packages/coding-agent/src/prompts/tools/replace.md"
+      - "packages/coding-agent/src/session/settings.ts"
       - "packages/coding-agent/src/slash-commands/commands/add-provider.ts"
       - "packages/coding-agent/src/tools/ask-followup-question.ts"
       - "packages/coding-agent/src/tools/auto-generated-guard.ts"
@@ -721,6 +731,7 @@ features:
       - "packages/tui/src/overlays/extensions/types.ts"
       - "packages/tui/src/symbols.ts"
       - "packages/tui/src/terminal.ts"
+      - "packages/tui/src/tools/web-search-types.ts"
       - "packages/tui/src/tools/web-search.ts"
       - "packages/tui/src/utils.ts"
       - "packages/tui/test/hook-input-timeout.test.ts"
@@ -758,8 +769,67 @@ features:
 
   - name: "OWP Python RPC"
     owned_paths:
-      - "python/omp-rpc/"
+      - "python/robomp/LICENSE"
+      - "python/robomp/docs/pr-review-handoff.md"
+      - "python/robomp/src/issue_index.py"
+      - "python/robomp/src/prompts/followup_release.md"
+      - "python/robomp/src/prompts/kickoff_pr_review.md"
+      - "python/robomp/src/prompts/kickoff_release.md"
+      - "python/robomp/src/prompts/review_completion_reminder.md"
+      - "python/robomp/src/prompts/system_append_pr_review.md"
+      - "python/robomp/src/prompts/system_append_release.md"
+      - "python/robomp/src/static/assets/index-BCntletT.js"
+      - "python/robomp/src/static/assets/style-B9LxyhOi.css"
+      - "python/robomp/src/static/index.html"
+      - "python/robomp/tests/test_git_ops.py"
+      - "python/robomp/tests/test_issue_index.py"
+      - "python/robomp/tests/test_queue_dispatch.py"
+      - "python/robomp/tests/test_retry.py"
+      - "python/robomp/tests/test_status_contract.py"
+      - "python/robomp/tests/test_tasks.py"
+      - "python/robomp/tests/test_tasks_release.py"
+      - "python/robomp/web/index.html"
+      - "python/robomp/web/package.json"
+      - "python/robomp/web/scripts/verify-cards.ts"
+      - "python/robomp/web/scripts/verify-live.ts"
+      - "python/robomp/web/src/App.tsx"
+      - "python/robomp/web/src/api.ts"
+      - "python/robomp/web/src/components/Browse.tsx"
+      - "python/robomp/web/src/components/Events.tsx"
+      - "python/robomp/web/src/components/GlassCard.tsx"
+      - "python/robomp/web/src/components/IssueCard.tsx"
+      - "python/robomp/web/src/components/IssueLink.tsx"
+      - "python/robomp/web/src/components/LifecycleStepper.tsx"
+      - "python/robomp/web/src/components/Logs.tsx"
+      - "python/robomp/web/src/components/Pill.tsx"
+      - "python/robomp/web/src/components/Pipeline.tsx"
+      - "python/robomp/web/src/components/Releases.tsx"
+      - "python/robomp/web/src/components/ThemeToggle.tsx"
+      - "python/robomp/web/src/components/Trigger.tsx"
+      - "python/robomp/web/src/components/shell/Rail.tsx"
+      - "python/robomp/web/src/components/shell/Shell.tsx"
+      - "python/robomp/web/src/components/shell/TopBar.tsx"
+      - "python/robomp/web/src/components/shell/Vitals.tsx"
+      - "python/robomp/web/src/components/views/Activity.tsx"
+      - "python/robomp/web/src/components/views/Operations.tsx"
+      - "python/robomp/web/src/components/views/Triage.tsx"
+      - "python/robomp/web/src/config.ts"
+      - "python/robomp/web/src/env.d.ts"
+      - "python/robomp/web/src/format.ts"
+      - "python/robomp/web/src/main.tsx"
+      - "python/robomp/web/src/state.ts"
+      - "python/robomp/web/src/styles/index.css"
+      - "python/robomp/web/src/theme.ts"
+      - "python/robomp/web/src/types.ts"
+      - "python/robomp/web/src/view.ts"
+      - "python/robomp/web/src/work-items.contract.test.ts"
+      - "python/robomp/web/src/work-items.test.ts"
+      - "python/robomp/web/src/work-items.ts"
+      - "python/robomp/web/test/fixtures/status-contract.json"
+      - "python/robomp/web/tsconfig.json"
+      - "python/robomp/web/vite.config.ts"
     coverage_exempt: "Python RPC protocol - guarded by python/omp-rpc/tests (pytest), which the bun-based protecting-test runner cannot execute"
+    liveness_exempt: "the robomp python service and its web bundle are started as their own app (and served by path), not imported into the coding-agent import graph"
     upstream_deleted_paths:
       - path: "python/omp-rpc/"
         note: "Upstream deleted python/omp-rpc/ upstream; the fork keeps it as its own RPC module and must not take-upstream the deletion. Pre-existing drift recorded here so check 6 reports PORT (acknowledged) instead of FAIL (it also predates the forklift cutover commits)."
@@ -785,30 +855,30 @@ features:
 
   - name: "OWP root config and assets"
     owned_paths:
-      - "package.json"
-      - "bunfig.toml"
-      - "Cargo.toml"
+      - ".dockerignore"
+      - ".fallowrc.jsonc"
       - ".gitattributes"
+      - "AGENTS.md"
+      - "Cargo.toml"
+      - "Dockerfile"
+      - "LICENSE"
+      - "bunfig.toml"
+      - "package.json"
+      - "packages/tsconfig.workspace.json"
+      - "rust-analyzer.toml"
       - "rust-toolchain.toml"
       - "rustfmt.toml"
-      - "rust-analyzer.toml"
-      - "Dockerfile"
-      - ".dockerignore"
-      - "LICENSE"
-      - "AGENTS.md"
-      - ".fallowrc.jsonc"
-      - "tsconfig.json"
       - "tsconfig.base.json"
+      - "tsconfig.json"
       - "tsconfig.tools.json"
-      - "packages/tsconfig.workspace.json"
     coverage_exempt: "repository configuration (package.json, tsconfigs, Dockerfiles, assets) - no product behavior a unit test can assert"
 
   - name: "Command dispatch composition"
     description: "Upstream satellite command arrays spread into the registry; fork deltas stay inline (last-wins) for add-provider/refresh-models/drop/agent/ask"
     owned_paths:
-      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
-      - "packages/coding-agent/src/slash-commands/builtin-modes.ts"
       - "packages/coding-agent/src/modes/controllers/event-controller.ts"
+      - "packages/coding-agent/src/slash-commands/builtin-modes.ts"
+      - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
       - "packages/tui/src/overlays/extensions/extension-list.ts"
     protecting_tests:
       - "test/slash-commands/plan-subcommands.test.ts"
