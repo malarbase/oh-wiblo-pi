@@ -163,6 +163,31 @@ Note: the `getAgentDir()` vs `getPluginsDir()` bug is latent in omp too (both re
 
 ---
 
+## Toolchain
+
+The fork builds and runs against the toolchain upstream pins. After every sync, check `mise.toml`
+and upstream's `rust-toolchain.toml` / `package.json#packageManager` — a moved pin breaks the build
+in ways that look like fork bugs.
+
+| Tool | Pin (in `mise.toml`) | Why it matters |
+|------|----------------------|----------------|
+| bun | `1.4.3` | upstream requires `bun@>=1.4`. Bun 1.3.x **silently drops setuid/setgid/sticky bits** in `fs.chmod`, so file-mode assertions (e.g. the hashline move-permissions test) fail on a stale bun. |
+| rust | `nightly-2026-10-06` | upstream's `rust-toolchain.toml` pins the same nightly. `crates/pi-vfs` uses `result_option_map_or_default`, which older nightlies reject (`E0658`), so the native addon does not compile. |
+| zig | `0.14.0` | native addon build dependency. |
+| difftastic | `github:Wilfred/difftastic` | the structural reader for the Conflict Walk (`harness.checks.semantic_drift`). Optional: without it the walk renders git-only. |
+
+After a version bump:
+
+```bash
+mise install                                   # pick up the new pins
+mise exec -- bun --cwd=packages/natives run build   # rebuild the native addon
+```
+
+The native addon embeds a version stamp (`PI_NATIVES_VERSION_STAMP:<version>`); the loader refuses a
+stale binary, so a version bump without a rebuild is a startup crash for every user.
+
+---
+
 ## Sync Workflow
 
 Use `.omp/commands/sync-upstream.md` to trigger the sync (LLM agent or manual).
