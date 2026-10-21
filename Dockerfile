@@ -17,7 +17,7 @@
 #     docker run --rm oh-my-pi/pi:dev --help
 #     docker run --rm -it -v "$PWD":/work oh-my-pi/pi:dev cli    # interactive omp
 #
-# Consume as a base in another Dockerfile (see Dockerfile.robomp):
+# Consume as a base in another Dockerfile:
 #     ARG PI_BASE=oh-my-pi/pi:dev
 #     FROM ${PI_BASE} AS pi-base
 ###############################################################################
@@ -110,7 +110,7 @@ RUN python -m build --wheel --outdir /out
 ############################
 # 3) pi-base — python + bun + rustup + natives + omp_rpc + omp shim
 #
-# Sharable runtime base. Derived images (pi-runtime below, Dockerfile.robomp)
+# Sharable runtime base. Derived image: pi-runtime (below)
 # extend this and overlay their own source tree. Default PI_ROOT=/work/pi is
 # friendly to derived images that mount a host pi checkout there; pi-runtime
 # overrides it to /pi because its source is baked in.
