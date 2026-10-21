@@ -197,7 +197,8 @@ crate.annotation(
         "CMAKE_TOOLCHAIN_FILE_x86_64_pc_windows_msvc": "$${pwd}/external/+msvc_cc_repository+msvc_cc/toolchain.cmake",
         "CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_msvc": "$${pwd}/external/+msvc_cc_repository+msvc_cc_arm64/toolchain.cmake",
         "CFLAGS": "-fno-sanitize=undefined",
-        "PATH": "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:/run/current-system/sw/bin",
+        # PATH is inherited from --action_env=PATH in .bazelrc; no need to
+        # hardcode system paths here.
     },
     crate = "opusic-sys",
 )
@@ -271,11 +272,11 @@ msvc_cc(
 # rules_rust build-script runner. The leading entry is the canonical repo path
 # of @msvc_cc (`+<repo rule>+<name>`) — keep in sync if the rule or repo in
 # this section is ever renamed. On non-msvc targets the dir simply does not
-# exist and the rest of the PATH matches the opusic-sys annotation above.
+# exist and the rest of PATH is inherited from --action_env=PATH in .bazelrc.
+# blake3 doesn't override PATH — inherited from --action_env=PATH in .bazelrc.
+# The msvc prefix ($${pwd}/external/+msvc_cc_repository+msvc_cc/bin) was only
+# needed for Windows cross-compilation, which provides its own toolchain.cmake.
 crate.annotation(
-    build_script_env = {
-        "PATH": "$${pwd}/external/+msvc_cc_repository+msvc_cc/bin:/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin",
-    },
     crate = "blake3",
 )
 # ring 0.17 compiles windows-aarch64 C/asm with GNU-driver `clang` from PATH
