@@ -19,7 +19,7 @@
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
 generatedAt: "2026-10-21T17:42:46Z"
-expected_fork_commit_count: 83
+expected_fork_commit_count: 84
 
 harness:
   version: 1
@@ -749,6 +749,8 @@ features:
   - name: "OWP catalog package"
     owned_paths:
       - "packages/catalog/src/compat/rules.json"
+      - "packages/catalog/src/compat/rules/providers/web.kdl"
+      - "packages/catalog/src/models.json"
       - "packages/catalog/src/compat/rules/classes/anthropic.kdl"
       - "packages/catalog/test/build.test.ts"
       - "packages/catalog/test/generated-policies.test.ts"
