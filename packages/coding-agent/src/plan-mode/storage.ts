@@ -1,8 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isEnoent } from "@oh-my-pi/pi-utils";
-import { resolveLocalUrlToPath } from "../internal-urls";
-import { normalizeLocalScheme } from "../tools/path-utils";
+import { InternalUrlRouter, resolveLocalUrlToPath } from "../internal-urls";
 
 export type PlanStorage = "session" | "project";
 
@@ -284,7 +283,7 @@ export async function writePlanToDisk(
 	targetPlanPath: string,
 	ctx: { getArtifactsDir: () => string | null; getSessionId: () => string | null },
 ): Promise<string> {
-	const normalized = normalizeLocalScheme(targetPlanPath);
+	const normalized = InternalUrlRouter.instance().normalize(targetPlanPath);
 	let resolvedPath: string;
 	if (normalized.startsWith("local:")) {
 		resolvedPath = resolveLocalUrlToPath(normalized, {

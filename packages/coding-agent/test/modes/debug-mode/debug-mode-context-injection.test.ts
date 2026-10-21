@@ -51,7 +51,7 @@ describe("debug mode context injection", () => {
 			maxTokens: 1024,
 		}) as Model<Api>;
 		const authStorage = await AuthStorage.create(tempDir.join("auth.db"));
-		authStorage.setRuntimeApiKey(model.provider, "test-key");
+		authStorage.keys.setRuntime(model.provider, "test-key");
 		const modelRegistry = new ModelRegistry(authStorage, tempDir.join("models.yml"));
 		const { session } = await createAgentSession({
 			cwd: tempDir.path(),

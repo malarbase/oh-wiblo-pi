@@ -19,7 +19,13 @@ import {
 	TINY_MODEL_DTYPE_SETTING_OPTIONS,
 	TINY_MODEL_DTYPE_SETTING_VALUES,
 } from "../tiny/dtype";
-import { DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS, MAX_WEB_SEARCH_TIMEOUT_SECONDS } from "../web/search/types";
+import { TINY_MEMORY_LOCAL_MODELS, TINY_TITLE_LOCAL_MODELS } from "../tiny/models";
+import {
+	DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS,
+	MAX_WEB_SEARCH_TIMEOUT_SECONDS,
+	SEARCH_PROVIDER_CHOICES,
+	type SearchProviderId,
+} from "../web/search/types";
 import { DEFAULT_USAGE_RESERVE_PCT } from "@oh-my-pi/pi-ai/auth-storage";
 import { configureProviderStoreResponses } from "@oh-my-pi/pi-ai/providers/openai-responses";
 import { configureProviderMaxInFlightRequests } from "@oh-my-pi/pi-ai/stream";
@@ -29,6 +35,74 @@ import { AUTO_THINKING, getConfiguredThinkingLevelMetadata, getThinkingLevelMeta
 
 const EMPTY_NUMBER_RECORD: Record<string, number> = {};
 const EMPTY_STRING_ARRAYS_RECORD: Record<string, string[]> = {};
+const EMPTY_SEARCH_PROVIDERS: SearchProviderId[] = [];
+const EMPTY_STRING_ARRAY: string[] = [];
+
+// Session-title model choices: the online path (TINY role → @smol) plus the local registry.
+const ONLINE_TINY_MODEL_KEY = "online";
+
+const TINY_TITLE_MODEL_VALUES = [ONLINE_TINY_MODEL_KEY, ...TINY_TITLE_LOCAL_MODELS.map(model => model.key)] as const;
+
+const TINY_TITLE_MODEL_OPTIONS = [
+	{
+		value: ONLINE_TINY_MODEL_KEY,
+		label: "Online (TINY role, else @smol)",
+		description:
+			"Online title generation: the TINY model role (set one in /models) when assigned, otherwise the online fallback (commit role, then @smol). No local download or on-device inference.",
+	},
+	...TINY_TITLE_LOCAL_MODELS.map(model => ({
+		value: model.key,
+		label: model.label,
+		description: model.description,
+	})),
+] as const;
+
+const TINY_MEMORY_MODEL_VALUES = [ONLINE_TINY_MODEL_KEY, ...TINY_MEMORY_LOCAL_MODELS.map(model => model.key)] as const;
+
+const TINY_MEMORY_MODEL_OPTIONS = [
+	{
+		value: ONLINE_TINY_MODEL_KEY,
+		label: "Online (TINY role, else @smol)",
+		description:
+			"Use the online model: the TINY role from /models when set, otherwise @smol. No local model download or on-device inference.",
+	},
+	...TINY_MEMORY_LOCAL_MODELS.map(model => ({
+		value: model.key,
+		label: model.label,
+		description: model.description,
+	})),
+] as const;
+
+/** Image generation backends, in settings/tool vocabulary. */
+type ImageProvider = "antigravity" | "deepinfra" | "gemini" | "openai" | "openai-codex" | "openrouter" | "xai";
+
+/** Settings choices for `providers.imageOrder`. */
+const IMAGE_PROVIDER_CHOICES = [
+	{
+		value: "openai",
+		label: "OpenAI",
+		description: "OPENAI_API_KEY (gpt-image-2) or active GPT model; falls back to a connected Codex subscription",
+	},
+	{
+		value: "openai-codex",
+		label: "OpenAI Codex (ChatGPT)",
+		description: "Uses a connected Codex / ChatGPT subscription — no OPENAI_API_KEY needed",
+	},
+	{
+		value: "antigravity",
+		label: "Antigravity",
+		description: "Requires google-antigravity OAuth",
+	},
+	{
+		value: "xai",
+		label: "xAI Grok Imagine",
+		description: "Requires xAI Grok OAuth or XAI_API_KEY",
+	},
+	{ value: "gemini", label: "Gemini", description: "Requires GEMINI_API_KEY" },
+	{ value: "openrouter", label: "OpenRouter", description: "Requires OPENROUTER_API_KEY" },
+	{ value: "deepinfra", label: "DeepInfra", description: "Requires DEEPINFRA_API_KEY" },
+] as const satisfies ReadonlyArray<{ value: ImageProvider; label: string; description: string }>;
+
 const DEFAULT_TOOL_CALL_LOOP_EXEMPT_TOOLS: string[] = ["wait"];
 
 // Power assertions: macOS IOKit, Linux login1/ScreenSaver, Windows execution state.
@@ -174,6 +248,33 @@ export const cfgProvidersMaxInFlightRequests = register({
 effect(cfgProvidersMaxInFlightRequests, limits =>
 	configureProviderMaxInFlightRequests(normalizeProviderMaxInFlightRequests(limits)),
 );
+
+export const cfgProvidersCodexCodeMode = register({
+	id: "providers.openai-codex.codeMode",
+	type: "enum",
+	values: ["off", "on", "auto"] as const,
+	default: "off",
+	ui: {
+		tab: "providers",
+		group: "Services",
+		label: "Codex Code Mode",
+		description:
+			"Route Codex code_mode_only models (GPT-5.6) through eval. The direct tools are eval, ask, todo, yield, think, checkpoint, and rewind. Use eval cells for other session tools. Mirrors codex-rs Code Mode. 'auto' follows the model catalog flag.",
+	},
+});
+
+export const cfgProvidersCodexCodeModeDirectTools = register({
+	id: "providers.openai-codex.codeModeDirectTools",
+	type: "array",
+	default: EMPTY_STRING_ARRAY,
+	ui: {
+		tab: "providers",
+		group: "Services",
+		label: "Codex Code Mode Direct Tools",
+		description:
+			"Extra direct tools for Codex Code Mode. The standard direct tools are eval, ask, todo, yield, think, checkpoint, and rewind.",
+	},
+});
 
 export const cfgImagesDescribeForTextModels = register({
 	id: "images.describeForTextModels",
@@ -940,6 +1041,84 @@ export const cfgProvidersWebSearchTimeoutSeconds = register({
 	},
 });
 
+export const cfgProvidersWebSearchCaptchaBehavior = register({
+	id: "providers.webSearchCaptchaBehavior",
+	type: "enum",
+	values: ["wait", "error"] as const,
+	default: "wait" as const,
+	ui: {
+		tab: "providers",
+		group: "Services",
+		label: "CAPTCHA Behavior",
+		description:
+			"When Google serves a CAPTCHA: 'wait' pauses with a timeout for you to solve it in the browser, 'error' throws immediately and falls back to other providers",
+		options: [
+			{ value: "wait", label: "Wait for manual solve (Recommended)" },
+			{ value: "error", label: "Throw immediately" },
+		],
+	},
+});
+
+export const cfgProvidersWebSearchCaptchaTimeout = register({
+	id: "providers.webSearchCaptchaTimeout",
+	type: "number",
+	default: 90,
+	ui: {
+		tab: "providers",
+		group: "Services",
+		label: "CAPTCHA Solve Timeout",
+		description:
+			"Seconds to wait for you to solve a CAPTCHA before falling back to other providers (only when behavior is 'wait')",
+		options: [
+			{ value: "30", label: "30 seconds" },
+			{ value: "60", label: "1 minute" },
+			{ value: "90", label: "1.5 minutes" },
+			{ value: "120", label: "2 minutes" },
+			{ value: "300", label: "5 minutes" },
+		],
+	},
+});
+
+export const cfgProvidersWebSearchOrder = register({
+	id: "providers.webSearchOrder",
+	type: "array",
+	default: EMPTY_SEARCH_PROVIDERS,
+	ui: {
+		tab: "providers",
+		group: "Services",
+		label: "Web Search Provider Order",
+		description:
+			"Prioritized providers for the web_search tool; unlisted providers retain their default order afterward",
+		options: SEARCH_PROVIDER_CHOICES,
+		ordered: true,
+	},
+});
+
+export const cfgProvidersWebSearchExclude = register({
+	id: "providers.webSearchExclude",
+	type: "array",
+	default: EMPTY_SEARCH_PROVIDERS,
+	ui: {
+		tab: "providers",
+		group: "Services",
+		label: "Excluded Web Search Providers",
+		description: "Providers that web_search should never use, even as fallbacks",
+		options: SEARCH_PROVIDER_CHOICES,
+	},
+});
+
+export const cfgProvidersWebSearchGeminiModel = register({
+	id: "providers.webSearchGeminiModel",
+	type: "string",
+	default: undefined,
+	ui: {
+		tab: "providers",
+		group: "Services",
+		label: "Gemini web_search model",
+		description: "Model ID for Gemini Google Search grounding. Defaults to gemini-2.5-flash.",
+	},
+});
+
 export const cfgProvidersAntigravityEndpoint = register({
 	id: "providers.antigravityEndpoint",
 	type: "enum",
@@ -970,6 +1149,21 @@ export const cfgProvidersAntigravityEndpoint = register({
 	},
 });
 
+export const cfgProvidersImageOrder = register({
+	id: "providers.imageOrder",
+	type: "array",
+	default: EMPTY_STRING_ARRAY,
+	ui: {
+		tab: "providers",
+		group: "Services",
+		label: "Image Provider Order",
+		description:
+			"Prioritized providers for image generation; unlisted providers follow the active session provider and the built-in order",
+		options: IMAGE_PROVIDER_CHOICES,
+		ordered: true,
+	},
+});
+
 export const cfgProvidersFireworksTier = register({
 	id: "providers.fireworksTier",
 	type: "enum",
@@ -987,6 +1181,38 @@ export const cfgProvidersFireworksTier = register({
 				value: "priority",
 				label: "Priority",
 				description: "Priority serving path: higher reliability, premium per-token pricing",
+			},
+		],
+	},
+});
+
+export const cfgProvidersTts = register({
+	id: "providers.tts",
+	type: "enum",
+	values: ["auto", "local", "xai", "deepinfra"] as const,
+	default: "auto",
+	ui: {
+		tab: "providers",
+		group: "Services",
+		label: "Text-to-Speech Provider",
+		description:
+			"Backend for the tts tool: local on-device neural TTS (Kokoro-82M), xAI Grok Voice, or DeepInfra speech",
+		options: [
+			{
+				value: "auto",
+				label: "Auto",
+				description: "Prefer local on-device TTS; route .mp3 output to xAI when credentials exist",
+			},
+			{ value: "local", label: "Local", description: "On-device neural TTS (Kokoro-82M); output is WAV/PCM16" },
+			{
+				value: "xai",
+				label: "xAI Grok Voice",
+				description: "Requires xAI Grok OAuth or XAI_API_KEY; MP3 or WAV",
+			},
+			{
+				value: "deepinfra",
+				label: "DeepInfra Speech",
+				description: "Requires DEEPINFRA_API_KEY; MP3 or WAV",
 			},
 		],
 	},
@@ -1027,6 +1253,96 @@ export const cfgProvidersTinyModelDtype = register({
 		description:
 			"ONNX quantization/precision for local tiny models. Default uses each model's shipped dtype (q4); lower precision is faster, higher is more faithful. Ignored by the MLX backend (its repos are pre-quantized 4-bit). The PI_TINY_DTYPE env var overrides this.",
 		options: TINY_MODEL_DTYPE_SETTING_OPTIONS,
+	},
+});
+
+export const cfgProvidersTinyModel = register({
+	id: "providers.tinyModel",
+	type: "enum",
+	values: TINY_TITLE_MODEL_VALUES,
+	default: ONLINE_TINY_MODEL_KEY,
+	ui: {
+		tab: "providers",
+		group: "Tiny Model",
+		label: "Tiny Model",
+		description:
+			"Session-title model: online (the TINY role from /models, else @smol) by default, or a local on-device model",
+		options: TINY_TITLE_MODEL_OPTIONS,
+	},
+});
+
+export const cfgProvidersMemoryModel = register({
+	id: "providers.memoryModel",
+	type: "enum",
+	values: TINY_MEMORY_MODEL_VALUES,
+	default: ONLINE_TINY_MODEL_KEY,
+	ui: {
+		tab: "memory",
+		group: "General",
+		label: "Memory Model",
+		description:
+			"Mnemopi LLM for fact extraction + consolidation: online (the TINY role from /models, else smol/remote) by default, or a local on-device model",
+		condition: "mnemopiActive",
+		options: TINY_MEMORY_MODEL_OPTIONS,
+	},
+});
+
+export const cfgProvidersJudgmentProvider = register({
+	id: "providers.judgmentProvider",
+	type: "enum",
+	values: ["auto", "typesafe", "llm"] as const,
+	default: "auto",
+	ui: {
+		tab: "providers",
+		group: "Tiny Model",
+		label: "Judgment Provider",
+		description:
+			"Preferred backend for typed judgments (auto-thinking difficulty, Smart unexpected-stop detection, git AI staging, eval judge()). Auto uses TypeSafe when authenticated; failed TypeSafe requests fall back through tiny, smol, default, then the active session model.",
+		options: [
+			{ value: "auto", label: "Auto", description: "TypeSafe when authenticated, else the LLM bridge (default)" },
+			{
+				value: "typesafe",
+				label: "TypeSafe",
+				description: "Prefer TypeSafe; fall back through the online model roles on failure",
+			},
+			{
+				value: "llm",
+				label: "LLM",
+				description: "Never TypeSafe; keyword prompts to the tiny/smol or local model",
+			},
+		],
+	},
+});
+
+export const cfgProvidersAutoThinkingModel = register({
+	id: "providers.autoThinkingModel",
+	type: "enum",
+	values: TINY_MEMORY_MODEL_VALUES,
+	default: ONLINE_TINY_MODEL_KEY,
+	ui: {
+		tab: "model",
+		group: "Thinking",
+		label: "Auto Thinking Model",
+		description:
+			"Difficulty classifier for the `auto` thinking level: online (the TINY role from /models, else smol) by default, or a local on-device model",
+		condition: "autoThinkingActive",
+		options: TINY_MEMORY_MODEL_OPTIONS,
+	},
+});
+
+export const cfgProvidersUnexpectedStopModel = register({
+	id: "providers.unexpectedStopModel",
+	type: "enum",
+	values: TINY_MEMORY_MODEL_VALUES,
+	default: ONLINE_TINY_MODEL_KEY,
+	ui: {
+		tab: "providers",
+		group: "Tiny Model",
+		label: "Unexpected Stop Model",
+		description:
+			"Classifier for Smart unexpected-stop detection: online (the TINY role from /models, else smol) by default, or a local on-device model.",
+		condition: "unexpectedStopSmart",
+		options: TINY_MEMORY_MODEL_OPTIONS,
 	},
 });
 

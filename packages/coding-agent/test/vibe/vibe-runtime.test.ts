@@ -180,7 +180,7 @@ async function persistWorkerSession(options: PersistWorkerOptions): Promise<stri
 	const childManager = SessionManager.create(options.cwd, options.artifactsDir);
 	await childManager.setSessionFile(childSessionFile);
 	childManager.appendSessionInit({
-		systemPrompt: PERSISTED_WORKER_SYSTEM_PROMPT,
+		systemPrompt: [PERSISTED_WORKER_SYSTEM_PROMPT],
 		task: options.task,
 		tools: [...PERSISTED_WORKER_TOOLS],
 		spawns: "",
@@ -402,20 +402,23 @@ describe("vibe session registry", () => {
 	}
 
 	function installPersistedReviver(capture: { sessionFile?: string; prompts?: string[] }): void {
-		AgentLifecycleManager.global().setPersistedSubagentReviverFactory(async ref => {
-			if (!ref.sessionFile) return undefined;
-			const persisted = await SessionManager.peekSessionInit(ref.sessionFile);
-			if (!persisted?.init) return undefined;
-			const worker = createFakeWorkerSession();
-			worker.prompts.push(persisted.init.task);
-			worker.setScript({
-				events: yieldTurnEvents({ report: RESTORED_VIBE_RESPONSE }),
-				responseText: RESTORED_VIBE_RESPONSE,
-			});
-			capture.sessionFile = ref.sessionFile;
-			capture.prompts = worker.prompts;
-			return async () => worker.session;
-		}, 0);
+		AgentLifecycleManager.global().setPersistedSubagentReviverFactory(
+			async ref => {
+				if (!ref.sessionFile) return undefined;
+				const persisted = await SessionManager.peekSessionInit(ref.sessionFile);
+				if (!persisted?.init) return undefined;
+				const worker = createFakeWorkerSession();
+				worker.prompts.push(persisted.init.task);
+				worker.setScript({
+					events: yieldTurnEvents({ report: RESTORED_VIBE_RESPONSE }),
+					responseText: RESTORED_VIBE_RESPONSE,
+				});
+				capture.sessionFile = ref.sessionFile;
+				capture.prompts = worker.prompts;
+				return async () => worker.session;
+			},
+			() => 0,
+		);
 	}
 
 	async function simulateProcessBoundary(): Promise<void> {
@@ -1777,7 +1780,7 @@ describe("vibe session registry", () => {
 		expect((await SessionManager.peekSessionInit(explicitRef.sessionFile))?.init?.task).toBe(INITIAL_VIBE_TASK);
 		expect((await SessionManager.peekSessionInit(modeExitRef.sessionFile))?.init?.task).toBe(INITIAL_VIBE_TASK);
 		await expect(AgentLifecycleManager.global().ensureLive("explicitly-killed")).rejects.toThrow(
-			"aborted and cannot be revived",
+			"was killed and cannot be revived",
 		);
 		await expect(
 			resumedRegistry.send(resumedSession, { session: "explicitly-killed", message: FOLLOW_UP_VIBE_TASK }),

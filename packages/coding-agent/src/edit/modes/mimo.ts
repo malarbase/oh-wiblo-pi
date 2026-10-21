@@ -407,7 +407,7 @@ export async function executeMimoSingle(
 
 	// Normalize file_path to absolute (MiMo-Code supports relative paths)
 	const displayPath = file_path;
-	const absolutePath = path.isAbsolute(file_path) ? file_path : resolvePlanPath(session, file_path);
+	const absolutePath = path.isAbsolute(file_path) ? file_path : await resolvePlanPath(session, file_path);
 	enforcePlanModeWrite(session, absolutePath);
 
 	// MiMo-Code: old_string === "" means create new file

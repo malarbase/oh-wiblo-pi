@@ -8,6 +8,7 @@ import type { SettingPath } from "./settings-schema";
 
 import { cfgPlanAutosave, cfgPlanEnabled } from "../plan-mode/settings";
 import {
+	cfgFeaturesUnexpectedStopDetection,
 	cfgRetryUsageAwareFallback,
 	cfgDefaultThinkingLevel,
 	normalizeProviderMaxInFlightRequests,
@@ -34,6 +35,7 @@ const CONDITIONS: Record<string, () => boolean> = {
 	mnemopiActive: whenSettings(s => cfgMemoryBackend.get(s) === "mnemopi"),
 	autolearnActive: whenSettings(s => cfgAutolearnEnabled.get(s) === true),
 	autoThinkingActive: whenSettings(s => cfgDefaultThinkingLevel.get(s) === "auto"),
+	unexpectedStopSmart: whenSettings(s => cfgFeaturesUnexpectedStopDetection.get(s) === "smart"),
 	usageAwareFallbackEnabled: whenSettings(s => cfgRetryUsageAwareFallback.get(s) === true),
 	planModeEnabled: whenSettings(s => cfgPlanEnabled.get(s)),
 	planAutosaveEnabled: whenSettings(s => cfgPlanEnabled.get(s) && cfgPlanAutosave.get(s)),

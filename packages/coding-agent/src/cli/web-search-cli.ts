@@ -8,7 +8,7 @@ import { APP_NAME, getProjectDir } from "@oh-my-pi/pi-utils";
 import chalk from "@oh-my-pi/pi-utils/chalk";
 import { Settings } from "../config/settings";
 import { initTheme, theme } from "@oh-my-pi/pi-tui/theme";
-import { renderSearchResult } from "@oh-my-pi/pi-tui/tools/web-search";
+import { renderSearchResult, type SearchRenderDetails } from "@oh-my-pi/pi-tui/tools/web-search";
 import { runSearchQuery, type SearchQueryParams } from "../web/search/index";
 
 export interface SearchCommandArgs {
@@ -90,10 +90,19 @@ export async function runSearchCommand(cmd: SearchCommandArgs): Promise<void> {
 	};
 
 	const result = await runSearchQuery(params);
-	const component = renderSearchResult(result, { expanded: cmd.expanded, isPartial: false }, theme, {
-		query: cmd.query,
-		maxAnswerLines: cmd.expanded ? undefined : 6,
-	});
+	// pi-tui's SearchRenderDetails carries upstream's provider-id union, which
+	// excludes the fork's serpapi/google-ai engines; its label lookup falls back
+	// to the raw id for those, so rendering stays correct.
+	const details = result.details as SearchRenderDetails;
+	const component = renderSearchResult(
+		{ content: result.content, details },
+		{ expanded: cmd.expanded, isPartial: false },
+		theme,
+		{
+			query: cmd.query,
+			maxAnswerLines: cmd.expanded ? undefined : 6,
+		},
+	);
 
 	const width = Math.max(60, process.stdout.columns ?? 100);
 	process.stdout.write(`${component.render(width).join("\n")}\n`);

@@ -3,6 +3,7 @@ import type { Api, Model } from "@oh-my-pi/pi-ai";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
+import { cfgDisabledExtensions } from "@oh-my-pi/pi-coding-agent/extensibility/settings";
 import { createAgentSession } from "@oh-my-pi/pi-coding-agent/sdk";
 import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
@@ -47,7 +48,7 @@ describe("/new skill rediscovery", () => {
 			maxTokens: 1024,
 		}) as Model<Api>;
 		const authStorage = await AuthStorage.create(tempDir.join("auth.db"));
-		authStorage.setRuntimeApiKey(model.provider, "test-key");
+		authStorage.keys.setRuntime(model.provider, "test-key");
 		const modelRegistry = new ModelRegistry(authStorage, tempDir.join("models.yml"));
 		const { session } = await createAgentSession({
 			cwd: tempDir.path(),
@@ -89,7 +90,7 @@ describe("/new skill rediscovery", () => {
 		const session = await createSession(true);
 		const spy = spyOnRefreshSkills(session);
 
-		session.settings.override("disabledExtensions", ["skill:mid-session-toggle"]);
+		cfgDisabledExtensions.override(session.settings, ["skill:mid-session-toggle"]);
 		expect(await session.newSession()).toBe(true);
 		expect(spy.calls()).toBe(1);
 	});
@@ -98,7 +99,7 @@ describe("/new skill rediscovery", () => {
 		const session = await createSession(false);
 		const spy = spyOnRefreshSkills(session);
 
-		session.settings.override("disabledExtensions", ["skill:mid-session-toggle"]);
+		cfgDisabledExtensions.override(session.settings, ["skill:mid-session-toggle"]);
 		expect(await session.newSession()).toBe(true);
 		expect(spy.calls()).toBe(0);
 	});

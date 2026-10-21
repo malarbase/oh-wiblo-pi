@@ -931,7 +931,6 @@ export class Settings {
 		return this.#parent?.getLayer(path) ?? "default";
 	}
 
-
 	/**
 	 * Set a setting value by dotted path (sync). Global scope writes the persisted global layer
 	 * through the registry plumbing; project scope stages the value on the project layer and
@@ -1024,7 +1023,6 @@ export class Settings {
 		if (setting) return setting.get(this);
 		const value = getByPath(this.#mergedView(), path.split("."));
 		return value !== undefined ? value : undefined;
-
 	}
 
 	/**

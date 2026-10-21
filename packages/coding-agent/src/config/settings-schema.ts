@@ -29,26 +29,8 @@ import {
 	TINY_MODEL_DTYPE_SETTING_OPTIONS,
 	TINY_MODEL_DTYPE_SETTING_VALUES,
 } from "../tiny/dtype";
-import {
-	AUTO_THINKING_MODEL_OPTIONS,
-	AUTO_THINKING_MODEL_VALUES,
-	ONLINE_AUTO_THINKING_MODEL_KEY,
-	ONLINE_MEMORY_MODEL_KEY,
-	ONLINE_TINY_TITLE_MODEL_KEY,
-	TINY_MEMORY_MODEL_OPTIONS,
-	TINY_MEMORY_MODEL_VALUES,
-	TINY_TITLE_MODEL_OPTIONS,
-	TINY_TITLE_MODEL_VALUES,
-} from "../tiny/models";
-import { IMAGE_PROVIDER_CHOICES, type ImageProvider } from "../tools/image-providers";
-import {
-	DEFAULT_TTS_LOCAL_MODEL_KEY,
-	DEFAULT_TTS_VOICE,
-	TTS_LOCAL_MODEL_OPTIONS,
-	TTS_LOCAL_MODEL_VALUES,
-	TTS_LOCAL_VOICE_OPTIONS,
-	TTS_LOCAL_VOICE_VALUES,
-} from "../tts/models";
+import { TINY_MEMORY_LOCAL_MODELS, TINY_TITLE_LOCAL_MODELS } from "../tiny/models";
+import { DEFAULT_TTS_VOICE, TTS_LOCAL_MODELS, TTS_LOCAL_VOICE_OPTIONS, TTS_LOCAL_VOICE_VALUES } from "../tts/models";
 import { EDIT_MODES } from "../utils/edit-mode";
 import {
 	DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS,
@@ -67,6 +49,123 @@ import {
 	SERVICE_TIER_OPENAI_VALUES,
 	type ServiceTierInheritSettingValue,
 } from "./service-tier";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Derived Model / Provider Choice Tables
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Upstream's registry refactor removed the leaf modules these tables used to
+// live in (`src/tools/image-providers.ts`, the derived tables in
+// `src/tiny/models.ts`, and the model constants in `src/tts/models.ts`). The
+// schema still needs the same vocabulary, so the tables are derived here from
+// the current upstream registries. Follow-up: move these into
+// `config/registry.ts` next to the settings they feed.
+
+/** Default session-title model: the online @smol path (no local download / on-device inference). */
+const ONLINE_TINY_TITLE_MODEL_KEY = "online";
+/** Default memory model: the online path (the configured smol / remote LLM; no local download). */
+const ONLINE_MEMORY_MODEL_KEY = "online";
+
+const TINY_TITLE_MODEL_VALUES = [
+	ONLINE_TINY_TITLE_MODEL_KEY,
+	...TINY_TITLE_LOCAL_MODELS.map(model => model.key),
+] as const;
+
+const TINY_TITLE_MODEL_OPTIONS = [
+	{
+		value: ONLINE_TINY_TITLE_MODEL_KEY,
+		label: "Online (TINY role, else @smol)",
+		description:
+			"Online title generation: the TINY model role (set one in /models) when assigned, otherwise the online fallback (commit role, then @smol). No local download or on-device inference.",
+	},
+	...TINY_TITLE_LOCAL_MODELS.map(model => ({
+		value: model.key,
+		label: model.label,
+		description: model.description,
+	})),
+] as const;
+
+const TINY_MEMORY_MODEL_VALUES = [
+	ONLINE_MEMORY_MODEL_KEY,
+	...TINY_MEMORY_LOCAL_MODELS.map(model => model.key),
+] as const;
+
+const TINY_MEMORY_MODEL_OPTIONS = [
+	{
+		value: ONLINE_MEMORY_MODEL_KEY,
+		label: "Online (TINY role, else @smol)",
+		description:
+			"Use the online model: the TINY role from /models when set, otherwise @smol. No local model download or on-device inference.",
+	},
+	...TINY_MEMORY_LOCAL_MODELS.map(model => ({
+		value: model.key,
+		label: model.label,
+		description: model.description,
+	})),
+] as const;
+
+/**
+ * Difficulty-classifier model for the `auto` thinking level. Defaults to the
+ * online smol path; the local options reuse the memory-model registry because
+ * the shared worker's `complete()` only accepts memory local keys.
+ */
+const ONLINE_AUTO_THINKING_MODEL_KEY = ONLINE_MEMORY_MODEL_KEY;
+const AUTO_THINKING_MODEL_VALUES = TINY_MEMORY_MODEL_VALUES;
+
+const AUTO_THINKING_MODEL_OPTIONS = [
+	{
+		value: ONLINE_AUTO_THINKING_MODEL_KEY,
+		label: "Online (TINY role, else @smol)",
+		description:
+			"Classify prompt difficulty online with the TINY role model (set one in /models) or @smol; no local download or on-device inference.",
+	},
+	...TINY_MEMORY_LOCAL_MODELS.map(model => ({
+		value: model.key,
+		label: model.label,
+		description: model.description,
+	})),
+] as const;
+
+/** Image generation backends, in settings/tool vocabulary. */
+type ImageProvider = "antigravity" | "deepinfra" | "gemini" | "openai" | "openai-codex" | "openrouter" | "xai";
+
+/** Settings choices for `providers.imageOrder` (labels shared with the retired single-preference enum). */
+const IMAGE_PROVIDER_CHOICES = [
+	{
+		value: "openai",
+		label: "OpenAI",
+		description: "OPENAI_API_KEY (gpt-image-2) or active GPT model; falls back to a connected Codex subscription",
+	},
+	{
+		value: "openai-codex",
+		label: "OpenAI Codex (ChatGPT)",
+		description: "Uses a connected Codex / ChatGPT subscription — no OPENAI_API_KEY needed",
+	},
+	{
+		value: "antigravity",
+		label: "Antigravity",
+		description: "Requires google-antigravity OAuth",
+	},
+	{
+		value: "xai",
+		label: "xAI Grok Imagine",
+		description: "Requires xAI Grok OAuth or XAI_API_KEY",
+	},
+	{ value: "gemini", label: "Gemini", description: "Requires GEMINI_API_KEY" },
+	{ value: "openrouter", label: "OpenRouter", description: "Requires OPENROUTER_API_KEY" },
+	{ value: "deepinfra", label: "DeepInfra", description: "Requires DEEPINFRA_API_KEY" },
+] as const satisfies ReadonlyArray<{ value: ImageProvider; label: string; description: string }>;
+
+/** Default local TTS model used when `tts.localModel` is unset (first registry entry). */
+const DEFAULT_TTS_LOCAL_MODEL_KEY = TTS_LOCAL_MODELS[0].key;
+
+const TTS_LOCAL_MODEL_VALUES = TTS_LOCAL_MODELS.map(model => model.key);
+
+const TTS_LOCAL_MODEL_OPTIONS = TTS_LOCAL_MODELS.map(model => ({
+	value: model.key,
+	label: model.label,
+	description: model.description,
+}));
 
 /** Unified settings schema - single source of truth for all settings.
  *

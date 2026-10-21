@@ -30,7 +30,15 @@ import {
 	prepareNativeVersionDir,
 	resolveLoaderCandidates,
 	shouldStageNodeModulesAddon,
+	validateLoadedBindings,
 } from "../native/loader-state.js";
+import {
+	VERSION_STAMP_MAGIC,
+	VERSION_STAMP_SIZE,
+	bindingsHaveReleaseIdentity,
+	bindingsReleaseVersion,
+	containsVersionStamp,
+} from "../native/version-sentinel.js";
 import packageJson from "../package.json" with { type: "json" };
 
 const winNodeModulesNativeDir = "C:\\Users\\Admin\\node_modules\\@oh-my-pi\\pi-natives\\native";
@@ -202,24 +210,63 @@ describe("windows native addon staging", () => {
 });
 
 describe("pi-natives version sentinel", () => {
-	it("Rust `js_name` matches the package version", async () => {
-		// The JS loader (`packages/natives/native/index.js`) computes its expected
-		// sentinel from `package.json#version`; if the Rust source falls out of
-		// sync we ship a `.node` that the loader will refuse to use. Pinning the
-		// pairing here catches release-script regressions before they reach CI.
+	it("Rust source pairs the release identity export with the post-link stamp slot", async () => {
+		// The stale-binary protection `native/loader-state.js` is built on:
+		// `scripts/stamp-native-version.ts` writes `package.json#version` into a
+		// fixed 64-byte slot after linking, `__piNativesBuildVersion()` reads it
+		// back at runtime, and the loader compares it against the package
+		// version. The per-release `__piNativesV*` sentinel is gone from the
+		// Rust source — the pairing is with the slot, not a versioned export
+		// name. Pin that pairing here so release-script regressions fail before
+		// they reach CI.
 		const libRs = await Bun.file(path.join(import.meta.dir, "../../../crates/pi-natives/src/lib.rs")).text();
-		const sentinelMatch = libRs.match(/js_name = "(__piNativesV[A-Za-z0-9_]+)"/);
-		expect(sentinelMatch, 'Rust sentinel `js_name = "__piNativesV…"` not found in lib.rs').not.toBeNull();
-		const expected = `__piNativesV${packageJson.version.replace(/[^A-Za-z0-9]/g, "_")}`;
-		expect(sentinelMatch?.[1]).toBe(expected);
+
+		// Release identity: the export the loader's `bindingsReleaseVersion`
+		// reads to learn a loaded addon's release.
+		const identityMatch = libRs.match(/js_name = "(__piNativesBuildVersion)"/);
+		expect(
+			identityMatch,
+			'Rust release identity `js_name = "__piNativesBuildVersion"` not found in lib.rs',
+		).not.toBeNull();
+		expect(identityMatch?.[1]).toBe("__piNativesBuildVersion");
+
+		// Stamp emission: the magic linked into the binary (inside the
+		// `VERSION_STAMP` placeholder) must be the exact JS constant, and it
+		// must occur exactly once — the post-link stamp tool refuses to guess
+		// when the magic occurs more than once.
+		expect(VERSION_STAMP_MAGIC).toBe("PI_NATIVES_VERSION_STAMP:");
+		const magicMatches = libRs.match(/b"PI_NATIVES_VERSION_STAMP:"/g) ?? [];
+		expect(magicMatches.length, "The stamp magic must be linked into the binary exactly once").toBe(1);
+
+		// The slot geometry must match the JS helpers and the stamp writer:
+		// magic length for `__piNativesBuildVersion`'s read range, slot size for
+		// the writer's NUL-padded payload.
+		const slotSize = Number(libRs.match(/const VERSION_STAMP_LEN: usize = (\d+)/)?.[1]);
+		expect(slotSize, "Rust stamp slot size drifted from the JS `VERSION_STAMP_SIZE` helpers").toBe(
+			VERSION_STAMP_SIZE,
+		);
+		const magicLen = Number(libRs.match(/const VERSION_STAMP_MAGIC_LEN: usize = (\d+)/)?.[1]);
+		expect(magicLen, "Rust stamp magic length drifted from the JS `VERSION_STAMP_MAGIC` constant").toBe(
+			VERSION_STAMP_MAGIC.length,
+		);
+		// The runtime reader must skip exactly the magic prefix of the slot.
+		expect(libRs).toContain("VERSION_STAMP_MAGIC_LEN..VERSION_STAMP_LEN");
+
+		// The stamp payload — `magic` + `package.json#version` + NUL padding —
+		// must fit the slot, or the post-link writer hard-fails.
+		const slack = VERSION_STAMP_SIZE - VERSION_STAMP_MAGIC.length - 1;
+		expect(
+			packageJson.version.length,
+			`@oh-my-pi/pi-natives@${packageJson.version} no longer fits the ${VERSION_STAMP_SIZE}-byte stamp slot`,
+		).toBeLessThanOrEqual(slack);
 	});
-	it("compiled .node binary exports the version sentinel", async () => {
-		// Catches the stale-binary problem: after a version bump, the Rust source
-		// is correct but the `.node` on disk may still be from the previous build.
-		// This ships as a startup crash for every user because the JS loader
-		// validates the sentinel at runtime.
+	it("compiled .node binary carries the stamp and release identity for the package version", async () => {
+		// Catches the stale-binary problem: after a version bump, the Rust
+		// source is correct but the `.node` on disk may still be from a previous
+		// build. The JS loader validates the post-link stamp at load time, so
+		// the same check on the disk bytes fails here instead of shipping as a
+		// startup error or a later `<sym> is not a function` crash.
 		const platformTag = `${process.platform}-${process.arch}`;
-		const expected = `__piNativesV${packageJson.version.replace(/[^A-Za-z0-9]/g, "_")}`;
 		// Find the binary for the current platform. x64 has -modern and -baseline
 		// variants; other arches use a single unqualified name.
 		const nativeDir = path.join(import.meta.dir, "../native");
@@ -233,6 +280,18 @@ describe("pi-natives version sentinel", () => {
 		for (const candidate of candidates) {
 			const exists = await Bun.file(candidate).exists();
 			if (!exists) continue;
+			// The disk bytes must carry the stamp for exactly this package
+			// version (`containsVersionStamp` is what the loader's
+			// `validateLoadedBindings` greps the same file for). A binary from an
+			// older release fails here: its stamp names the old version, and
+			// pre-stamp binaries carry no stamp at all.
+			const byteMatches = await Bun.file(candidate).bytes();
+			expect(
+				containsVersionStamp(byteMatches, packageJson.version),
+				`${candidate} does not carry the ${VERSION_STAMP_MAGIC}${packageJson.version} stamp. ` +
+					"The binary is stale — rebuild with: bun --cwd=packages/natives run build",
+			).toBe(true);
+
 			// Try to load directly — this is exactly what the loader does.
 			let addon: Record<string, unknown>;
 			try {
@@ -245,11 +304,25 @@ describe("pi-natives version sentinel", () => {
 						"Rebuild with: bun --cwd=packages/natives run build",
 				);
 			}
+			// The release identity must be present and must agree with the
+			// package version — the same pair of checks
+			// `bindingsReleaseVersion`/`bindingsHaveReleaseIdentity` feed the
+			// loader's stamp validation.
 			expect(
-				typeof addon[expected],
-				`${candidate} does not export version sentinel \`${expected}\`. ` +
+				bindingsHaveReleaseIdentity(addon),
+				`${candidate} does not identify its release (no \`__piNativesBuildVersion\` export or legacy \
+sentinel).`,
+			).toBe(true);
+			expect(
+				bindingsReleaseVersion(addon),
+				`${candidate} reports another release than @oh-my-pi/pi-natives@${packageJson.version}. ` +
 					"The binary is stale — rebuild with: bun --cwd=packages/natives run build",
-			).toBe("function");
+			).toBe(packageJson.version);
+			// And the loader's own validation must accept it — identical inputs,
+			// identical verdict to a release install.
+			expect(() =>
+				validateLoadedBindings({ isWorkspaceLoad: false, packageVersion: packageJson.version }, addon, candidate),
+			).not.toThrow();
 			return; // one match is enough
 		}
 		throw new Error(
