@@ -115,6 +115,10 @@ class FaultInjectingSessionStorage extends FileSessionStorage {
 }
 
 class SwitchGatedSessionStorage extends FaultInjectingSessionStorage {
+	// The load window the switch test holds open is the session loader's own
+	// body read: `loadSessionFile` reads the target transcript through
+	// `storage.readText` (the rebuilt loader no longer probes the title slot
+	// via `readTextSlices`), so the gate hooks that call.
 	#readGate:
 		| {
 				filePath: string;
@@ -130,18 +134,14 @@ class SwitchGatedSessionStorage extends FaultInjectingSessionStorage {
 		return { started: started.promise, release: release.resolve };
 	}
 
-	override async readTextSlices(
-		filePath: string,
-		prefixBytes: number,
-		suffixBytes: number,
-	): Promise<[string, string]> {
+	override async readText(filePath: string): Promise<string> {
 		const gate = this.#readGate;
 		if (gate?.filePath === filePath) {
 			this.#readGate = undefined;
 			gate.started.resolve();
 			await gate.release.promise;
 		}
-		return super.readTextSlices(filePath, prefixBytes, suffixBytes);
+		return super.readText(filePath);
 	}
 }
 
@@ -1941,6 +1941,15 @@ describe("vibe session registry", () => {
 		});
 		await started.promise;
 
+		// The kill teardown bounds its wait on the runtime's teardown grace
+		// (VIBE_TEARDOWN_GRACE_MS, 5000ms) — a timer armed inside
+		// waitForVibeTeardown. Under fake timers `advanceTimersByTime(250)` can
+		// never fire the default 5000ms timer, so `await kill` would never
+		// settle. Drop the grace to the span this test advances, as the sibling
+		// suspension test does; the bounding behavior under test is unchanged,
+		// and the finally restores the default for later tests in this file
+		// (the registry is a global singleton).
+		registry.setTeardownGraceForTesting(250);
 		vi.useFakeTimers();
 		try {
 			const kill = registry.kill(session, "IgnoresKillAbort");
@@ -1970,6 +1979,7 @@ describe("vibe session registry", () => {
 			);
 		} finally {
 			gate.resolve();
+			registry.setTeardownGraceForTesting(5000);
 			vi.useRealTimers();
 		}
 	});
