@@ -126,6 +126,7 @@ interface ExecuteSearchOptions {
 	/** The session's active model; `web/hosted` searches through it. */
 	sessionModel?: Model<Api>;
 	signal?: AbortSignal;
+	onUpdate?: AgentToolUpdateCallback<SearchResultDetails>;
 }
 
 function isHostedPlaceholder(model: Model<Api>): boolean {
@@ -208,6 +209,26 @@ async function executeSearch(
 		// Preserve the default for one-shot callers that do not initialize Settings.
 	}
 
+	let captchaBehavior: "error" | "wait" = "wait";
+	try {
+		const configuredBehavior = settings.get("providers.webSearchCaptchaBehavior");
+		if (configuredBehavior === "error" || configuredBehavior === "wait") {
+			captchaBehavior = configuredBehavior;
+		}
+	} catch {
+		// Default to "wait"
+	}
+
+	let captchaTimeout = 90;
+	try {
+		const configuredTimeout = settings.get("providers.webSearchCaptchaTimeout");
+		if (Number.isFinite(configuredTimeout) && configuredTimeout >= 10) {
+			captchaTimeout = Math.min(Math.max(configuredTimeout, 10), 300);
+		}
+	} catch {
+		// Default to 90 seconds
+	}
+
 	const failures: Array<{ provider: { id: string; label: string }; error: unknown }> = [];
 	let availableProviderCount = 0;
 	let lastProvider: { id: string; label: string } | undefined;
@@ -261,6 +282,15 @@ async function executeSearch(
 				explicit: candidate.explicit,
 				sessionId,
 				antigravityEndpointMode,
+				captchaBehavior,
+				captchaTimeout,
+				onUpdate: options.onUpdate
+					? (message: string) =>
+							options.onUpdate!({
+								content: [{ type: "text" as const, text: message }],
+								details: { response: { provider: "none" as const, sources: [] }, error: message },
+							})
+					: undefined,
 			});
 
 			// A host that silently drops the hosted search tool still answers from the
@@ -306,6 +336,13 @@ async function executeSearch(
 			// failure and the loop falls through to the next provider (or to the
 			// summary error), masking the cancellation.
 			throwIfAborted(signal);
+			// When the user explicitly selected a provider, surface the failure
+			// immediately instead of silently falling through to the next
+			// provider. The user chose this provider for a reason and deserves
+			// to know it failed rather than seeing results from a different one.
+			if (candidate.explicit) {
+				throw error instanceof Error ? error : new SearchProviderError(provider?.id ?? model.id, String(error));
+			}
 			failedResponseProvider = provider?.id ?? "none";
 			failures.push({ provider: provider ?? candidateMeta, error });
 		}
@@ -414,7 +451,7 @@ export class WebSearchTool implements AgentTool<typeof webSearchSchema, SearchRe
 		_toolCallId: string,
 		params: SearchToolParams,
 		signal?: AbortSignal,
-		_onUpdate?: AgentToolUpdateCallback<SearchResultDetails>,
+		onUpdate?: AgentToolUpdateCallback<SearchResultDetails>,
 		_context?: AgentToolContext,
 	): Promise<AgentToolResult<SearchResultDetails>> {
 		const authStorage = this.#session.authStorage ?? (await discoverAuthStorage());
@@ -425,6 +462,7 @@ export class WebSearchTool implements AgentTool<typeof webSearchSchema, SearchRe
 			sessionId,
 			sessionModel: this.#session.getActiveModel?.(),
 			signal,
+			onUpdate,
 		});
 	}
 }
@@ -437,13 +475,7 @@ export const webSearchCustomTool: CustomTool<typeof webSearchSchema, SearchResul
 	parameters: webSearchSchema,
 
 	approval: "read",
-	async execute(
-		toolCallId: string,
-		params: SearchToolParams,
-		_onUpdate,
-		ctx: CustomToolContext,
-		signal?: AbortSignal,
-	) {
+	async execute(toolCallId: string, params: SearchToolParams, onUpdate, ctx: CustomToolContext, signal?: AbortSignal) {
 		const authStorage = ctx.modelRegistry?.authStorage ?? (await discoverAuthStorage());
 		const sessionId = ctx.sessionManager.getSessionId();
 		return executeSearch(toolCallId, params, {
@@ -452,6 +484,7 @@ export const webSearchCustomTool: CustomTool<typeof webSearchSchema, SearchResul
 			sessionId,
 			sessionModel: ctx.model,
 			signal,
+			onUpdate,
 		});
 	},
 };
