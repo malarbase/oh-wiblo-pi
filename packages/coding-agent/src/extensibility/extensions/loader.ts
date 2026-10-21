@@ -18,6 +18,17 @@ import type {
 } from "@oh-my-pi/pi-ai";
 import { isBuiltinComposerStyle, type KeyId } from "@oh-my-pi/pi-tui";
 import { hasFsCode, isEacces, isEnoent, logger } from "@oh-my-pi/pi-utils";
+
+import * as _bundledPiAi from "@oh-my-pi/pi-ai";
+import * as _bundledPiCodingAgent from "@oh-my-pi/pi-coding-agent";
+import * as _bundledPiNatives from "@oh-my-pi/pi-natives";
+
+// Eagerly load the bundled runtime packages so dynamically imported extensions
+// (and legacy `@mariozechner/*` specifier aliases) resolve them even when this
+// module is embedded in a compiled bundle with no node_modules layout.
+void _bundledPiAi;
+void _bundledPiCodingAgent;
+void _bundledPiNatives;
 import { type ExtensionModule, extensionModuleCapability } from "../../capability/extension-module";
 import { type Hook, hookCapability } from "../../capability/hook";
 import { isServiceTierFamily, isServiceTierForFamily } from "../../config/service-tier";
