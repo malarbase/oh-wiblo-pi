@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-21T20:10:10.586Z",
+  "generatedAt": "2026-10-21T21:42:32.741Z",
   "acceptances": [
     {
       "file": "<all>",
@@ -30,6 +30,11 @@
       "file": "<all>",
       "reason": "(no reason given)",
       "at": "2026-10-21T20:10:10.586Z"
+    },
+    {
+      "file": "packages/coding-agent/src/task/executor.ts",
+      "reason": "the fork's two-line fallback-chain guard survives; the dropped unit is a diff artifact of upstream's multi-line rewrap of the same condition",
+      "at": "2026-10-21T21:42:32.741Z"
     }
   ],
   "files": {
@@ -518,6 +523,12 @@
       "alive": 2,
       "ratio": 1,
       "hash": "21759bc53c1c"
+    },
+    "packages/coding-agent/src/task/executor.ts": {
+      "total": 4,
+      "alive": 3,
+      "ratio": 0.75,
+      "hash": "d3187243d793"
     }
   }
 }
