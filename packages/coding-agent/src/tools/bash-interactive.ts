@@ -109,13 +109,19 @@ export async function runInteractiveBashPty(
 							command: options.command,
 							cwd: options.cwd,
 							timeoutMs: options.timeoutMs,
-							// A real TERM so editors, pagers, and TUIs behave like a normal
-							// terminal; direnv's values win over everything.
-							env: { ...interactiveShellEnv, TERM: "xterm-256color", ...options.env },
+							// Interactive PTY: inherit the user's environment (the Rust side
+							// applies these as overrides), with a real TERM so editors,
+							// pagers, and TUIs behave like a normal terminal; direnv's
+							// values win over everything.
+							env: {
+								...interactiveShellEnv,
+								TERM: "xterm-256color",
+								...(resolvedShell ? { SHELL: resolvedShell } : {}),
+								...options.env,
+							},
 							signal: options.signal,
 							cols,
 							rows,
-							shell: resolvedShell,
 						},
 						(err, chunk) => {
 							if (finished || err || !chunk) return;

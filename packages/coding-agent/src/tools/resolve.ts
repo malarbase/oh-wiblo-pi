@@ -7,6 +7,8 @@ import {
 	type ResolveDetails,
 	type ResolveInvocation,
 } from "@oh-my-pi/pi-tui/tools/resolve";
+
+export { type ResolveDetails };
 /**
  * Resolution devices: staged work is finalized through plain-text writes to
  * always-available `xd://` URLs — no tool schema, no JSON protocol.
@@ -208,7 +210,7 @@ export function buildResolveReminderMessage(sourceToolName: string): CustomMessa
  * tool payload with `ResolveDetails` so the renderer and event-controller see
  * a consistent shape.
  */
-async function runResolveInvocation(
+export async function runResolveInvocation(
 	params: ResolveInvocation,
 	options: {
 		sourceToolName: string;

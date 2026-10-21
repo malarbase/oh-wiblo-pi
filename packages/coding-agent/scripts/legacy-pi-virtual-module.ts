@@ -25,9 +25,9 @@ interface BundledPackage {
 
 const BUNDLED_PACKAGES: readonly BundledPackage[] = [
 	{ dir: "agent", identifier: "PiAgentCore", rootShim: null, rootWildcard: null },
-	{ dir: "ai", identifier: "PiAi", rootShim: "legacy-pi-ai-shim.ts", rootWildcard: null },
+	{ dir: "ai", identifier: "PiAi", rootShim: null, rootWildcard: null },
 	{ dir: "catalog", identifier: "PiCatalog", rootShim: null, rootWildcard: "flat" },
-	{ dir: "coding-agent", identifier: "PiCodingAgent", rootShim: "legacy-pi-coding-agent-shim.ts", rootWildcard: null },
+	{ dir: "coding-agent", identifier: "PiCodingAgent", rootShim: null, rootWildcard: null },
 	{ dir: "natives", identifier: "PiNatives", rootShim: null, rootWildcard: null },
 	// pi-tui keeps stateful singletons (`TERMINAL`, theme, figure settings) in
 	// root-level and nested modules; extensions must share the host's records.
