@@ -1,5 +1,5 @@
 /**
- * Resolve auth-broker connection configuration for the local omp client.
+ * Auth-broker config stub for owp.
  *
  * This is a thin coding-agent wrapper around the shared resolver in
  * `@oh-my-pi/pi-ai/auth-broker/discover` that preserves the process-lifetime
@@ -29,7 +29,6 @@ import {
 	type AuthBrokerClientConfig,
 	type DiscoverAuthStorageOptions,
 	discoverAuthStorage as discoverAuthStorageShared,
-	getAuthBrokerTokenFilePath,
 	openAuthCredentialStore,
 	resolveAuthBrokerConfig as resolveAuthBrokerConfigShared,
 } from "@oh-my-pi/pi-ai/auth-broker/discover";
@@ -38,12 +37,12 @@ import { getAgentDir, logger } from "@oh-my-pi/pi-utils";
 import { combine, type ScopeLike } from "../config/registry";
 import { resolveConfigValue } from "../config/resolve-config-value";
 import { Settings } from "../config/settings";
-import type { AuthStorage } from "./auth-storage";
+import { AuthStorage } from "./auth-storage";
 
 import { cfgAuthAccountPolicies, cfgAuthBrokerToken, cfgAuthBrokerUrl } from "../config/model-settings";
 import { cfgRetryUsageReservePct } from "./settings";
 
-export { type AuthBrokerClientConfig, getAuthBrokerTokenFilePath };
+export { type AuthBrokerClientConfig };
 
 /** Where auth discovery reads effective settings from; see {@link loadEffectiveAuthAccountPolicyConfig}. */
 export interface EffectiveSettingsScope {
@@ -95,33 +94,18 @@ export async function loadEffectiveAuthAccountPolicyConfig(
  */
 let cachedConfigKey: string | null = null;
 let cachedConfigPromise: Promise<AuthBrokerClientConfig | null> | null = null;
+/**
+ * Fork stub: the fork does not ship the auth-broker, so it has no token file path.
+ */
+export function getAuthBrokerTokenFilePath(): string {
+	return "";
+}
 
 /**
- * Read broker configuration. Returns null when the URL is missing
- * (broker disabled — local store is used). Throws when URL is set but no
- * token is available — the caller cannot fall back silently because the
- * user explicitly asked to use the broker.
- *
- * Successful resolutions (including "no broker configured") are memoized for
- * the process lifetime; failures are not, so a missing token can be fixed and
- * retried. Concurrent callers share one in-flight resolution.
+ * Returns null — no auth-broker configured in the fork.
  */
 export function resolveAuthBrokerConfig(): Promise<AuthBrokerClientConfig | null> {
-	const key = `${process.env.OMP_AUTH_BROKER_URL ?? ""}\u0000${process.env.OMP_AUTH_BROKER_TOKEN ?? ""}\u0000${getAgentDir()}`;
-	if (cachedConfigPromise && cachedConfigKey === key) return cachedConfigPromise;
-	const promise = resolveAuthBrokerConfigShared({
-		agentDir: getAgentDir(),
-		configValueResolver: resolveConfigValue,
-	});
-	cachedConfigKey = key;
-	cachedConfigPromise = promise;
-	promise.catch(() => {
-		if (cachedConfigPromise === promise) {
-			cachedConfigPromise = null;
-			cachedConfigKey = null;
-		}
-	});
-	return promise;
+	return Promise.resolve(null);
 }
 
 /** Settings a long-lived auth storage follows (see {@link createAuthStorageSettingsSync}). */
@@ -205,22 +189,18 @@ export function createAuthStorageSettingsSync(scope: ScopeLike, authStorage: Aut
 }
 
 /**
- * Create an AuthStorage instance, using the broker when configured and falling
- * back to the local SQLite store otherwise. Delegates to the shared resolver in
- * pi-ai so the CLI, subagents, and the catalog generator all see the same
- * credentials.
+ * Create an AuthStorage instance using the local SQLite store.
  *
- * Default `agentDir` is the current configured agent directory.
+ * `reload()` is required: the credential cache (`#data`) is only populated
+ * from the store on reload, so skipping it leaves every persisted provider
+ * key (e.g. an OpenRouter API key saved via `/login`) invisible after a
+ * restart — upstream's broker discovery performs the same reload.
  */
-export function discoverAuthStorage(
-	agentDir: string = getAgentDir(),
-	options?: Omit<DiscoverAuthStorageOptions, "agentDir" | "configValueResolver">,
-): Promise<AuthStorage> {
-	return discoverAuthStorageShared({
-		...options,
-		agentDir,
-		configValueResolver: resolveConfigValue,
-	});
+export async function discoverAuthStorage(agentDir: string = getAgentDir()): Promise<AuthStorage> {
+	const dbPath = require("node:path").join(agentDir, "auth.db");
+	const storage = await AuthStorage.create(dbPath);
+	await storage.reload();
+	return storage;
 }
 
 /**
