@@ -767,6 +767,7 @@ features:
     liveness_exempt: "scripts are run by path (mise task / CI), not imported"
 
   - name: "OWP Python RPC"
+    description: "The fork's robomp subset: upstream renamed omp-rpc to robomp long ago, so the fork keeps a trimmed copy of upstream's robomp tree (56 upstream-identical files) plus its own refreshed web bundle assets"
     owned_paths:
       - "python/robomp/LICENSE"
       - "python/robomp/docs/pr-review-handoff.md"
@@ -1050,7 +1051,7 @@ removals:
   - path: "packages/coding-agent/src/edit/sloppy.test.ts"
     reason: "JS sloppy executor tests retired with the JS sloppy executor - native sloppy mode is covered by crates/pi-edit tests"
   - path: "python/robomp/"
-    reason: "The fork carries only a trimmed subset of upstream robomp (59 tracked files); the remaining upstream paths are absent on purpose and would otherwise be restored by the next sync. The subset that IS kept is fork-modified and is registered under features (OWP Python RPC), not here."
+    reason: "Upstream's robomp tree (134 files) is not shipped as-is. The fork keeps 59 files under python/robomp/ - 56 upstream-identical copies plus its own refreshed web bundle assets - registered under the feature OWP Python RPC, and drops the other 78 upstream paths on purpose: the Python service, the GitHub backend and the web app sources, which would otherwise be restored by the next sync. The pattern covers the whole directory, so it also matches the 59 kept files; the rebuild applies a removal pattern only to the paths the fork actually deleted, so the kept subset survives."
   - path: "packages/hashline/"
     reason: "JS hashline retired — upstream native engine (crates/pi-edit) adopted"
   - path: "packages/coding-agent/src/hashline/"
