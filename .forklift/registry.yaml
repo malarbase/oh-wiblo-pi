@@ -19,7 +19,7 @@
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
 generatedAt: "2026-10-21T17:42:46Z"
-expected_fork_commit_count: 118
+expected_fork_commit_count: 73
 
 harness:
   version: 1
