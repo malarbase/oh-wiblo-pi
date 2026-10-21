@@ -497,6 +497,26 @@ export async function scanSkillsFromDir(
 				warnings.push(`Skill name "${name}" contains a path separator, skipping: ${skillPath}`);
 				return;
 			}
+
+			const rawMeta = (
+				frontmatter.metadata && typeof frontmatter.metadata === "object" ? frontmatter.metadata : {}
+			) as Record<string, unknown>;
+			const author =
+				typeof frontmatter.author === "string"
+					? frontmatter.author.trim()
+					: typeof rawMeta.author === "string"
+						? rawMeta.author.trim()
+						: undefined;
+			const repo =
+				typeof frontmatter.repo === "string"
+					? frontmatter.repo.trim()
+					: typeof rawMeta.repo === "string"
+						? rawMeta.repo.trim()
+						: undefined;
+			const tags = parseArrayOrCSV(frontmatter.tags ?? rawMeta.tags);
+			const group = skillDirName;
+
+
 			items.push({
 				name,
 				path: skillPath,
@@ -504,6 +524,10 @@ export async function scanSkillsFromDir(
 				frontmatter: frontmatter as SkillFrontmatter,
 				level,
 				_source: createSourceMeta(providerId, skillPath, level, options.origin, options.pluginName),
+				author,
+				repo,
+				tags,
+				group,
 			});
 		} catch {
 			warnings.push(`Failed to read skill file: ${skillPath}`);
