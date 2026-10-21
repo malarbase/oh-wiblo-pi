@@ -448,6 +448,7 @@ export function discoverModelsByProviderType(
 			return discoverLlamaCppModels(providerConfig, ctx);
 		case "lm-studio":
 		case "openai-models-list":
+		case "openai-compatible":
 			return discoverOpenAIModelsList(providerConfig, ctx);
 		case "proxy":
 			return discoverProxyModels(providerConfig, ctx);
