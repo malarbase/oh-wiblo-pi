@@ -19,7 +19,7 @@
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
 generatedAt: "2026-10-21T17:42:46Z"
-expected_fork_commit_count: 77
+expected_fork_commit_count: 78
 
 harness:
   version: 1
@@ -710,7 +710,6 @@ features:
     owned_paths:
       - "packages/natives/native/embedded-addon.js"
       - "packages/natives/native/index.d.ts"
-      - "packages/natives/scripts/embed-native.ts"
       - "packages/natives/test/windows-staging.test.ts"
     protecting_tests:
       - "packages/natives/test/windows-staging.test.ts"
@@ -1242,8 +1241,6 @@ owned_symbols:
         description: "Fork graft (auto-derived from live diff)"
       - name: "item"
         description: "Fork graft (auto-derived from live diff)"
-      - name: "labelPadded"
-        description: "Fork graft (auto-derived from live diff)"
       - name: "hasAnyLayer"
         description: "Fork graft (auto-derived from live diff)"
       - name: "badgeWidth"
@@ -1263,7 +1260,7 @@ owned_symbols:
         description: "Fork graft (auto-derived from live diff)"
       - name: "item"
         description: "Fork graft (auto-derived from live diff)"
-      - name: "searchText"
+      - name: "getListItemSearchText"
         description: "Fork graft (auto-derived from live diff)"
       - name: "startIdx"
         description: "Fork graft (auto-derived from live diff)"
@@ -1394,25 +1391,6 @@ owned_symbols:
     feature: "OWP coding-agent package"
     symbols:
       - name: "runResolveInvocation"
-        description: "Fork graft (auto-derived from live diff)"
-  - file: "packages/natives/scripts/embed-native.ts"
-    feature: "OWP natives package"
-    symbols:
-      - name: "embeddedAddonTypedefs"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "reset"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "outputPath"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "packageJsonPath"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "nativeDir"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "fileExists"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "validateAddonSentinel"
-        description: "Fork graft (auto-derived from live diff)"
-      - name: "isCurrentPlatform"
         description: "Fork graft (auto-derived from live diff)"
   - file: "scripts/eval-bench-runs.ts"
     feature: "OWP scripts"

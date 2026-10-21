@@ -352,7 +352,7 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | OWP AI package | `packages/ai/src/cli.ts`, `packages/ai/src/env-api-key.ts`, `packages/ai/src/index.ts`, `packages/ai/src/utils/h2-fetch.ts`, `packages/ai/src/utils/schema/normalize-cca.ts`, `packages/ai/src/utils/schema/sanitize-google.ts`, `packages/ai/src/utils/schema/strict-mode.ts`, `packages/ai/src/utils/schema/zod-decontaminate.ts`, `packages/ai/src/utils/tool-call-healing.ts`, `packages/ai/test/kimi-tool-call-healing.test.ts` |
 | OWP agent package | `packages/agent/src/append-only-context.ts`, `packages/agent/test/otel.test.ts` |
 | OWP coding-agent package | `packages/coding-agent/CHANGELOG.md`, `packages/coding-agent/scripts/legacy-pi-virtual-module.ts`, `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`, `packages/coding-agent/src/cli/web-search-cli.ts`, `packages/coding-agent/src/commands/install.ts`, `packages/coding-agent/src/config/all-settings.ts`, `packages/coding-agent/src/config/file-lock.ts`, `packages/coding-agent/src/config/model-discovery.ts`, `packages/coding-agent/src/config/models-config-schema-bundle.ts`, `packages/coding-agent/src/config/models-config-schema.ts`, `packages/coding-agent/src/config/models-config-writer.ts`, `packages/coding-agent/src/config/provider-probe.ts`, `packages/coding-agent/src/config/registry.ts`, `packages/coding-agent/src/config/schema-introspector.ts`, `packages/coding-agent/src/discovery/omp-plugins.ts`, `packages/coding-agent/src/edit/blackbox.ts`, `packages/coding-agent/src/edit/diff.ts`, `packages/coding-agent/src/edit/modes/replace.ts`, `packages/coding-agent/src/edit/normalize.ts`, `packages/coding-agent/src/edit/notebook.ts`, `packages/coding-agent/src/edit/read-file.ts`, `packages/coding-agent/src/edit/settings.ts`, `packages/coding-agent/src/eval/llm-bridge.ts`, `packages/coding-agent/src/extensibility/extensions/types.ts`, `packages/coding-agent/src/extensibility/settings.ts`, `packages/coding-agent/src/internal-urls/docs-index.generated.ts`, `packages/coding-agent/src/internal-urls/memory-protocol.ts`, `packages/coding-agent/src/irc/settings.ts`, `packages/coding-agent/src/launch/broker.ts`, `packages/coding-agent/src/main.ts`, `packages/coding-agent/src/markit/converters/mammoth.d.ts`, `packages/coding-agent/src/mcp/discoverable-tool-metadata.ts`, `packages/coding-agent/src/modes/ask-mode/ask-mode-guard.ts`, `packages/coding-agent/src/modes/ask-mode/readonly-tools.ts`, `packages/coding-agent/src/modes/ask-mode/state.ts`, `packages/coding-agent/src/modes/components/diff.ts`, `packages/coding-agent/src/modes/components/dynamic-border.ts`, `packages/coding-agent/src/modes/components/extensions/dashboard-runtime.ts`, `packages/coding-agent/src/modes/components/pause-screen.ts`, `packages/coding-agent/src/modes/components/schema-driven-wizard.ts`, `packages/coding-agent/src/modes/components/status-line-segment-editor.ts`, `packages/coding-agent/src/modes/controllers/selector-controller.ts`, `packages/coding-agent/src/modes/debug-mode/log-server.ts`, `packages/coding-agent/src/modes/debug-mode/state.ts`, `packages/coding-agent/src/modes/types.ts`, `packages/coding-agent/src/plan-mode/settings.ts`, `packages/coding-agent/src/prompts/agents/oracle.md`, `packages/coding-agent/src/prompts/system/ask-mode-off.md`, `packages/coding-agent/src/prompts/system/debug-mode-off.md`, `packages/coding-agent/src/prompts/system/plan-mode-subagent.md`, `packages/coding-agent/src/prompts/tools/apply-patch.md`, `packages/coding-agent/src/prompts/tools/ask-followup-question.md`, `packages/coding-agent/src/prompts/tools/mimo.md`, `packages/coding-agent/src/prompts/tools/patch.md`, `packages/coding-agent/src/prompts/tools/replace.md`, `packages/coding-agent/src/session/settings.ts`, `packages/coding-agent/src/slash-commands/commands/add-provider.ts`, `packages/coding-agent/src/tools/ask-followup-question.ts`, `packages/coding-agent/src/tools/auto-generated-guard.ts`, `packages/coding-agent/src/tools/bash-interactive.ts`, `packages/coding-agent/src/tools/builtin-names.ts`, `packages/coding-agent/src/tools/checkpoint.ts`, `packages/coding-agent/src/tools/computer/exposure.ts`, `packages/coding-agent/src/tools/render-utils.ts`, `packages/coding-agent/src/tools/resolve.ts`, `packages/coding-agent/src/tools/tool-errors.ts`, `packages/coding-agent/src/tools/tts.ts`, `packages/coding-agent/src/tools/xdev.ts`, `packages/coding-agent/src/tui/code-cell.ts`, `packages/coding-agent/src/tui/file-list.ts`, `packages/coding-agent/src/tui/hyperlink.ts`, `packages/coding-agent/src/tui/index.ts`, `packages/coding-agent/src/tui/output-block.ts`, `packages/coding-agent/src/tui/status-line.ts`, `packages/coding-agent/src/tui/tree-list.ts`, `packages/coding-agent/src/tui/types.ts`, `packages/coding-agent/src/tui/utils.ts`, `packages/coding-agent/src/tui/width-aware-text.ts`, `packages/coding-agent/src/utils/sixel.ts` |
-| OWP natives package | `packages/natives/native/embedded-addon.js`, `packages/natives/native/index.d.ts`, `packages/natives/scripts/embed-native.ts`, `packages/natives/test/windows-staging.test.ts` |
+| OWP natives package | `packages/natives/native/embedded-addon.js`, `packages/natives/native/index.d.ts`, `packages/natives/test/windows-staging.test.ts` |
 | OWP stats package | `packages/stats/src/aggregator.ts`, `packages/stats/src/db.ts` |
 | OWP TUI package | `packages/tui/src/autocomplete.ts`, `packages/tui/src/components/settings-list.ts`, `packages/tui/src/overlays/extensions/inspector-panel.ts`, `packages/tui/src/overlays/extensions/types.ts`, `packages/tui/src/symbols.ts`, `packages/tui/src/terminal.ts`, `packages/tui/src/tools/web-search-types.ts`, `packages/tui/src/tools/web-search.ts`, `packages/tui/src/utils.ts`, `packages/tui/test/hook-input-timeout.test.ts`, `packages/tui/test/issue-848-repro.test.ts`, `packages/tui/test/keys.test.ts`, `packages/tui/test/status-line-loop.test.ts`, `packages/tui/test/status-line-model.test.ts`, `packages/tui/test/status-line-path.test.ts` |
 | OWP utils package |  |
@@ -439,7 +439,6 @@ owns inside shared files.
 |---------|--------|----------|-------------|
 | defaultLayerBadge | — | Fork graft (auto-derived from live diff) |
 | item | — | Fork graft (auto-derived from live diff) |
-| labelPadded | — | Fork graft (auto-derived from live diff) |
 | hasAnyLayer | — | Fork graft (auto-derived from live diff) |
 | badgeWidth | — | Fork graft (auto-derived from live diff) |
 | badge | — | Fork graft (auto-derived from live diff) |
@@ -453,7 +452,7 @@ owns inside shared files.
 | order | — | Fork graft (auto-derived from live diff) |
 | nextIdx | — | Fork graft (auto-derived from live diff) |
 | item | — | Fork graft (auto-derived from live diff) |
-| searchText | — | Fork graft (auto-derived from live diff) |
+| getListItemSearchText | — | Fork graft (auto-derived from live diff) |
 | startIdx | — | Fork graft (auto-derived from live diff) |
 | endIdx | — | Fork graft (auto-derived from live diff) |
 | rowWidth | — | Fork graft (auto-derived from live diff) |
@@ -568,19 +567,6 @@ owns inside shared files.
 | Feature | Symbol | Location | Description |
 |---------|--------|----------|-------------|
 | runResolveInvocation | — | Fork graft (auto-derived from live diff) |
-
-### embed-native.ts (packages/natives/scripts/embed-native.ts)
-
-| Feature | Symbol | Location | Description |
-|---------|--------|----------|-------------|
-| embeddedAddonTypedefs | — | Fork graft (auto-derived from live diff) |
-| reset | — | Fork graft (auto-derived from live diff) |
-| outputPath | — | Fork graft (auto-derived from live diff) |
-| packageJsonPath | — | Fork graft (auto-derived from live diff) |
-| nativeDir | — | Fork graft (auto-derived from live diff) |
-| fileExists | — | Fork graft (auto-derived from live diff) |
-| validateAddonSentinel | — | Fork graft (auto-derived from live diff) |
-| isCurrentPlatform | — | Fork graft (auto-derived from live diff) |
 
 ### eval-bench-runs.ts (scripts/eval-bench-runs.ts)
 
