@@ -1,0 +1,9 @@
+{
+	"name": "pi-peon",
+	"version": "0.1.0",
+	"description": "CESP / OpenPeon sound pack player for pi (OWP fork)",
+	"type": "module",
+	"pi": {
+		"extensions": ["./index.ts"]
+	}
+}

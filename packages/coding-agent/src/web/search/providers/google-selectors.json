@@ -1,0 +1,16 @@
+{
+	"comment": "Selector catalog for Google AI Mode (udm=50) DOM extraction. Google AI Mode renders content inside #main (class='main n48JGd') as plain structured text with inline source references. The answer is the page content text minus navigation headers. Sources are external links (class H23r4e) and text references like 'Wikipedia'.",
+	"sets": [
+		{
+			"id": "2025-05-aim",
+			"answer": [
+				"#main",
+				"#cnt .main",
+				"#cnt"
+			],
+			"sourceTitle": ["a", "span"],
+			"sourceURL": ["a.H23r4e[href]"],
+			"sourceSnippet": []
+		}
+	]
+}
