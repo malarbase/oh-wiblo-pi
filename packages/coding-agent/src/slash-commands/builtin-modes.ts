@@ -28,7 +28,7 @@ import ratchetKickoffPrompt from "../prompts/ratchet-kickoff.md" with { type: "t
 import type { AgentSession } from "../session/agent-session";
 import { CLI_THINKING_LEVELS, getConfiguredThinkingLevelMetadata } from "@oh-my-pi/pi-tui/thinking";
 import { noThinkingMessage, resolveThinkingArgument } from "./helpers/effort";
-import { commandConsumed, errorMessage, usage } from "./helpers/parse";
+import { commandConsumed, errorMessage, parseSubcommand, usage } from "./helpers/parse";
 import { handleSecurityCommand } from "./helpers/security";
 import type { ParsedSlashCommand, SlashCommandSpec, TuiSlashCommandRuntime } from "./types";
 
@@ -330,6 +330,11 @@ export const BUILTIN_MODE_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 		description: "Toggle plan mode (agent plans before executing)",
 		inlineHint: "[prompt]",
 		allowArgs: true,
+		subcommands: [
+			{ name: "run", description: "Run an existing approved plan file" },
+			{ name: "list", description: "List approved plan files" },
+			{ name: "load", description: "Load a specific plan file", usage: "<file>" },
+		],
 		getTuiAutocompleteDescription: runtime => {
 			if (!cfgPlanEnabled.get(runtime.ctx.settings)) return "Plan: disabled in settings";
 			if (runtime.ctx.planModeEnabled) {
@@ -340,6 +345,23 @@ export const BUILTIN_MODE_SLASH_COMMANDS: ReadonlyArray<SlashCommandSpec> = [
 			return "Plan: off";
 		},
 		handleTui: async (command, runtime) => {
+			// Fork: /plan run|list|load dispatch into the plan-file workflow.
+			const sub = parseSubcommand(command.args ?? "");
+			if (sub.verb === "run") {
+				if (!runtime.draftDetached) runtime.ctx.editor.clearDraft();
+				await runtime.ctx.handlePlanRunCommand(sub.rest);
+				return;
+			}
+			if (sub.verb === "list") {
+				if (!runtime.draftDetached) runtime.ctx.editor.clearDraft();
+				await runtime.ctx.handlePlanListCommand();
+				return;
+			}
+			if (sub.verb === "load") {
+				if (!runtime.draftDetached) runtime.ctx.editor.clearDraft();
+				await runtime.ctx.handlePlanLoadCommand(sub.rest);
+				return;
+			}
 			await runWithDetachedModeDraft(command, runtime, () =>
 				runtime.ctx.handlePlanModeCommand(command.args || undefined, runtime.input),
 			);
