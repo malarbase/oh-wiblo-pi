@@ -2007,7 +2007,7 @@ export declare function executeShell(options: ShellExecuteOptions, onChunk?: ((e
 /** Expand Windows 8.3 components without resolving symlinks or junctions. */
 export declare function expandWindowsLongPath(path: string): string
 
-/** Locate `*** Edit File: path` payloads the model emitted as plain text. */
+/** Locate `*** SM:EDIT path` payloads the model emitted as plain text. */
 export declare function extractInlineSloppyRegions(text: string): Array<InlineSloppyRegion>
 
 /**
@@ -3844,14 +3844,11 @@ export interface SummaryOptions {
   minBodyLines?: number
   /** Minimum total comment lines before eliding a multiline block comment. */
   minCommentLines?: number
-  /**
-   * Target visible-line count for BFS unfold. `None` or `0` keeps only
-   * the outermost elisions (no progressive unfolding).
-   */
+  /** Target visible-line count for BFS unfold. None or 0 disables BFS. */
   unfoldUntilLines?: number
   /**
-   * Hard ceiling for BFS unfold. Defaults to `unfold_until_lines * 2`
-   * when omitted.
+   * Hard ceiling for BFS unfold. Defaults to `unfold_until_lines * 2` when
+   * omitted.
    */
   unfoldLimitLines?: number
 }
