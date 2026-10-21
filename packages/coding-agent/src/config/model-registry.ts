@@ -136,6 +136,9 @@ import {
 	type ProviderValidationModel,
 	validateProviderConfiguration,
 } from "./models-config";
+
+export { ModelsConfigFile };
+
 import type { ModelOverride, ModelsConfig, ProviderAuthMode } from "./models-config-schema";
 import { type Settings, settings } from "./settings";
 
