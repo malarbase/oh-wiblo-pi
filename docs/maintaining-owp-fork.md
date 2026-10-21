@@ -31,12 +31,12 @@ feature branch           upstream/main
 
 ## Last Sync Point
 
-**Upstream base:** `b4e8e856ad` (latest upstream/main)
-**Date:** 2026-08-26
-**omp commits since:** ~17 (18.0.4 → 18.0.6)
+**Upstream base:** `10b867cb2e` (merge-base of `upstream/main` and `main`)
+**Date:** 2026-09-20 (history rebuild), rebaselined 2026-10-21
+**omp commits since:** 9047 (`upstream/main` at `2056e7d105`, 2026-10-21)
 To generate patches for your next sync:
 ```bash
-git format-patch b4e8e856ad40294167679a3f88417c07429fe59b..upstream/main
+git format-patch 10b867cb2eeb7809b883a88dfebe1919ff0c2764..upstream/main
 ```
 
 Update this section after each successful rebase.
@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `forklift render` — do not edit it by hand; run the command instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 114 fork commits on top of `upstream/main..main`.
+Total: 117 fork commits on top of `upstream/main..main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -165,7 +165,10 @@ Total: 114 fork commits on top of `upstream/main..main`.
 | `74c249cfe9` | chore(owp): render the fork table after the rebaseline | `docs/maintaining-owp-fork.md` | chore |
 | `fe6c5b58e0` | chore(owp): rebaseline the fork commit count to 112 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 | `33e25fb552` | chore(owp): rebaseline the fork commit count to 113 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `pending` | docs(owp): record the converged rebaseline recipe in the maintain skill | `.forklift/registry.yaml`, `.omp/skills/forklift-maintain/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | docs only |
+| `48ff7b5afe` | docs(owp): record the converged rebaseline recipe in the maintain skill | `.forklift/registry.yaml`, `.omp/skills/forklift-maintain/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | docs only |
+| `26fea0addf` | fix(owp): surface zen free-tier 429 as quota, not a credential fault | `.omp/extensions/opencode-zen-free-tier.ts` | code |
+| `1de7150d2f` | feat(owp): add the plan-author extension | `.omp/extensions/plan-author/index.ts`, `.omp/extensions/plan-author/lookup.ts`, `.omp/extensions/plan-author/package.json`, `.omp/extensions/plan-author/plan-author.test.ts`, `.omp/extensions/plan-author/report.ts`, … (1 more) | code |
+| `pending` | chore(owp): narrow the feature registry to the files the fork owns | `.forklift/registry.yaml`, `.omp/skills/forklift-doctor/SKILL.md`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md`, … (1 more) | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. A row whose commit is still `pending` is the newest commit in the range — its hash is unknown until that commit lands, `forklift render` resolves it on the next render. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->

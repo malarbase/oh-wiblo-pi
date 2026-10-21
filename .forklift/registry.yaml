@@ -18,8 +18,8 @@
 # Fork commit count at the last verified rebuild/rebase. `--verify` fails if
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
-generatedAt: "2026-10-02T13:50:08Z"
-expected_fork_commit_count: 114
+generatedAt: "2026-10-21T17:42:46Z"
+expected_fork_commit_count: 117
 
 harness:
   version: 1
@@ -60,6 +60,8 @@ harness:
       "@oh-my-pi/browser-relay": "packages/browser-relay/src"
   checks:
     behavioral_source_regex: "^packages/[^/]+/src/.*\\.tsx?$"
+    semantic_drift:
+      tool: difftastic
     native_sentinel:
       path_glob: "packages/natives/native/pi_natives.*.node"
       version_source: "packages/natives/package.json#version"
@@ -111,6 +113,7 @@ features:
     description: "README fork marker"
     owned_paths:
       - "README.md"
+    coverage_exempt: "README fork marker - documentation only"
 
   - name: "Ask mode"
     owned_paths:
@@ -200,10 +203,10 @@ features:
 
   - name: "Plan mode /plan load"
     owned_paths:
-      - "packages/coding-agent/src/plan-mode/"
       - "packages/coding-agent/src/slash-commands/builtin-registry.ts"
       - "packages/coding-agent/src/modes/ask-mode/bash-readonly.ts"
       - "packages/coding-agent/src/modes/ask-mode/tool-guard.ts"
+      - "packages/coding-agent/src/plan-mode/state.ts"
     protecting_tests:
       - "test/plan-mode/"
 
@@ -250,10 +253,12 @@ features:
   - name: "Unified agent mode cycle (alt+k)"
     coverage_exempt: "keybinding wiring is asserted by the keybinding suites; no dedicated mode-cycle test"
     owned_paths:
-      - "packages/tui/src/status-line/"
       - "packages/tui/src/app-keybindings.ts"
       - "packages/coding-agent/src/modes/controllers/input-controller.ts"
       - "packages/coding-agent/src/config/settings-schema.ts"
+      - "packages/tui/src/status-line/component.ts"
+      - "packages/tui/src/status-line/segments.ts"
+      - "packages/tui/src/status-line/types.ts"
     upstream_deleted_paths:
       - path: "packages/coding-agent/src/config/settings-schema.ts"
         upstream_removed_in: "6962d5cd2e"
@@ -262,9 +267,9 @@ features:
   - name: "Session directory event + jiti loader + authHeader fix"
     owned_paths:
       - "packages/coding-agent/src/sdk.ts"
-      - "packages/coding-agent/src/session/"
-      - "packages/coding-agent/src/capability/"
       - "packages/coding-agent/src/extensibility/extensions/loader.ts"
+      - "packages/coding-agent/src/session/auth-broker-config.ts"
+      - "packages/coding-agent/src/session/prewalk.ts"
 
     protecting_tests:
       - "test/sdk-session-directory-event.test.ts"
@@ -290,12 +295,16 @@ features:
     liveness_exempt: "Release build script spawned by the packaging pipeline, never imported"
     owned_paths:
       - "packages/coding-agent/scripts/build-binary.ts"
+    protecting_tests:
+      - "scripts/ci-release-build-binaries.test.ts"
 
   - name: "Compiled-binary boot fixes (bytecode ESM + addon archive extraction)"
     description: "Fork-side ports of upstream fixes that landed without syncing: 020ed9fdc1 (compile with format:\"esm\" so import.meta.resolve in bundled deps survives bytecode lowering) and cc258b1757 (tar.gz embedded-addon extraction in loader-state.js). Both converge with upstream at next sync."
     owned_paths:
       - "packages/coding-agent/scripts/compile-binary.ts"
       - "packages/natives/native/loader-state.js"
+      - "scripts/ci-release-build-binaries.test.ts"
+    protecting_tests:
       - "scripts/ci-release-build-binaries.test.ts"
     obsoleted_fixes:
       - pre_rebase_hash: "64c020a8185329f64ea9610ab9a37c89c6187662"
@@ -322,7 +331,9 @@ features:
       - ".omp/extensions/pi-peon/"
       - ".omp/skills/owp-developer/"
       - "packages/coding-agent/src/modes/interactive-mode.ts"
-      - "packages/coding-agent/src/web/search/"
+      - "packages/coding-agent/src/web/search/index.ts"
+      - "packages/coding-agent/src/web/search/providers/base.ts"
+      - "packages/coding-agent/src/web/search/providers/google-selectors.json"
 
   - name: "Upstream-deleted module stubs"
     coverage_exempt: "stubs exist to keep upstream-removed imports resolvable; covered by typecheck, not behavior"
@@ -362,10 +373,12 @@ features:
       - ".bazelrc"
       - "MODULE.bazel"
       - "MODULE.bazel.lock"
+    coverage_exempt: "build configuration - exercised by the Bazel build, not by a unit test"
 
   - name: "Add .gitnexus, .claude/, CLAUDE.md to .gitignore"
     owned_paths:
       - ".gitignore"
+    coverage_exempt: ".gitignore only - no runtime behavior to guard"
 
   - name: "Deduplicate slash command autocomplete"
     protecting_tests:
@@ -417,7 +430,8 @@ features:
 
   - name: "Work around zlob/zig build failure on macOS 26"
     owned_paths:
-      - "crates/pi-natives/"
+      - "crates/pi-natives/src/summary.rs"
+    coverage_exempt: "Rust build workaround in crates/pi-natives - guarded by the cargo build, not by a JS unit test"
 
   - name: "OWP workspace and plans"
     owned_paths:
@@ -442,8 +456,6 @@ features:
     owned_paths:
       - ".omp/skills/tmux-debug/"
       - ".omp/skills/google-ai-research/"
-      - ".omp/skills/system-prompts/"
-      - ".omp/skills/semantic-compression/"
       - ".omp/skills/owp-developer/"
       - ".omp/skills/skill-installer/"
       - ".omp/skills/onboard-provider/"
@@ -470,61 +482,306 @@ features:
 
   - name: "OWP AI package"
     owned_paths:
-      - "packages/ai/"
+      - "packages/ai/src/cli.ts"
+      - "packages/ai/src/index.ts"
+      - "packages/ai/src/utils/h2-fetch.ts"
+      - "packages/ai/src/utils/schema/normalize-cca.ts"
+      - "packages/ai/src/utils/schema/sanitize-google.ts"
+      - "packages/ai/src/utils/schema/strict-mode.ts"
+      - "packages/ai/src/utils/schema/zod-decontaminate.ts"
+      - "packages/ai/src/utils/tool-call-healing.ts"
+      - "packages/ai/test/kimi-tool-call-healing.test.ts"
+    protecting_tests:
+      - "packages/ai/test/kimi-tool-call-healing.test.ts"
+    liveness_exempt: "upstream deleted these modules (schema consolidation, xAI cherry-pick) - the fork keeps its copy until it migrates to upstream's layout"
+    upstream_deleted_paths:
+      - path: "packages/ai/src/cli.ts"
+        upstream_removed_in: "a3b27d0cdb"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/ai/src/utils/h2-fetch.ts"
+        upstream_removed_in: "ebae144ad9"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/ai/src/utils/schema/normalize-cca.ts"
+        upstream_removed_in: "e7200c2e4a"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/ai/src/utils/schema/sanitize-google.ts"
+        upstream_removed_in: "e7200c2e4a"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/ai/src/utils/schema/strict-mode.ts"
+        upstream_removed_in: "5c931ac135"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/ai/src/utils/schema/zod-decontaminate.ts"
+        upstream_removed_in: "e9888367d1"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/ai/src/utils/tool-call-healing.ts"
+        upstream_removed_in: "3c4023037e"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/ai/test/kimi-tool-call-healing.test.ts"
+        upstream_removed_in: "3c4023037e"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
 
   - name: "OWP agent package"
     owned_paths:
-      - "packages/agent/"
+      - "packages/agent/src/append-only-context.ts"
+      - "packages/agent/test/otel.test.ts"
+    protecting_tests:
+      - "packages/agent/test/otel.test.ts"
 
   - name: "OWP coding-agent package"
     owned_paths:
-      - "packages/coding-agent/"
+      - "packages/coding-agent/CHANGELOG.md"
+      - "packages/coding-agent/scripts/legacy-pi-virtual-module.ts"
+      - "packages/coding-agent/src/cli/gallery-fixtures/segments.ts"
+      - "packages/coding-agent/src/commands/install.ts"
+      - "packages/coding-agent/src/config/file-lock.ts"
+      - "packages/coding-agent/src/config/model-discovery.ts"
+      - "packages/coding-agent/src/config/models-config-schema-bundle.ts"
+      - "packages/coding-agent/src/config/models-config-schema.ts"
+      - "packages/coding-agent/src/config/models-config-writer.ts"
+      - "packages/coding-agent/src/config/provider-probe.ts"
+      - "packages/coding-agent/src/config/schema-introspector.ts"
+      - "packages/coding-agent/src/discovery/omp-plugins.ts"
+      - "packages/coding-agent/src/edit/blackbox.ts"
+      - "packages/coding-agent/src/edit/diff.ts"
+      - "packages/coding-agent/src/edit/modes/replace.ts"
+      - "packages/coding-agent/src/edit/normalize.ts"
+      - "packages/coding-agent/src/edit/notebook.ts"
+      - "packages/coding-agent/src/edit/read-file.ts"
+      - "packages/coding-agent/src/eval/llm-bridge.ts"
+      - "packages/coding-agent/src/extensibility/extensions/types.ts"
+      - "packages/coding-agent/src/internal-urls/docs-index.generated.ts"
+      - "packages/coding-agent/src/launch/broker.ts"
+      - "packages/coding-agent/src/main.ts"
+      - "packages/coding-agent/src/markit/converters/mammoth.d.ts"
+      - "packages/coding-agent/src/mcp/discoverable-tool-metadata.ts"
+      - "packages/coding-agent/src/modes/ask-mode/ask-mode-guard.ts"
+      - "packages/coding-agent/src/modes/ask-mode/readonly-tools.ts"
+      - "packages/coding-agent/src/modes/ask-mode/state.ts"
+      - "packages/coding-agent/src/modes/components/diff.ts"
+      - "packages/coding-agent/src/modes/components/dynamic-border.ts"
+      - "packages/coding-agent/src/modes/components/extensions/dashboard-runtime.ts"
+      - "packages/coding-agent/src/modes/components/pause-screen.ts"
+      - "packages/coding-agent/src/modes/components/schema-driven-wizard.ts"
+      - "packages/coding-agent/src/modes/components/status-line-segment-editor.ts"
+      - "packages/coding-agent/src/modes/controllers/selector-controller.ts"
+      - "packages/coding-agent/src/modes/debug-mode/log-server.ts"
+      - "packages/coding-agent/src/modes/debug-mode/state.ts"
+      - "packages/coding-agent/src/modes/types.ts"
+      - "packages/coding-agent/src/prompts/agents/oracle.md"
+      - "packages/coding-agent/src/prompts/system/ask-mode-off.md"
+      - "packages/coding-agent/src/prompts/system/debug-mode-off.md"
+      - "packages/coding-agent/src/prompts/system/plan-mode-subagent.md"
+      - "packages/coding-agent/src/prompts/tools/apply-patch.md"
+      - "packages/coding-agent/src/prompts/tools/ask-followup-question.md"
+      - "packages/coding-agent/src/prompts/tools/mimo.md"
+      - "packages/coding-agent/src/prompts/tools/patch.md"
+      - "packages/coding-agent/src/prompts/tools/replace.md"
+      - "packages/coding-agent/src/slash-commands/commands/add-provider.ts"
+      - "packages/coding-agent/src/tools/ask-followup-question.ts"
+      - "packages/coding-agent/src/tools/auto-generated-guard.ts"
+      - "packages/coding-agent/src/tools/bash-interactive.ts"
+      - "packages/coding-agent/src/tools/builtin-names.ts"
+      - "packages/coding-agent/src/tools/checkpoint.ts"
+      - "packages/coding-agent/src/tools/computer/exposure.ts"
+      - "packages/coding-agent/src/tools/render-utils.ts"
+      - "packages/coding-agent/src/tools/resolve.ts"
+      - "packages/coding-agent/src/tools/tool-errors.ts"
+      - "packages/coding-agent/src/tools/tts.ts"
+      - "packages/coding-agent/src/tools/xdev.ts"
+      - "packages/coding-agent/src/tui/code-cell.ts"
+      - "packages/coding-agent/src/tui/file-list.ts"
+      - "packages/coding-agent/src/tui/hyperlink.ts"
+      - "packages/coding-agent/src/tui/index.ts"
+      - "packages/coding-agent/src/tui/output-block.ts"
+      - "packages/coding-agent/src/tui/status-line.ts"
+      - "packages/coding-agent/src/tui/tree-list.ts"
+      - "packages/coding-agent/src/tui/types.ts"
+      - "packages/coding-agent/src/tui/utils.ts"
+      - "packages/coding-agent/src/tui/width-aware-text.ts"
+      - "packages/coding-agent/src/utils/sixel.ts"
+    protecting_tests:
+      - "packages/coding-agent/test/tools/index.test.ts"
+      - "packages/coding-agent/test/edit-mode.test.ts"
+      - "packages/coding-agent/test/plan-mode/approved-plan.test.ts"
+    liveness_exempt: "upstream deleted these modules (TUI decoupling, browser/computer folded into eval, edit-pipeline rewrite) - the fork keeps its copy until it migrates to upstream's layout"
+    upstream_deleted_paths:
+      - path: "packages/coding-agent/src/config/file-lock.ts"
+        upstream_removed_in: "9fb082bf14"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/edit/diff.ts"
+        upstream_removed_in: "c478e41a04"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/edit/modes/replace.ts"
+        upstream_removed_in: "c478e41a04"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/edit/notebook.ts"
+        upstream_removed_in: "c478e41a04"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/edit/read-file.ts"
+        upstream_removed_in: "c478e41a04"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/eval/llm-bridge.ts"
+        upstream_removed_in: "f74c6d892a"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/internal-urls/docs-index.generated.ts"
+        upstream_removed_in: "c6f3eff8c4"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/markit/converters/mammoth.d.ts"
+        upstream_removed_in: "e9888367d1"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/mcp/discoverable-tool-metadata.ts"
+        upstream_removed_in: "5364a9bfd0"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/modes/components/diff.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/modes/components/dynamic-border.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/modes/components/pause-screen.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/modes/components/status-line-segment-editor.ts"
+        upstream_removed_in: "1b58e484ab"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/prompts/agents/oracle.md"
+        upstream_removed_in: "720fb3f120"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/prompts/tools/apply-patch.md"
+        upstream_removed_in: "c478e41a04"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/prompts/tools/patch.md"
+        upstream_removed_in: "c478e41a04"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/prompts/tools/replace.md"
+        upstream_removed_in: "c478e41a04"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/tools/computer/exposure.ts"
+        upstream_removed_in: "64508e1259"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/tools/render-utils.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/tui/code-cell.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/tui/file-list.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/tui/hyperlink.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/tui/index.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/tui/output-block.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/tui/status-line.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/tui/tree-list.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/tui/types.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/tui/utils.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/tui/width-aware-text.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
+      - path: "packages/coding-agent/src/utils/sixel.ts"
+        upstream_removed_in: "0d6dbd32fc"
+        note: "upstream deleted this module after the fork's merge-base; the fork keeps its copy until it migrates to upstream's new layout"
 
   - name: "OWP natives package"
     owned_paths:
-      - "packages/natives/"
+      - "packages/natives/native/embedded-addon.js"
+      - "packages/natives/native/index.d.ts"
+      - "packages/natives/scripts/embed-native.ts"
+      - "packages/natives/test/windows-staging.test.ts"
+    protecting_tests:
+      - "packages/natives/test/windows-staging.test.ts"
 
   - name: "OWP stats package"
     owned_paths:
-      - "packages/stats/"
+      - "packages/stats/src/aggregator.ts"
+      - "packages/stats/src/db.ts"
+    protecting_tests:
+      - "packages/stats/test/tool-stats.test.ts"
+      - "packages/stats/test/db-cost.test.ts"
 
   - name: "OWP TUI package"
     owned_paths:
-      - "packages/tui/"
+      - "packages/tui/src/autocomplete.ts"
+      - "packages/tui/src/components/settings-list.ts"
+      - "packages/tui/src/overlays/extensions/inspector-panel.ts"
+      - "packages/tui/src/overlays/extensions/types.ts"
+      - "packages/tui/src/symbols.ts"
+      - "packages/tui/src/terminal.ts"
+      - "packages/tui/src/tools/web-search.ts"
+      - "packages/tui/src/utils.ts"
+      - "packages/tui/test/hook-input-timeout.test.ts"
+      - "packages/tui/test/issue-848-repro.test.ts"
+      - "packages/tui/test/keys.test.ts"
+      - "packages/tui/test/status-line-loop.test.ts"
+      - "packages/tui/test/status-line-model.test.ts"
+      - "packages/tui/test/status-line-path.test.ts"
+    protecting_tests:
+      - "packages/tui/test/keys.test.ts"
+      - "packages/tui/test/status-line-loop.test.ts"
 
   - name: "OWP utils package"
-    owned_paths:
-      - "packages/utils/"
+    owned_paths: []
 
   - name: "OWP catalog package"
     owned_paths:
-      - "packages/catalog/"
+      - "packages/catalog/src/compat/rules.json"
+      - "packages/catalog/src/compat/rules/classes/anthropic.kdl"
+      - "packages/catalog/test/build.test.ts"
+      - "packages/catalog/test/generated-policies.test.ts"
+      - "packages/catalog/test/synthetic-provider.test.ts"
+      - "packages/catalog/test/yolo-auto-provider.test.ts"
+    protecting_tests:
+      - "packages/catalog/test/build.test.ts"
 
   - name: "OWP Rust crates"
-    owned_paths:
-      - "crates/pi-ast/"
-      - "crates/pi-iso/"
-      - "crates/pi-natives/"
-      - "crates/pi-shell/"
+    owned_paths: []
 
   - name: "OWP scripts"
     owned_paths:
-      - "scripts/"
+      - "scripts/eval-bench-runs.ts"
+      - "scripts/session-stats/README.md"
+    liveness_exempt: "scripts are run by path (mise task / CI), not imported"
 
   - name: "OWP Python RPC"
     owned_paths:
       - "python/omp-rpc/"
+    coverage_exempt: "Python RPC protocol - guarded by python/omp-rpc/tests (pytest), which the bun-based protecting-test runner cannot execute"
     upstream_deleted_paths:
       - path: "python/omp-rpc/"
         note: "Upstream deleted python/omp-rpc/ upstream; the fork keeps it as its own RPC module and must not take-upstream the deletion. Pre-existing drift recorded here so check 6 reports PORT (acknowledged) instead of FAIL (it also predates the forklift cutover commits)."
 
   - name: "OWP documentation"
     owned_paths:
-      - "docs/"
+      - "docs/ask_session.md"
+      - "docs/bugs/ask-mode-switch-tool-missing.md"
+      - "docs/bugs/bytecode-childprocess-binding.md"
+      - "docs/bugs/debug-mode-lifecycle.md"
+      - "docs/bugs/edit-tool-session-gaps.md"
+      - "docs/bugs/explore-subagent-connection-error.md"
+      - "docs/bugs/plan-mode-resolve-bug.md"
+      - "docs/debug_session.md"
+      - "docs/maintaining-owp-fork.md"
+      - "docs/mode-registry-future-architecture.md"
+      - "docs/notebook-tool-runtime.md"
+      - "docs/web-native-feasibility.md"
+    coverage_exempt: "documentation only"
 
   - name: "OWP GitHub config"
-    owned_paths:
-      - ".github/"
+    owned_paths: []
 
   - name: "OWP root config and assets"
     owned_paths:
@@ -544,8 +801,7 @@ features:
       - "tsconfig.base.json"
       - "tsconfig.tools.json"
       - "packages/tsconfig.workspace.json"
-      - "assets/"
-      - "types/"
+    coverage_exempt: "repository configuration (package.json, tsconfigs, Dockerfiles, assets) - no product behavior a unit test can assert"
 
   - name: "Command dispatch composition"
     description: "Upstream satellite command arrays spread into the registry; fork deltas stay inline (last-wins) for add-provider/refresh-models/drop/agent/ask"
@@ -648,6 +904,16 @@ divergences:
 
 # Intentional deletions — upstream files absent from owp on purpose.
 removals:
+  - path: "packages/coding-agent/src/edit/apply-patch/"
+    reason: "JS apply-patch module retired - native crates/pi-edit/src/modes/apply_patch.rs adopted (Phase B, 1ef85e092c)"
+  - path: "packages/coding-agent/src/edit/modes/apply-patch.lark"
+    reason: "JS apply-patch grammar retired with the JS apply-patch executor - the native grammar owns parsing"
+  - path: "packages/coding-agent/src/edit/sloppy.lark"
+    reason: "JS sloppy grammar retired with the JS sloppy executor - native modes/sloppy adopted"
+  - path: "packages/coding-agent/src/edit/sloppy.md"
+    reason: "JS sloppy executor documentation retired with the JS sloppy executor"
+  - path: "packages/coding-agent/src/edit/sloppy.test.ts"
+    reason: "JS sloppy executor tests retired with the JS sloppy executor - native sloppy mode is covered by crates/pi-edit tests"
   - path: "python/robomp/"
     reason: "The fork carries only a trimmed subset of upstream robomp (59 tracked files); the remaining upstream paths are absent on purpose and would otherwise be restored by the next sync. The subset that IS kept is fork-modified and is registered under features (OWP Python RPC), not here."
   - path: "packages/hashline/"

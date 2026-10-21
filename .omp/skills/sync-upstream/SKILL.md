@@ -49,6 +49,25 @@ git diff --no-index --color=never "$d/base.$ext" "$d/theirs.$ext"  # the feature
 
 `--no-index` exits 1 when the files differ — the normal case, not an error.
 
+This fork registers `difftastic` as its structural reader (`harness.checks.semantic_drift.tool: difftastic`). Prefer it: it reports syntax-level change and hides upstream reformatting.
+
+```bash
+difft --color never "$d/base.$ext" "$d/ours.$ext"
+difft --color never "$d/base.$ext" "$d/theirs.$ext"
+```
+
+**Prerequisites.** `difft` is not on PATH by default — confirm it through the fork's mise setup before the first read, and confirm the language tooling the fork's own verification needs while you are there (`bun check` fails on a missing language server just as surely as the diff fails on a missing binary):
+
+```bash
+mise exec -- difft --version
+```
+
+When it is absent, add it to the fork's `mise.toml` `[tools]` as `"github:Wilfred/difftastic" = "latest"` (GitHub releases index; pin an exact tag such as `= "0.71.0"` when reproducibility matters) and run `mise install`; the same `[tools]` block is where a fork pins the language servers, formatters and test runners its `bun check` / `bun test` need. Re-render the skill after adding the key.
+
+`difft` carries its own tree-sitter grammars, so no per-language parser install is required for the languages it supports; a file it cannot parse degrades to a plain line diff, so treat output with no structure as line-based.
+
+`difft` is a read-only analyst — its output is analysis, never a patch; do not write it to the file, and never treat it as proof the result compiles.
+
 **Noise filter.** When `base → ours` differs from base only in whitespace or reformatting, the hunk is a formatter artifact, not a semantic clash: keep the feature's content from `:3:`, skip ESCALATE, and prove it by compiling. When `base → ours` carries a real change to a file listed in § Owned Symbols, it is a MERGE PATH conflict: take upstream's structure and graft the named symbols into it.
 
 **Gate each paused commit.** After resolving one commit's conflicts and before `git rebase --continue`, run the protecting tests of every feature whose owned paths you just touched:
@@ -295,22 +314,22 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | disableStrictTools escape hatch | `packages/ai/src/types.ts`, `packages/ai/src/providers/anthropic.ts`, `packages/coding-agent/src/config/model-registry.ts` |
 | Google search provider | `packages/coding-agent/src/web/search/providers/google.ts`, `packages/coding-agent/src/web/search/providers/google-ai.ts`, `packages/coding-agent/src/config/settings-schema.ts` |
 | SerpAPI search provider | `packages/coding-agent/src/web/search/providers/serpapi.ts`, `packages/coding-agent/src/web/search/types.ts`, `packages/coding-agent/src/web/search/provider.ts`, `packages/ai/src/stream.ts` |
-| Plan mode /plan load | `packages/coding-agent/src/plan-mode/`, `packages/coding-agent/src/slash-commands/builtin-registry.ts`, `packages/coding-agent/src/modes/ask-mode/bash-readonly.ts`, `packages/coding-agent/src/modes/ask-mode/tool-guard.ts` |
+| Plan mode /plan load | `packages/coding-agent/src/slash-commands/builtin-registry.ts`, `packages/coding-agent/src/modes/ask-mode/bash-readonly.ts`, `packages/coding-agent/src/modes/ask-mode/tool-guard.ts`, `packages/coding-agent/src/plan-mode/state.ts` |
 | Plan storage project path fix | `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/plan-mode/storage.ts`, `packages/coding-agent/src/plan-mode/approved-plan.ts`, `packages/coding-agent/src/plan-mode/resolve-handler.ts`, `packages/coding-agent/src/modes/controllers/event-controller.ts` |
 | Provider onboarding wizard | `packages/coding-agent/src/modes/components/provider-onboarding-wizard.ts`, `packages/tui/src/overlays/settings-defs.ts` |
 | Install-binary custom command | `packages/coding-agent/src/extensibility/custom-commands/bundled/install-binary/` |
 | @mariozechner/* loader aliases | `packages/coding-agent/src/extensibility/plugins/legacy-pi-compat.ts`, `packages/coding-agent/src/extensibility/extensions/loader.ts`, `packages/coding-agent/src/extensibility/custom-commands/loader.ts` |
 | History reorganization tooling |  |
 | Test filter scope fix | `packages/coding-agent/test/utils/filter-user-extensions.ts` |
-| Unified agent mode cycle (alt+k) | `packages/tui/src/status-line/`, `packages/tui/src/app-keybindings.ts`, `packages/coding-agent/src/modes/controllers/input-controller.ts`, `packages/coding-agent/src/config/settings-schema.ts` |
-| Session directory event + jiti loader + authHeader fix | `packages/coding-agent/src/sdk.ts`, `packages/coding-agent/src/session/`, `packages/coding-agent/src/capability/`, `packages/coding-agent/src/extensibility/extensions/loader.ts` |
+| Unified agent mode cycle (alt+k) | `packages/tui/src/app-keybindings.ts`, `packages/coding-agent/src/modes/controllers/input-controller.ts`, `packages/coding-agent/src/config/settings-schema.ts`, `packages/tui/src/status-line/component.ts`, `packages/tui/src/status-line/segments.ts`, `packages/tui/src/status-line/types.ts` |
+| Session directory event + jiti loader + authHeader fix | `packages/coding-agent/src/sdk.ts`, `packages/coding-agent/src/extensibility/extensions/loader.ts`, `packages/coding-agent/src/session/auth-broker-config.ts`, `packages/coding-agent/src/session/prewalk.ts` |
 | Cache write token tracking + bin/owp switcher | `packages/ai/src/providers/openai-completions.ts`, `bin/owp`, `docs/cache-token-tracking.md` |
 | Use jiti with virtualModules in custom command loader | `packages/coding-agent/src/extensibility/custom-commands/loader.ts` |
 | Fix isBunBinary in compiled binary | `packages/utils/src/env.ts` |
 | Build dist/owp as primary output | `packages/coding-agent/scripts/build-binary.ts` |
 | Compiled-binary boot fixes (bytecode ESM + addon archive extraction) | `packages/coding-agent/scripts/compile-binary.ts`, `packages/natives/native/loader-state.js`, `scripts/ci-release-build-binaries.test.ts` |
 | Fix plan-mode approval UI + omp bin entry + ETXTBSY fix | `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/coding-agent/package.json`, `packages/coding-agent/src/extensibility/custom-commands/bundled/install-binary/index.ts`, `packages/coding-agent/test/tools/bash-interceptor.test.ts` |
-| Google search provider + hashline recovery + mode fixes | `.omp/extensions/pi-peon/`, `.omp/skills/owp-developer/`, `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/web/search/` |
+| Google search provider + hashline recovery + mode fixes | `.omp/extensions/pi-peon/`, `.omp/skills/owp-developer/`, `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/web/search/index.ts`, `packages/coding-agent/src/web/search/providers/base.ts`, `packages/coding-agent/src/web/search/providers/google-selectors.json` |
 | Upstream-deleted module stubs | `packages/coding-agent/src/tools/approval.ts`, `packages/coding-agent/src/tools/output-schema-validator.ts`, `packages/utils/src/sanitize-text.ts` |
 | sync-upstream skill and script | `.forklift/registry.yaml`, `.omp/commands/sync-upstream.md`, `.omp/rules/owp-feature-registry.md` |
 | feature-checklist extension | `.omp/extensions/feature-checklist.ts`, `.omp/extensions/owp-checklist.generated.ts` |
@@ -324,26 +343,26 @@ These are owp-owned files. Conflicts here prefer ours unless upstream's change i
 | MiMo-Code edit mode | `packages/coding-agent/src/edit/modes/mimo.ts`, `packages/coding-agent/src/edit/index.ts`, `packages/coding-agent/src/utils/edit-mode.ts`, `packages/tui/src/tools/edit.ts` |
 | Archive skill-group-toggle openspec spec | `openspec/specs/skill-group-toggle/spec.md` |
 | Rediscover skills on /new after ECC toggles | `packages/coding-agent/src/sdk.ts`, `packages/coding-agent/src/session/agent-session.ts`, `packages/coding-agent/src/config/settings-schema.ts`, `packages/coding-agent/src/capability/skill.ts` |
-| Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/` |
+| Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/src/summary.rs` |
 | OWP workspace and plans | `.omp/settings.json`, `.omp/plans/`, `.omp/rules/`, `.omp/extensions/` |
 | OWP Claude workspace | `.claude/` |
-| OWP skills | `.omp/skills/tmux-debug/`, `.omp/skills/google-ai-research/`, `.omp/skills/system-prompts/`, `.omp/skills/semantic-compression/`, `.omp/skills/owp-developer/`, `.omp/skills/skill-installer/`, `.omp/skills/onboard-provider/` |
+| OWP skills | `.omp/skills/tmux-debug/`, `.omp/skills/google-ai-research/`, `.omp/skills/owp-developer/`, `.omp/skills/skill-installer/`, `.omp/skills/onboard-provider/` |
 | OWP commands | `.omp/commands/fix-issues.md`, `.omp/commands/review-prs.md`, `.omp/commands/release.md`, `.omp/commands/triage.md`, `.omp/commands/sync-upstream.md` |
 | OWP spec docs | `openspec/config.yaml`, `openspec/specs/ask-mode/`, `openspec/specs/debug-mode/`, `openspec/specs/dual-mode-extension-loader/`, `openspec/specs/install-binary-command/`, `openspec/specs/mode-cycle-keybinding/`, `openspec/specs/session-directory-event/`, `openspec/specs/skill-rediscovery/`, `openspec/specs/rpc-ask-debug/` |
-| OWP AI package | `packages/ai/` |
-| OWP agent package | `packages/agent/` |
-| OWP coding-agent package | `packages/coding-agent/` |
-| OWP natives package | `packages/natives/` |
-| OWP stats package | `packages/stats/` |
-| OWP TUI package | `packages/tui/` |
-| OWP utils package | `packages/utils/` |
-| OWP catalog package | `packages/catalog/` |
-| OWP Rust crates | `crates/pi-ast/`, `crates/pi-iso/`, `crates/pi-natives/`, `crates/pi-shell/` |
-| OWP scripts | `scripts/` |
+| OWP AI package | `packages/ai/src/cli.ts`, `packages/ai/src/index.ts`, `packages/ai/src/utils/h2-fetch.ts`, `packages/ai/src/utils/schema/normalize-cca.ts`, `packages/ai/src/utils/schema/sanitize-google.ts`, `packages/ai/src/utils/schema/strict-mode.ts`, `packages/ai/src/utils/schema/zod-decontaminate.ts`, `packages/ai/src/utils/tool-call-healing.ts`, `packages/ai/test/kimi-tool-call-healing.test.ts` |
+| OWP agent package | `packages/agent/src/append-only-context.ts`, `packages/agent/test/otel.test.ts` |
+| OWP coding-agent package | `packages/coding-agent/CHANGELOG.md`, `packages/coding-agent/scripts/legacy-pi-virtual-module.ts`, `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`, `packages/coding-agent/src/commands/install.ts`, `packages/coding-agent/src/config/file-lock.ts`, `packages/coding-agent/src/config/model-discovery.ts`, `packages/coding-agent/src/config/models-config-schema-bundle.ts`, `packages/coding-agent/src/config/models-config-schema.ts`, `packages/coding-agent/src/config/models-config-writer.ts`, `packages/coding-agent/src/config/provider-probe.ts`, `packages/coding-agent/src/config/schema-introspector.ts`, `packages/coding-agent/src/discovery/omp-plugins.ts`, `packages/coding-agent/src/edit/blackbox.ts`, `packages/coding-agent/src/edit/diff.ts`, `packages/coding-agent/src/edit/modes/replace.ts`, `packages/coding-agent/src/edit/normalize.ts`, `packages/coding-agent/src/edit/notebook.ts`, `packages/coding-agent/src/edit/read-file.ts`, `packages/coding-agent/src/eval/llm-bridge.ts`, `packages/coding-agent/src/extensibility/extensions/types.ts`, `packages/coding-agent/src/internal-urls/docs-index.generated.ts`, `packages/coding-agent/src/launch/broker.ts`, `packages/coding-agent/src/main.ts`, `packages/coding-agent/src/markit/converters/mammoth.d.ts`, `packages/coding-agent/src/mcp/discoverable-tool-metadata.ts`, `packages/coding-agent/src/modes/ask-mode/ask-mode-guard.ts`, `packages/coding-agent/src/modes/ask-mode/readonly-tools.ts`, `packages/coding-agent/src/modes/ask-mode/state.ts`, `packages/coding-agent/src/modes/components/diff.ts`, `packages/coding-agent/src/modes/components/dynamic-border.ts`, `packages/coding-agent/src/modes/components/extensions/dashboard-runtime.ts`, `packages/coding-agent/src/modes/components/pause-screen.ts`, `packages/coding-agent/src/modes/components/schema-driven-wizard.ts`, `packages/coding-agent/src/modes/components/status-line-segment-editor.ts`, `packages/coding-agent/src/modes/controllers/selector-controller.ts`, `packages/coding-agent/src/modes/debug-mode/log-server.ts`, `packages/coding-agent/src/modes/debug-mode/state.ts`, `packages/coding-agent/src/modes/types.ts`, `packages/coding-agent/src/prompts/agents/oracle.md`, `packages/coding-agent/src/prompts/system/ask-mode-off.md`, `packages/coding-agent/src/prompts/system/debug-mode-off.md`, `packages/coding-agent/src/prompts/system/plan-mode-subagent.md`, `packages/coding-agent/src/prompts/tools/apply-patch.md`, `packages/coding-agent/src/prompts/tools/ask-followup-question.md`, `packages/coding-agent/src/prompts/tools/mimo.md`, `packages/coding-agent/src/prompts/tools/patch.md`, `packages/coding-agent/src/prompts/tools/replace.md`, `packages/coding-agent/src/slash-commands/commands/add-provider.ts`, `packages/coding-agent/src/tools/ask-followup-question.ts`, `packages/coding-agent/src/tools/auto-generated-guard.ts`, `packages/coding-agent/src/tools/bash-interactive.ts`, `packages/coding-agent/src/tools/builtin-names.ts`, `packages/coding-agent/src/tools/checkpoint.ts`, `packages/coding-agent/src/tools/computer/exposure.ts`, `packages/coding-agent/src/tools/render-utils.ts`, `packages/coding-agent/src/tools/resolve.ts`, `packages/coding-agent/src/tools/tool-errors.ts`, `packages/coding-agent/src/tools/tts.ts`, `packages/coding-agent/src/tools/xdev.ts`, `packages/coding-agent/src/tui/code-cell.ts`, `packages/coding-agent/src/tui/file-list.ts`, `packages/coding-agent/src/tui/hyperlink.ts`, `packages/coding-agent/src/tui/index.ts`, `packages/coding-agent/src/tui/output-block.ts`, `packages/coding-agent/src/tui/status-line.ts`, `packages/coding-agent/src/tui/tree-list.ts`, `packages/coding-agent/src/tui/types.ts`, `packages/coding-agent/src/tui/utils.ts`, `packages/coding-agent/src/tui/width-aware-text.ts`, `packages/coding-agent/src/utils/sixel.ts` |
+| OWP natives package | `packages/natives/native/embedded-addon.js`, `packages/natives/native/index.d.ts`, `packages/natives/scripts/embed-native.ts`, `packages/natives/test/windows-staging.test.ts` |
+| OWP stats package | `packages/stats/src/aggregator.ts`, `packages/stats/src/db.ts` |
+| OWP TUI package | `packages/tui/src/autocomplete.ts`, `packages/tui/src/components/settings-list.ts`, `packages/tui/src/overlays/extensions/inspector-panel.ts`, `packages/tui/src/overlays/extensions/types.ts`, `packages/tui/src/symbols.ts`, `packages/tui/src/terminal.ts`, `packages/tui/src/tools/web-search.ts`, `packages/tui/src/utils.ts`, `packages/tui/test/hook-input-timeout.test.ts`, `packages/tui/test/issue-848-repro.test.ts`, `packages/tui/test/keys.test.ts`, `packages/tui/test/status-line-loop.test.ts`, `packages/tui/test/status-line-model.test.ts`, `packages/tui/test/status-line-path.test.ts` |
+| OWP utils package |  |
+| OWP catalog package | `packages/catalog/src/compat/rules.json`, `packages/catalog/src/compat/rules/classes/anthropic.kdl`, `packages/catalog/test/build.test.ts`, `packages/catalog/test/generated-policies.test.ts`, `packages/catalog/test/synthetic-provider.test.ts`, `packages/catalog/test/yolo-auto-provider.test.ts` |
+| OWP Rust crates |  |
+| OWP scripts | `scripts/eval-bench-runs.ts`, `scripts/session-stats/README.md` |
 | OWP Python RPC | `python/omp-rpc/` |
-| OWP documentation | `docs/` |
-| OWP GitHub config | `.github/` |
-| OWP root config and assets | `package.json`, `bunfig.toml`, `Cargo.toml`, `.gitattributes`, `rust-toolchain.toml`, `rustfmt.toml`, `rust-analyzer.toml`, `Dockerfile`, `.dockerignore`, `LICENSE`, `AGENTS.md`, `.fallowrc.jsonc`, `tsconfig.json`, `tsconfig.base.json`, `tsconfig.tools.json`, `packages/tsconfig.workspace.json`, `assets/`, `types/` |
+| OWP documentation | `docs/ask_session.md`, `docs/bugs/ask-mode-switch-tool-missing.md`, `docs/bugs/bytecode-childprocess-binding.md`, `docs/bugs/debug-mode-lifecycle.md`, `docs/bugs/edit-tool-session-gaps.md`, `docs/bugs/explore-subagent-connection-error.md`, `docs/bugs/plan-mode-resolve-bug.md`, `docs/debug_session.md`, `docs/maintaining-owp-fork.md`, `docs/mode-registry-future-architecture.md`, `docs/notebook-tool-runtime.md`, `docs/web-native-feasibility.md` |
+| OWP GitHub config |  |
+| OWP root config and assets | `package.json`, `bunfig.toml`, `Cargo.toml`, `.gitattributes`, `rust-toolchain.toml`, `rustfmt.toml`, `rust-analyzer.toml`, `Dockerfile`, `.dockerignore`, `LICENSE`, `AGENTS.md`, `.fallowrc.jsonc`, `tsconfig.json`, `tsconfig.base.json`, `tsconfig.tools.json`, `packages/tsconfig.workspace.json` |
 | Command dispatch composition | `packages/coding-agent/src/slash-commands/builtin-registry.ts`, `packages/coding-agent/src/slash-commands/builtin-modes.ts`, `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/tui/src/overlays/extensions/extension-list.ts` |
 | Forklift harness | `.forklift/`, `.omp/skills/forklift-doctor/`, `.omp/skills/forklift-init/`, `.omp/skills/forklift-maintain/`, `.omp/skills/sync-upstream/`, `AGENT.md` |
 
@@ -671,6 +690,11 @@ These commits were previously part of the fork but became empty during rebase be
 
 These upstream paths are intentionally absent from owp. `forklift sync --verify` fails if any other upstream file goes missing.
 
+- `packages/coding-agent/src/edit/apply-patch/` — JS apply-patch module retired - native crates/pi-edit/src/modes/apply_patch.rs adopted (Phase B, 1ef85e092c)
+- `packages/coding-agent/src/edit/modes/apply-patch.lark` — JS apply-patch grammar retired with the JS apply-patch executor - the native grammar owns parsing
+- `packages/coding-agent/src/edit/sloppy.lark` — JS sloppy grammar retired with the JS sloppy executor - native modes/sloppy adopted
+- `packages/coding-agent/src/edit/sloppy.md` — JS sloppy executor documentation retired with the JS sloppy executor
+- `packages/coding-agent/src/edit/sloppy.test.ts` — JS sloppy executor tests retired with the JS sloppy executor - native sloppy mode is covered by crates/pi-edit tests
 - `python/robomp/` — The fork carries only a trimmed subset of upstream robomp (59 tracked files); the remaining upstream paths are absent on purpose and would otherwise be restored by the next sync. The subset that IS kept is fork-modified and is registered under features (OWP Python RPC), not here.
 - `packages/hashline/` — JS hashline retired — upstream native engine (crates/pi-edit) adopted
 - `packages/coding-agent/src/hashline/` — legacy ¶-era hashline module — superseded by native engine
