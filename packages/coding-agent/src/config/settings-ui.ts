@@ -4,6 +4,7 @@ import { SETTING_TABS, type SettingsDisplayEntry, type SettingsHost } from "@oh-
 import { isSettingsInitialized, Settings, settings } from "./settings";
 import { orderedSettings } from "./all-settings";
 import { type AnySetting, lookup } from "./registry";
+import type { SettingPath } from "./settings-schema";
 
 import { cfgPlanAutosave, cfgPlanEnabled } from "../plan-mode/settings";
 import {
@@ -78,8 +79,20 @@ export function createSettingsHost(): SettingsHost {
 	};
 	return {
 		entries,
-		get: path => lookup(path)?.layered(settings),
-		set: (path, value) => resolve(path).set(settings, value),
+		get: path => lookup(path)?.layered(settings) ?? settings.get(path as SettingPath),
+		set: (path, value, scope) =>
+			scope ? settings.set(path as SettingPath, value as never, { scope }) : resolve(path).set(settings, value),
+		getLayer: path => settings.getLayer(path as SettingPath),
+		clear: path => {
+			const layer = settings.getLayer(path as SettingPath);
+			if (layer === "project") {
+				settings.clearProject(path as SettingPath);
+			} else if (layer === "global") {
+				settings.clearGlobal(path as SettingPath);
+			} else if (layer === "override") {
+				settings.clearOverride(path as SettingPath);
+			}
+		},
 		unset: path => resolve(path).unset(settings),
 		normalizeProviderLimits: normalizeProviderMaxInFlightRequests,
 		validateProviderLimits: validateProviderMaxInFlightRequests,
