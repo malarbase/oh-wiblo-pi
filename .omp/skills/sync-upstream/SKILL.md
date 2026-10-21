@@ -292,8 +292,19 @@ git push origin main --force-with-lease
 
 After all conflicts are resolved and compilation passes, perform these bookkeeping steps before force-pushing:
 
-- **Regenerate generated docs.** Run `forklift render --registry .forklift/registry.yaml` — it regenerates SKILL.md and, when `harness.render_fork_commits` is set, refreshes the fork-commits table in `docs/maintaining-owp-fork.md` from git history.
-- **Update feature registry.** If new files were added, removed, or moved, update `.forklift/registry.yaml` and re-render (above).
+- **Converge the commit count and the generated docs in one step.** Run
+  ```bash
+  forklift sync --rebaseline
+  ```
+  It records the fork's commit count in `.forklift/registry.yaml`, re-renders every generated
+  artifact the registry describes (SKILL.md, `AGENT.md`, the fork-commits table in
+  `docs/maintaining-owp-fork.md`), and lands them as one atomic commit — the count it records is the value the
+  range will have once that commit lands, so `forklift doctor` check 5 passes afterwards.
+  Do **not** hand-edit `expected_fork_commit_count` and do **not** re-render into a second
+  commit: the count is self-referencing, and a second render leaves the fork doc one behind.
+  If you already committed something by hand, run `forklift sync --rebaseline-only` — it
+  converges the bookkeeping without fetching or rebasing.
+- **Update feature registry.** If new files were added, removed, or moved, update `.forklift/registry.yaml` and re-run the rebaseline above (it re-renders).
 - **Update divergence list.** If a previously divergent file is now owned by owp, update both lists.
 
 ## Feature Stack
@@ -758,6 +769,8 @@ question: adapt our feature to upstream's change, or drop the upstream change?
 | `--dry-run` | Preview-only: shows what would happen without modifying `main` |
 | `--continue` | Resume a previously started rebase (run checks, push) |
 | `--verify` | Run post-rebase verification suite (conflict markers, symbols, typecheck) |
+| `--rebaseline` | After the rebase: record the fork's commit count, re-render the generated artifacts and land them as one atomic commit (the bookkeeping an agent used to do by hand) |
+| `--rebaseline-only` | Converge the commit count and the generated artifacts on their own — never fetches, never rebases |
 | `--tag` | Create lightweight tags for pre-sync and post-sync commits as remote backups (pushed with `--follow-tags` when `--push` is also set) |
 
 ## After Resolution

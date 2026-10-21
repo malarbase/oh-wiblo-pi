@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `forklift render` — do not edit it by hand; run the command instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 85 fork commits on top of `upstream/main..main`.
+Total: 86 fork commits on top of `upstream/main..main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -136,9 +136,10 @@ Total: 85 fork commits on top of `upstream/main..main`.
 | `ab487e5a0c` | chore(owp): sharpen the robomp removals rule and document the toolchain pins | `.forklift/registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
 | `129bca1f05` | chore(owp): rebaseline the fork commit count to 83 | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 | `ffcc983941` | chore(owp): register the catalog files the fork now owns | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `pending` | chore(owp): re-baseline the task executor footprint entry | `.forklift/footprint-baseline.json`, `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `44cc6fbd40` | chore(owp): re-baseline the task executor footprint entry | `.forklift/footprint-baseline.json`, `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `pending` | chore(owp): rebaseline the fork commit count to 86 | — | chore |
 
-> **Note:** Generated from `git log upstream/main..main`. A row whose commit is still `pending` is the newest commit in the range — its hash is unknown until that commit lands, `forklift render` resolves it on the next render. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
+> **Note:** Generated from `git log upstream/main..main`. A row whose commit is still `pending` is the newest commit in the range — its hash and its file list are unknown until that commit lands, `forklift render` resolves it on the next render. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->
 
 ## Owned Symbols in Shared Files
