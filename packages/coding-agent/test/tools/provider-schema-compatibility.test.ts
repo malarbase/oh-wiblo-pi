@@ -3,8 +3,6 @@ import {
 	adaptSchemaForStrict,
 	normalizeSchemaForCCA,
 	normalizeSchemaForGoogle,
-	type SchemaCompatibilityProvider,
-	type SchemaCompatibilityResult,
 	toolWireSchema,
 	validateSchemaCompatibility,
 	validateStrictSchemaEnforcement,
@@ -16,6 +14,14 @@ import { createVibeTools } from "@oh-my-pi/pi-coding-agent/tools/vibe";
 interface ToolSchemaEntry {
 	name: string;
 	schema: Record<string, unknown>;
+}
+
+function formatCompatibilityIssues(
+	name: string,
+	provider: string,
+	result: { violations: { path: string; message: string }[] },
+): string {
+	return `${name} (${provider}):\n${result.violations.map(v => `  - ${v.path}: ${v.message}`).join("\n")}`;
 }
 
 const testSettings = Settings.isolated({ "tools.xdev": false });
@@ -70,20 +76,6 @@ const toolSchemasPromise: Promise<ToolSchemaEntry[]> = (async () => {
 		.sort(([left], [right]) => left.localeCompare(right))
 		.map(([name, schema]) => ({ name, schema }));
 })();
-
-function formatCompatibilityIssues(
-	toolName: string,
-	provider: SchemaCompatibilityProvider,
-	result: SchemaCompatibilityResult,
-): string {
-	if (result.compatible) {
-		return "";
-	}
-	const details = result.violations
-		.map(violation => `  - ${violation.rule} at ${violation.path}: ${violation.message}`)
-		.join("\n");
-	return `${toolName} (${provider}):\n${details}`;
-}
 
 describe("builtin tool schemas provider compatibility", () => {
 	it("keeps todo strict and marks task non-strict for free-form output schemas", async () => {

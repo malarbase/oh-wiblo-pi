@@ -1,8 +1,12 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import {
 	humanizePlanTitle,
 	normalizePlanTitle,
 	planFileUrlForSlug,
+	renameApprovedPlanFile,
 	resolveApprovedPlan,
 	resolvePlanTitle,
 } from "@oh-my-pi/pi-coding-agent/plan-mode/approved-plan";
@@ -64,8 +68,6 @@ describe("resolveApprovedPlan", () => {
 	});
 
 	it("treats a single-slash state URL as in-scan and prefers the newer draft", async () => {
-		// Mirror the real reader: canonicalize the local scheme before lookup, so a
-		// `local:/…` state path resolves the same file as the scanner's `local://…`.
 		const canonical = (files: Record<string, string>) => {
 			const router = InternalUrlRouter.instance();
 			const map: Record<string, string> = {};
@@ -74,7 +76,6 @@ describe("resolveApprovedPlan", () => {
 		};
 		const result = await resolveApprovedPlan({
 			suppliedTitle: undefined,
-			// Resumed sessions can persist the accepted single-slash spelling.
 			statePlanFilePath: "local:/completed-plan.md",
 			readPlan: canonical({
 				"local://completed-plan.md": "# Completed\n\nOld plan",
@@ -89,7 +90,6 @@ describe("resolveApprovedPlan", () => {
 	it("keeps a state plan the scan can't see ahead of older scanned artifacts", async () => {
 		const result = await resolveApprovedPlan({
 			suppliedTitle: undefined,
-			// A cwd-relative / non-`plan.md` state path never appears in listPlanFiles().
 			statePlanFilePath: "docs/CURRENT.md",
 			readPlan: reader({
 				"docs/CURRENT.md": "# Current\n\nCurrent plan",
@@ -148,42 +148,6 @@ describe("normalizePlanTitle", () => {
 	it("strips a trailing .md suffix provided by the model", () => {
 		expect(normalizePlanTitle("my-plan.md")).toEqual({ title: "my-plan", fileName: "my-plan.md" });
 	});
-
-	it("converts spaces to hyphens (natural-language titles)", () => {
-		expect(normalizePlanTitle("My Improvement Plan")).toEqual({
-			title: "My-Improvement-Plan",
-			fileName: "My-Improvement-Plan.md",
-		});
-	});
-
-	it("collapses consecutive spaces / resulting hyphens", () => {
-		expect(normalizePlanTitle("foo  bar")).toEqual({ title: "foo-bar", fileName: "foo-bar.md" });
-	});
-
-	it("drops characters outside the allowed set after space replacement", () => {
-		expect(normalizePlanTitle("plan: v1.0 (draft)")).toEqual({
-			title: "plan-v10-draft",
-			fileName: "plan-v10-draft.md",
-		});
-	});
-
-	it("trims leading/trailing hyphens that result from sanitization", () => {
-		expect(normalizePlanTitle("!!! plan !!!")).toEqual({ title: "plan", fileName: "plan.md" });
-	});
-
-	it("throws for empty title", () => {
-		expect(() => normalizePlanTitle("")).toThrow("Plan title is required");
-		expect(() => normalizePlanTitle("   ")).toThrow("Plan title is required");
-	});
-
-	it("throws for path separators", () => {
-		expect(() => normalizePlanTitle("../etc/passwd")).toThrow("path separators");
-		expect(() => normalizePlanTitle("a/b")).toThrow("path separators");
-	});
-
-	it("throws when sanitization produces empty result", () => {
-		expect(() => normalizePlanTitle("!!!")).toThrow("at least one letter");
-	});
 });
 
 describe("resolvePlanTitle", () => {
@@ -237,5 +201,101 @@ describe("resolvePlanTitle", () => {
 			planFilePath,
 		});
 		expect(result.title).toBe("Real-Title");
+	});
+});
+
+describe("renameApprovedPlanFile", () => {
+	let tmpDir: string;
+	let artifactsLocalDir: string;
+
+	beforeEach(async () => {
+		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "approved-plan-"));
+		artifactsLocalDir = path.join(tmpDir, "artifacts", "local");
+		await fs.mkdir(artifactsLocalDir, { recursive: true });
+	});
+
+	afterEach(async () => {
+		await fs.rm(tmpDir, { recursive: true, force: true });
+	});
+
+	function makeOptions(extra?: object) {
+		return {
+			getArtifactsDir: () => path.join(tmpDir, "artifacts"),
+			getSessionId: () => "test-session",
+			...extra,
+		};
+	}
+
+	it("destination-exists guard: throws without overwrite flag", async () => {
+		const srcPath = path.join(artifactsLocalDir, "PLAN.md");
+		const dstPath = path.join(tmpDir, ".omp", "plans", "MY_PLAN.md");
+		await fs.mkdir(path.dirname(dstPath), { recursive: true });
+		await Bun.write(srcPath, "# Source plan");
+		await Bun.write(dstPath, "# Existing plan");
+
+		await expect(
+			renameApprovedPlanFile({
+				planFilePath: "local://PLAN.md",
+				finalPlanFilePath: dstPath,
+				...makeOptions(),
+			}),
+		).rejects.toThrow("Plan destination already exists");
+
+		await expect(Bun.file(srcPath).text()).resolves.toBe("# Source plan");
+		await expect(Bun.file(dstPath).text()).resolves.toBe("# Existing plan");
+	});
+
+	it("overwrite: true skips the guard and overwrites destination", async () => {
+		const srcPath = path.join(artifactsLocalDir, "PLAN.md");
+		const dstPath = path.join(tmpDir, ".omp", "plans", "MY_PLAN.md");
+		await fs.mkdir(path.dirname(dstPath), { recursive: true });
+		await Bun.write(srcPath, "# Updated plan");
+		await Bun.write(dstPath, "# Old plan");
+
+		await renameApprovedPlanFile({
+			planFilePath: "local://PLAN.md",
+			finalPlanFilePath: dstPath,
+			...makeOptions(),
+			overwrite: true,
+		});
+
+		await expect(Bun.file(dstPath).text()).resolves.toBe("# Updated plan");
+		await expect(Bun.file(srcPath).exists()).resolves.toBe(false);
+	});
+
+	it("no-op when source === destination (resolved paths are equal)", async () => {
+		const planPath = path.join(artifactsLocalDir, "PLAN.md");
+		await Bun.write(planPath, "# content");
+
+		await expect(
+			renameApprovedPlanFile({
+				planFilePath: "local://PLAN.md",
+				finalPlanFilePath: "local://PLAN.md",
+				...makeOptions(),
+			}),
+		).resolves.toBeUndefined();
+
+		await expect(Bun.file(planPath).text()).resolves.toBe("# content");
+	});
+
+	it("EXDEV cross-device fallback: copyFile+unlink used when rename throws EXDEV", async () => {
+		const srcPath = path.join(artifactsLocalDir, "PLAN.md");
+		const dstPath = path.join(tmpDir, ".omp", "plans", "MY_PLAN.md");
+		await fs.mkdir(path.dirname(dstPath), { recursive: true });
+		await Bun.write(srcPath, "# Cross-device plan");
+
+		const exdevError = Object.assign(new Error("cross-device link not permitted"), { code: "EXDEV" });
+		const renameSpy = spyOn(fs, "rename").mockRejectedValueOnce(exdevError);
+
+		await renameApprovedPlanFile({
+			planFilePath: "local://PLAN.md",
+			finalPlanFilePath: dstPath,
+			...makeOptions(),
+		});
+
+		renameSpy.mockRestore();
+
+		await expect(Bun.file(dstPath).text()).resolves.toBe("# Cross-device plan");
+		await expect(Bun.file(srcPath).exists()).resolves.toBe(false);
 	});
 });

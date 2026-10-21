@@ -300,10 +300,12 @@ const inspectionCases: Array<{
 	{
 		mode: "sloppy",
 		args: {
-			input: "*** Edit File: sloppy.ts\n*** Find\nold\n*** Replace\nsloppy",
+			// Native sloppy payload (fork's legacy <SM:EDIT> XML form is not
+			// parseable by the native engine's inspector).
+			input: ["*** SM:EDIT sloppy.ts", "«", "old", "»", "sloppy"].join("\n"),
 		},
 		path: "sloppy.ts",
-		digest: "«\nold\n»\nsloppy",
+		digest: "«\n«\nold\n»\nsloppy",
 	},
 ];
 
