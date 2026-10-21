@@ -31,12 +31,12 @@ feature branch           upstream/main
 
 ## Last Sync Point
 
-**Upstream base:** `10b867cb2e` (merge-base of `upstream/main` and `main`)
-**Date:** 2026-09-20 (history rebuild), rebaselined 2026-10-21
-**omp commits since:** 9047 (`upstream/main` at `2056e7d105`, 2026-10-21)
+**Upstream base:** `2056e7d105` (`upstream/main`, 2026-10-21)
+**Date:** 2026-10-21 (topical history rebuild onto upstream/main)
+**omp commits since:** 0 - the fork sits on upstream's tip
 To generate patches for your next sync:
 ```bash
-git format-patch 10b867cb2eeb7809b883a88dfebe1919ff0c2764..upstream/main
+git format-patch 2056e7d1051e3b47e56b5d90659d3a28a78ef18d..upstream/main
 ```
 
 Update this section after each successful rebase.
@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `forklift render` — do not edit it by hand; run the command instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 78 fork commits on top of `upstream/main..main`.
+Total: 79 fork commits on top of `upstream/main..main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -129,7 +129,8 @@ Total: 78 fork commits on top of `upstream/main..main`.
 | `41e7e92efb` | chore(owp): re-baseline the fork footprint after the rebuild | `.forklift/footprint-baseline.json` | chore |
 | `af08a38ae8` | chore(owp): rebaseline the fork commit count to 76 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 | `4408f058e2` | chore(owp): drop the stale SEARCH_PROVIDER_OPTIONS owned symbol | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `pending` | chore(owp): refresh the owned-symbol registry after the rebuild | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `18bd27a5ae` | chore(owp): refresh the owned-symbol registry after the rebuild | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `pending` | chore(owp): prune the stats owned symbols and record the new sync point | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. A row whose commit is still `pending` is the newest commit in the range — its hash is unknown until that commit lands, `forklift render` resolves it on the next render. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->

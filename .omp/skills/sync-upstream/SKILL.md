@@ -579,9 +579,7 @@ owns inside shared files.
 
 | Feature | Symbol | Location | Description |
 |---------|--------|----------|-------------|
-| getModelTimeSeries | — | Fork graft (auto-derived from live diff) |
 | rows | — | Fork graft (auto-derived from live diff) |
-| getModelPerformanceSeries | — | Fork graft (auto-derived from live diff) |
 
 ### approved-plan.ts (packages/coding-agent/src/plan-mode/approved-plan.ts)
 
