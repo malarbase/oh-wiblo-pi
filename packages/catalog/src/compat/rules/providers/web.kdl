@@ -160,6 +160,24 @@ provider "web" {
 			limits
 			supports-tools #false
 		}
+		// OWP fork engines: rows must exist for `resolveRoleChain("web", ...)`
+		// to ever select them (the chain only picks catalog `web/<id>` models),
+		// and the ids match the fork's PROVIDER_LOADERS keys in
+		// packages/coding-agent/src/web/search/provider.ts.
+		model "serpapi" name="SerpAPI" {
+			reasoning #false
+			input "text"
+			cost input=0 output=0 cache-read=0 cache-write=0
+			limits
+			supports-tools #false
+		}
+		model "google-ai" name="Google AI" {
+			reasoning #false
+			input "text"
+			cost input=0 output=0 cache-read=0 cache-write=0
+			limits
+			supports-tools #false
+		}
 	}
 
 	models "*" {
