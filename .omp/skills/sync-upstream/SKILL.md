@@ -626,7 +626,6 @@ owns inside shared files.
 
 | Feature | Symbol | Location | Description |
 |---------|--------|----------|-------------|
-| SEARCH_PROVIDER_OPTIONS | — | Fork graft (auto-derived from live diff) |
 | SEARCH_PROVIDER_LABELS | — | Fork graft (auto-derived from live diff) |
 
 ### auth-broker-config.ts (packages/coding-agent/src/session/auth-broker-config.ts)
