@@ -741,7 +741,10 @@ export class StatusLineComponent<TSession extends StatusLineSession = StatusLine
 	 * dropped from the registry); the main session's meter survives focus
 	 * round-trips because the same {@link StatusLineSession} ref is reused.
 	 */
+
 	#activeMeters: WeakMap<TSession, ActiveMeter> = new WeakMap();
+	#askModeStatus: { enabled: boolean } | null = null;
+	#debugModeStatus: { enabled: boolean } | null = null;
 	#planModeStatus: { enabled: boolean; paused: boolean } | null = null;
 	#loopModeStatus: SegmentContext["loopMode"] = null;
 	#goalModeStatus: { enabled: boolean; paused: boolean } | null = null;
@@ -1141,6 +1144,14 @@ export class StatusLineComponent<TSession extends StatusLineSession = StatusLine
 		}
 		this.#planModeStatus = next;
 		this.#invalidateStatusLineRenderCache();
+	}
+
+	setAskModeStatus(status: { enabled: boolean } | undefined): void {
+		this.#askModeStatus = status ?? null;
+	}
+
+	setDebugModeStatus(status: { enabled: boolean } | undefined): void {
+		this.#debugModeStatus = status ?? null;
 	}
 
 	setLoopModeStatus(status: NonNullable<SegmentContext["loopMode"]> | undefined): void {
@@ -2605,6 +2616,8 @@ export class StatusLineComponent<TSession extends StatusLineSession = StatusLine
 			options: segmentOptions ?? {},
 			compactThinkingLevel: this.#resolveSettings().compactThinkingLevel ?? false,
 			hookStatuses: this.#sortedHookStatuses,
+			askMode: this.#askModeStatus,
+			debugMode: this.#debugModeStatus,
 			planMode: this.#planModeStatus,
 			loopMode: this.#loopModeStatus,
 			prewalk:
