@@ -59,6 +59,46 @@ Rules that keep the registry honest:
 - A path gone from the fork on purpose goes in `removals` with a `reason`. Ambiguity defaults to **restore**: the rebuild restores anything unclassified, so an unrecorded deletion comes back.
 - `expected_fork_commit_count` is a verified measurement, not a target. Update it only after a rebuild or a deliberate commit-drop you can name in the commit.
 
+## Register a feature
+
+A feature the fork just gained must be **registered** before the next sync: the registry is the
+fork's memory, and a path nobody claimed is a path the next rebase may overwrite.
+
+Gather the change first:
+
+```bash
+git log --oneline -1
+git diff --name-only HEAD~1 HEAD
+```
+
+Then add an entry to `.forklift/registry.yaml`:
+
+- `name` — the feature, in the fork's own words.
+- `owned_paths` — the files this feature owns, relative to the repo root. One path, one section:
+  - a file the fork **overrides** → `owned_paths` (prefer ours when it conflicts with upstream);
+  - a file the fork **touches but does not override** → `divergences` with a `reason`;
+  - a file the fork **deleted on purpose** → `removals` with a `reason`.
+- `protecting_tests` — at least one test that passes today and fails if the feature is lost. That
+  is the alarm that survives an upstream refactor, unlike a symbol grep. A feature with no
+  testable behavior (pure config, docs, build wiring) says so instead:
+  `coverage_exempt: "<why>"`.
+- `owned_symbols` — when the feature puts code inside a file upstream also owns
+  (`harness.shared_files`), register the fork's symbol under the feature's `owned_symbols`; that
+  is what tells the sync which lines to preserve. Keep the fork's code in its own file and import
+  it from the shared one.
+
+Then refresh the generated artifacts and audit the result:
+
+```bash
+forklift render --registry .forklift/registry.yaml
+forklift install
+forklift doctor
+```
+
+**Done means** `forklift doctor` is green, the feature is covered (its protecting test is
+registered), and — if it touches a shared file — the fork's symbol is registered under
+`owned_symbols`. A feature that survives a rebase by luck will not survive twice.
+
 ## Advisory sentences
 
 The rules file and the checklist extension carry short judgment text into the agent's own context (`harness.rules_advisory`, `harness.extension_advisory`). A sentence earns its place only if it states a decision the code cannot:
@@ -117,7 +157,7 @@ git add <fork_doc> && git commit --amend --no-edit
 
 After every successful sync, update the `Last Sync Point` bookkeeping in `harness.fork_doc`. `forklift sync` prints the exact values — the upstream head it rebased onto, the fork commit count, and the date — so copy them from its output rather than recomputing. A fork doc that lags is the first thing the next session misreads.
 
-## `forklift reorg` — the decision tree
+## Rebuilding the history
 
 **Rare, non-routine, never part of a routine sync.** `forklift sync` is the everyday operation. A rebuild rewrites `fork.main`'s history — reach for it only when:
 
