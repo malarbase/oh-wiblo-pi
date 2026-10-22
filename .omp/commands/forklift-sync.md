@@ -1,5 +1,5 @@
 <!-- forklift v1 -->
-# Sync Upstream
+# Forklift: Sync
 
 Rebase `main` against `main` (oh-my-pi -> oh-wiblo-pi).
 

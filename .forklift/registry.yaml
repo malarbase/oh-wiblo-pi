@@ -19,7 +19,7 @@
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
 generatedAt: "2026-10-21T17:42:46Z"
-expected_fork_commit_count: 86
+expected_fork_commit_count: 87
 
 harness:
   version: 1
@@ -347,7 +347,6 @@ features:
     description: "legacy skill dir retired; the harness now lives in npm @whiteblossom/forklift and renders into this repo"
     owned_paths:
       - ".forklift/registry.yaml"
-      - ".omp/commands/sync-upstream.md"
       - ".omp/rules/owp-feature-registry.md"
 
   - name: "feature-checklist extension"
@@ -365,7 +364,6 @@ features:
 
   - name: "mise.toml + native rebuild docs"
     owned_paths:
-      - ".omp/commands/sync-upstream.md"
       - "mise.toml"
 
   - name: "Bazel build config (hermetic PATH, crate annotations)"
@@ -465,7 +463,6 @@ features:
       - ".omp/commands/fix-issues.md"
       - ".omp/commands/release.md"
       - ".omp/commands/review-prs.md"
-      - ".omp/commands/sync-upstream.md"
       - ".omp/commands/triage.md"
 
   - name: "OWP spec docs"
@@ -900,6 +897,11 @@ features:
       - ".omp/skills/forklift-init/"
       - ".omp/skills/forklift-maintain/"
       - ".omp/skills/sync-upstream/"
+      - ".omp/commands/forklift-bootstrap.md"
+      - ".omp/commands/forklift-feature.md"
+      - ".omp/commands/forklift-sync.md"
+      - ".omp/commands/forklift-audit.md"
+      - ".omp/commands/forklift-rebuild.md"
       - "AGENT.md"
 
 # Intentional divergences — files that upstream owns and we always take upstream for.
@@ -1042,6 +1044,8 @@ divergences:
 
 # Intentional deletions — upstream files absent from owp on purpose.
 removals:
+  - path: ".omp/commands/sync-upstream.md"
+    reason: "the fork's sync command was renamed to .omp/commands/forklift-sync.md so the harness command family is uniform (/forklift-*); the forklift install writes the new stub and removes the old one"
   - path: "packages/coding-agent/src/edit/apply-patch/"
     reason: "JS apply-patch module retired - native crates/pi-edit/src/modes/apply_patch.rs adopted (Phase B, 1ef85e092c)"
   - path: "packages/coding-agent/src/edit/modes/apply-patch.lark"
