@@ -19,7 +19,7 @@
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
 generatedAt: "2026-10-21T17:42:46Z"
-expected_fork_commit_count: 87
+expected_fork_commit_count: 88
 
 harness:
   version: 1
@@ -902,6 +902,7 @@ features:
       - ".omp/commands/forklift-sync.md"
       - ".omp/commands/forklift-audit.md"
       - ".omp/commands/forklift-rebuild.md"
+      - ".omp/commands/forklift.md"
       - "AGENT.md"
 
 # Intentional divergences — files that upstream owns and we always take upstream for.
