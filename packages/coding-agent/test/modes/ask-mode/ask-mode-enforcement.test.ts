@@ -109,9 +109,12 @@ describe("ask mode enforcement via createTools", () => {
 
 		const result = await switchMode.execute("switch-ask", { mode: "agent", reason: "make the edit" });
 
+		// The call is not refused: the tool runs and reports the mode it found.
+		// This session cannot ask the user, so the switch itself is unavailable —
+		// but the escape hatch stays reachable.
 		const text = textOf(result);
-		expect(text).not.toContain("Ask mode");
-		expect(text).toContain("Requested switch to agent mode");
+		expect(text).not.toContain("Cannot use");
+		expect(text).toContain("Harness mode: agent");
 	});
 
 	it("lets write through when ask mode is off", async () => {

@@ -192,6 +192,14 @@ import { listPlanFiles, readPlanFile, resolvePlanFilePath } from "../plan-mode/p
 import { loadOverallPlanReference } from "../plan-mode/plan-handoff";
 import { createPlanApprovalResolveHandler } from "../plan-mode/resolve-handler";
 import type { PlanModeState } from "../plan-mode/state";
+import {
+	AGENT_MODE_SNAPSHOT,
+	MODE_LABELS,
+	type ModeController,
+	type ModeSnapshot,
+	type ModeSwitchOutcome,
+	type SessionMode,
+} from "../modes/mode-state";
 import { getFinalPlanPath } from "../plan-mode/storage";
 import goalModeContextPrompt from "../prompts/goals/goal-mode-context.md" with { type: "text" };
 import goalTodoContextPrompt from "../prompts/goals/goal-todo-context.md" with { type: "text" };
@@ -3001,6 +3009,36 @@ export class AgentSession implements SettingsScope {
 	/** The handler can ask the user to approve the plan mid-turn (ACP), so it runs as a {@link waitForUser}. */
 	setPlanProposalHandler(handler: PlanProposalHandler | null): void {
 		this.#planProposalHandler = handler ? title => this.waitForUser(() => handler(title)) : undefined;
+	}
+
+	#modeController: ModeController | undefined;
+
+	/**
+	 * The mode controller: the TUI owns the mode state and hands the session a
+	 * way to read it and to ask for a switch. Headless sessions leave it
+	 * unset — they have no mode to speak of and no user to ask.
+	 */
+	setModeController(controller: ModeController | null): void {
+		this.#modeController = controller ?? undefined;
+	}
+
+	/** The live mode snapshot. Derived from the harness state, never cached. */
+	getModeSnapshot(): ModeSnapshot {
+		return this.#modeController?.getModeSnapshot() ?? AGENT_MODE_SNAPSHOT;
+	}
+
+	/** Ask the user to confirm a mode switch and perform it. */
+	async requestModeSwitch(target: SessionMode, reason?: string): Promise<ModeSwitchOutcome> {
+		const controller = this.#modeController;
+		if (!controller) {
+			const mode = this.getModeSnapshot().mode;
+			return {
+				status: "unavailable",
+				mode,
+				message: `Harness mode: ${MODE_LABELS[mode]}. Mode switching needs an interactive session — this session cannot ask the user.`,
+			};
+		}
+		return controller.requestModeSwitch(target, reason);
 	}
 
 	#sessionBeforeSwitchReconciler: (() => Promise<void>) | undefined;

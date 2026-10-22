@@ -5,9 +5,9 @@
 This document records a deliberate deferral: owp (oh-wiblo-pi) does **not** build a
 Zoo-Code-style `ModeConfig` abstraction or support custom modes in the current
 implementation. The `switch_mode` tool shipped alongside this doc is the load-bearing
-bridge to that future — its `mode: z.enum(["agent", "ask"])` parameter is designed to
-widen to `mode: string` (resolved against a future `ModeRegistry`) **without** changing
-the tool's signature, the event-controller reaction, or the `handleSwitchModeTool`
+bridge to that future — its `mode` parameter (now `"agent" | "ask" | "plan" | "debug" | "goal"`)
+is designed to widen to `mode: string` (resolved against a future `ModeRegistry`)
+**without** changing the tool's signature or the session-side `requestModeSwitch`
 interface. This doc captures why the registry was deferred and what prerequisites would
 reopen the decision, so the next engineer (or future-you after a rebase) doesn't
 relitigate it.
@@ -15,6 +15,9 @@ relitigate it.
 Reference points:
 
 - omp's current `switch_mode` tool: `packages/coding-agent/src/tools/switch-mode.ts`
+- omp's mode derivation: `packages/coding-agent/src/modes/mode-state.ts` — the mode is
+  derived from the live flags (`deriveModeSnapshot`), never cached, and the tool reads
+  it through `ToolSession.getModeSnapshot`.
 - omp's `ToolSession` accessor: `getAskModeState?: () => AskModeState | undefined`
   (`packages/coding-agent/src/tools/index.ts`, next to `getPlanModeState`).
 - omp's ask-mode guard: `packages/coding-agent/src/modes/ask-mode/ask-mode-guard.ts`
@@ -82,8 +85,8 @@ interface ModeConfig {
 ## Decision
 
 **Defer building a `ModeConfig` registry and custom-modes support.** Ship the
-`switch_mode` tool with a fixed `mode: z.enum(["agent", "ask"])` parameter. The enum
-is the seam where a future `ModeRegistry` plugs in; widening it to a slug string
+`switch_mode` tool with a fixed `mode` enum — now `"agent" | "ask" | "plan" | "debug" | "goal"`.
+The enum is the seam where a future `ModeRegistry` plugs in; widening it to a slug string
 requires changing only the parameter validation, not the tool's contract.
 
 ## Why deferred
@@ -128,9 +131,8 @@ Revisit the registry decision when ANY of these becomes true:
   full prompt replacement, the registry abstraction starts paying for itself.
 - **`switch_mode`'s `mode` enum needs to widen to a slug string parameter.** This is
   the load-bearing seam — when it does, the registry plugs in here. The tool's
-  contract, the event-controller reaction (`handleSwitchModeTool`), and the
-  `InteractiveMode.handleSwitchModeTool` implementation all stay unchanged; only the
-  param schema widens and a `ModeRegistry` resolves the slug to a mode-lifecycle
+  contract and the session-side `requestModeSwitch` interface all stay unchanged; only
+  the param schema widens and a `ModeRegistry` resolves the slug to a mode-lifecycle
   handler.
 
 ## Bridge from this implementation
@@ -138,13 +140,15 @@ Revisit the registry decision when ANY of these becomes true:
 The `switch_mode` tool implemented in `packages/coding-agent/src/tools/switch-mode.ts`
 is that load-bearing bridge. Specifically:
 
-- **Param shape**: `mode: z.enum(["agent", "ask"])` widens to `mode: z.string()` by
-  replacing one line in the schema. The `SwitchModeDetails { targetMode, reason }`
-  interface already uses `string`, not the enum, so callers don't change.
-- **Reaction pattern**: `event-controller.ts` reacts to a successful `switch_mode`
-  execution by calling `ctx.handleSwitchModeTool(details)`. This is mode-agnostic —
-  when a registry exists, `handleSwitchModeTool` dispatches to the registered
-  mode-lifecycle handler (entered/exited) keyed by `details.targetMode`.
+- **Param shape**: `mode` widens to a slug string by replacing one line in the schema.
+  The `SwitchModeDetails { targetMode, reason }` interface already uses `string`, not
+  the enum, so callers don't change.
+- **Reaction pattern**: the tool performs the switch itself — it reads the live mode
+  through `ToolSession.getModeSnapshot`, asks the session to switch
+  (`ToolSession.requestModeSwitch`), and reports the outcome in its result. The
+  session-side `requestModeSwitch` is mode-agnostic: when a registry exists, it
+  dispatches to the registered mode-lifecycle handler (entered/exited) keyed by the
+  target mode.
 - **Gate**: `isToolAllowed("switch_mode") = askModeActive || planModeActive` in
   `createTools` (`packages/coding-agent/src/tools/index.ts`). When a registry exists,
   this becomes "the target mode is registered and the current mode permits
@@ -152,9 +156,9 @@ is that load-bearing bridge. Specifically:
 
 ## Out of scope for the registry work
 
-- **goal↔agent and debug↔agent transitions** via `switch_mode` are not wired today
-  (only ask↔agent and plan→agent). The registry would subsume these as part of the
-  generic mode-lifecycle handler.
+- **goal↔agent and debug↔agent transitions** via `switch_mode` are handled by the
+  same generic routine, but their *entry* semantics (goal budget, debug log server)
+  are not part of the registry's job.
 - **Refactoring `wrapToolWithAskModeGuard` away entirely.** Kept as defense-in-depth
   for MCP/extension tools that don't have in-tool guards. The primary enforcement
   path is `enforceAskModeGuard` calls inside each tool's `execute()`.

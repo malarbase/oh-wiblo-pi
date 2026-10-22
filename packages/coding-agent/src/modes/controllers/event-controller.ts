@@ -51,7 +51,6 @@ import { previewLine, PREVIEW_LIMITS, TRUNCATE_LENGTHS } from "@oh-my-pi/pi-tui/
 import { PROPOSE_DEVICE_NAME } from "@oh-my-pi/pi-tui/tools/resolve";
 import { type ResolveDetails, writeDeviceDispatch } from "../../tools/resolve";
 import { type PlanApprovalDetails } from "../../plan-mode/approved-plan";
-import type { SwitchModeDetails } from "../../tools/switch-mode";
 import type { AskFollowupDetails } from "../../tools/ask-followup-question";
 import { nextActionableTask } from "../../tools/todo";
 import { SpeechEnhancer } from "../../tts/speech-enhancer";
@@ -2267,12 +2266,6 @@ export class EventController {
 				if (planDetails) {
 					await this.ctx.handlePlanApproval(planDetails);
 				}
-			}
-		}
-		if (event.toolName === "switch_mode" && !event.isError) {
-			const details = event.result.details as SwitchModeDetails | undefined;
-			if (details) {
-				await this.ctx.handleSwitchModeTool(details);
 			}
 		}
 		if (event.toolName === "ask_followup_question" && !event.isError) {

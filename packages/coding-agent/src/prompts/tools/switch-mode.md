@@ -24,3 +24,5 @@ Call this tool when one of the following is true:
 # After the call
 
 The user is shown a confirmation prompt. If approved, the mode switches and you should adapt to the new mode's behavior. If rejected, stay in the current mode and adapt — do not re-issue `switch_mode` with the same arguments in a loop.
+
+The result states the mode the harness is in — `Switched to … mode`, `Already in … mode — no switch performed`, or that the user declined. That line is the harness's actual state: take it as the truth, adapt to it, and do not ask for the same mode again.

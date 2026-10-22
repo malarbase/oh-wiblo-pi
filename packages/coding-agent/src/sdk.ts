@@ -366,6 +366,7 @@ import {
 import { cfgInterruptMode } from "./modes/settings";
 import { cfgFollowUpMode } from "./modes/settings";
 import { cfgSteeringMode } from "./modes/settings";
+import { AGENT_MODE_SNAPSHOT, formatCurrentModeLine } from "./modes/mode-state";
 import {
 	cfgCommandsEnableClaudeProject,
 	cfgCommandsEnableClaudeUser,
@@ -2470,6 +2471,10 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 			getServiceTierByFamily: () => session?.serviceTierByFamily,
 			getImageAttachments: () => session?.getImageAttachments() ?? [],
 			getPlanModeState: () => session?.getPlanModeState(),
+			// The live mode: the TUI derives it from its own state, so a tool
+			// never has to keep a copy that could go stale.
+			getModeSnapshot: () => session?.getModeSnapshot(),
+			requestModeSwitch: (target, reason) => session?.requestModeSwitch(target, reason),
 			// Ask-mode read-only enforcement reads this on every tool call; without
 			// the accessor the in-tool guards silently no-op in production.
 			getAskModeState: () => session?.getAskModeState(),
@@ -4101,6 +4106,14 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 					appendParts.push(`### ${srvName}\n${truncated}`);
 				}
 			}
+			// The mode the harness is in, stated for the model. Without it the
+			// model can only infer the mode from the presence of a mode context,
+			// and a mode change that leaves no trace in the prompt (a plan
+			// approval) leaves it guessing — which is how it ends up asking for a
+			// switch it is already in. Before the session exists the mode is
+			// agent mode; the TUI rebuilds the prompt once it knows better.
+			const modeSnapshot = hasSession ? session?.getModeSnapshot() : undefined;
+			appendParts.push(formatCurrentModeLine(modeSnapshot ?? AGENT_MODE_SNAPSHOT));
 			// Fork mode directives (ask mode) close the prompt: last position keeps
 			// the provider's cached prefix byte-stable, and a wholesale rebuild on
 			// every mode transition keeps the directive from ever going stale.

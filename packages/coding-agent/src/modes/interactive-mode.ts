@@ -135,6 +135,15 @@ import { resolvePlanModelTransition } from "../plan-mode/model-transition";
 import { autosaveApprovedPlan, planSaveFileName } from "../plan-mode/plan-autosave";
 import type { PlanModeLoadedFrom } from "../plan-mode/state";
 import {
+	deriveModeSnapshot,
+	MODE_FROM_NAME,
+	MODE_LABELS,
+	type ModeSnapshot,
+	type ModeSwitchOutcome,
+	modeRequestIsNoop,
+	type SessionMode,
+} from "./mode-state";
+import {
 	getFinalPlanPath,
 	listSavedPlans,
 	type PlanStorage,
@@ -1342,9 +1351,29 @@ export class InteractiveMode implements InteractiveModeContext {
 	goalModeEnabled = false;
 	goalModePaused = false;
 	vibeModeEnabled = false;
-	#activeMode: "none" | "ask" | "plan" | "debug" | "goal" = "none";
-	get activeMode(): "none" | "ask" | "plan" | "debug" | "goal" {
-		return this.#activeMode;
+	/**
+	 * The mode the harness is in, derived from the live flags.
+	 *
+	 * Derived, never cached: a plan approval, `/plan`, `/plan load` and a
+	 * session restore all change the mode without running the switch routine,
+	 * and a cached mode makes `switch_mode` report a state the harness is not
+	 * in. A paused plan/goal still reads as that mode — the session is a plan
+	 * (goal) session, just suspended — so `switch_mode("plan")` resumes it
+	 * rather than short-circuiting.
+	 */
+	get modeSnapshot(): ModeSnapshot {
+		return deriveModeSnapshot({
+			askModeEnabled: this.askModeEnabled,
+			debugModeEnabled: this.debugModeEnabled,
+			planModeEnabled: this.planModeEnabled,
+			planModePaused: this.planModePaused,
+			goalModeEnabled: this.goalModeEnabled,
+			goalModePaused: this.goalModePaused,
+		});
+	}
+	/** The mode the harness is in, as the model sees it ("agent" for `"none"`). */
+	get activeMode(): SessionMode {
+		return this.modeSnapshot.mode;
 	}
 	planModePlanFilePath: string | undefined = undefined;
 	loopModeEnabled = false;
@@ -2584,6 +2613,14 @@ export class InteractiveMode implements InteractiveModeContext {
 			await this.#quiesceVibeForSessionSwitch();
 		});
 		this.session.setSessionSwitchReconciler?.(() => this.#reconcileModeFromSession({ preserveActiveGoal: true }));
+		// The tool layer reads the live mode and asks for switches through the
+		// session; the TUI owns the mode state, so it provides both. Registering
+		// it before the first prompt build keeps the mode the model is told
+		// about the mode the harness is in.
+		this.session.setModeController?.({
+			getModeSnapshot: () => this.modeSnapshot,
+			requestModeSwitch: (target, reason) => this.requestModeSwitch(target, reason),
+		});
 		await logger.time("InteractiveMode.init:reconcileMode", () => this.#reconcileModeFromSession());
 
 		// Brand-new sessions optionally start in plan mode when the user has made it
@@ -6450,59 +6487,96 @@ export class InteractiveMode implements InteractiveModeContext {
 			this.showError(`Failed to load plan: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
-	async handleSwitchModeTool(details: { targetMode: string; reason?: string }): Promise<void> {
-		const target = details.targetMode;
-		const reason = details.reason?.trim();
-		const modeMap: Record<string, "none" | "ask" | "plan" | "debug" | "goal"> = {
-			agent: "none",
-			ask: "ask",
-			plan: "plan",
-			debug: "debug",
-			goal: "goal",
-		};
-		const next = modeMap[target];
-		if (next === undefined) {
-			this.showStatus(`Unknown mode: ${target}`);
-			return;
+	/**
+	 * Perform a mode switch on behalf of the model.
+	 *
+	 * The comparison is against the *derived* mode, so "already in X" is only
+	 * said when it is true. The outcome carries the mode the harness ended up
+	 * in, because the status line is TUI-only: this text is the only place the
+	 * model learns whether the switch happened.
+	 */
+	async requestModeSwitch(target: SessionMode, reason?: string): Promise<ModeSwitchOutcome> {
+		const label = MODE_LABELS[target];
+		const snapshot = this.modeSnapshot;
+		if (modeRequestIsNoop(snapshot, target)) {
+			const message = `Harness mode: ${MODE_LABELS[snapshot.mode]}. Already in ${label} mode — no switch performed.`;
+			this.showStatus(`Already in ${label} mode.`);
+			return { status: "already", mode: snapshot.mode, message };
 		}
-		// No-op when the harness is already in the target mode. Skipping the
-		// confirm dialog prevents the user from being prompted to re-approve a
-		// state they're already in, and matches the short-circuit behaviour of
-		// `handleAskModeCommand` / `handleDebugModeCommand`.
-		if (next === this.#activeMode) {
-			this.showStatus(`Already in ${target} mode.`);
-			return;
-		}
-		const message = reason
-			? `The agent requests switching to ${target} mode: ${reason}`
-			: `The agent requests switching to ${target} mode.`;
-		const confirmed = await this.showHookConfirm(`Switch to ${target} mode?`, message);
+		const request = reason?.trim()
+			? `The agent requests switching to ${label} mode: ${reason.trim()}`
+			: `The agent requests switching to ${label} mode.`;
+		const confirmed = await this.showHookConfirm(`Switch to ${label} mode?`, request);
 		if (!confirmed) {
+			const message = `Harness mode: ${MODE_LABELS[snapshot.mode]}. The user declined the switch to ${label} mode — the harness is still in ${MODE_LABELS[snapshot.mode]} mode.`;
 			this.showStatus("Mode switch cancelled.");
+			return { status: "cancelled", mode: snapshot.mode, message };
+		}
+		try {
+			await this.#setActiveMode(target);
+		} catch (error) {
+			const detail = error instanceof Error ? error.message : String(error);
+			const after = this.modeSnapshot;
+			const message = `Harness mode: ${MODE_LABELS[after.mode]}. The switch to ${label} mode failed: ${detail}`;
+			this.showError(`Failed to switch to ${label} mode: ${detail}`);
+			return { status: "failed", mode: after.mode, message };
+		}
+		const after = this.modeSnapshot;
+		if (after.mode !== target) {
+			// The transition was requested and approved but did not take (a mode
+			// that cannot be entered while another one holds the session). Report
+			// where the harness actually is instead of claiming the switch.
+			const message = `Harness mode: ${MODE_LABELS[after.mode]}. The switch to ${label} mode did not take effect — the harness is still in ${MODE_LABELS[after.mode]} mode.`;
+			this.showWarning(`Could not enter ${label} mode.`);
+			return { status: "failed", mode: after.mode, message };
+		}
+		const message = `Harness mode: ${MODE_LABELS[after.mode]}. Switched to ${label} mode.`;
+		this.showStatus(`${label} mode enabled`);
+		return { status: "switched", mode: after.mode, message };
+	}
+	/**
+	 * The `ask_followup_question` path: the user already picked a mode in the
+	 * question's options, so the switch needs no second confirmation.
+	 */
+	async handleSwitchModeTool(details: { targetMode: string; reason?: string }): Promise<void> {
+		const next = MODE_FROM_NAME[details.targetMode];
+		if (next === undefined) {
+			this.showStatus(`Unknown mode: ${details.targetMode}`);
+			return;
+		}
+		const snapshot = this.modeSnapshot;
+		if (modeRequestIsNoop(snapshot, next)) {
+			this.showStatus(`Already in ${MODE_LABELS[next]} mode.`);
 			return;
 		}
 		await this.#setActiveMode(next);
-		this.showStatus(`${target} mode enabled`);
+		this.showStatus(`${MODE_LABELS[next]} mode enabled`);
 	}
 	/**
 	 * Atomic mode transition: exits current mode, enters next mode,
 	 * updates status, records transition, and rebuilds system prompt.
 	 * Single point of truth for all mode transitions.
 	 */
-	async #setActiveMode(
-		next: "none" | "ask" | "plan" | "debug" | "goal",
-		options?: { silent?: boolean },
-	): Promise<void> {
+	async #setActiveMode(next: SessionMode, options?: { silent?: boolean }): Promise<void> {
+		// The mode is derived from the live flags, so the "already there" test
+		// and the exit branch below agree with what the harness actually is —
+		// including after a plan approval or a `/plan` toggle, which change the
+		// mode without running this routine.
+		const current = this.modeSnapshot;
 		// No-op when target equals current. Defence-in-depth: even if a caller
 		// reaches this path with the same mode (e.g. via a future code path
-		// that bypasses handleSwitchModeTool's check), skip the exit/enter
+		// that bypasses requestModeSwitch's check), skip the exit/enter
 		// cycle to avoid flipping tool state and rebuilding the system prompt
 		// for nothing.
-		if (next === this.#activeMode) {
+		if (
+			next === current.mode &&
+			!(next === "plan" && current.planPaused) &&
+			!(next === "goal" && current.goalPaused)
+		) {
 			return;
 		}
 		// 1. Exit current mode
-		switch (this.#activeMode) {
+		switch (current.mode) {
 			case "ask":
 				await this.session.disableAskMode();
 				this.askModeEnabled = false;
@@ -6523,8 +6597,10 @@ export class InteractiveMode implements InteractiveModeContext {
 				this.goalModePaused = false;
 				break;
 		}
-		// 2. Set authoritative field
-		this.#activeMode = next;
+		// 2. Leave no suspended mode behind: a paused plan/goal is over once
+		// the session moves on (or resumes it, which re-enters below).
+		this.planModePaused = false;
+		this.goalModePaused = false;
 		// 3. Enter next mode
 		switch (next) {
 			case "ask":
@@ -6544,7 +6620,7 @@ export class InteractiveMode implements InteractiveModeContext {
 				this.planModeEnabled = true;
 				break;
 			case "debug":
-				await this.session.enableDebugMode();
+				this.session.enableDebugMode();
 				this.debugModeEnabled = true;
 				this.statusLine.setDebugModeStatus({ enabled: true });
 				break;
@@ -6584,7 +6660,10 @@ export class InteractiveMode implements InteractiveModeContext {
 
 	async cycleAgentMode(): Promise<void> {
 		// Cycle: goal→agent, plan→agent, debug→plan, ask→debug, none→ask
-		switch (this.#activeMode) {
+		// The source mode is the derived one, so the cycle keeps its position
+		// across mode changes that never ran the switch routine (a plan
+		// approval, `/plan`, a session restore).
+		switch (this.modeSnapshot.mode) {
 			case "goal":
 				await this.#setActiveMode("none");
 				this.showStatus("Agent mode enabled");

@@ -29,6 +29,7 @@ import { wrapToolWithAskModeGuard } from "../modes/ask-mode/tool-guard";
 import { MEMORY_BACKEND_TOOL_NAMES } from "../memory-backend/tool-names";
 import type { MnemopiSessionState } from "../mnemopi/state";
 import type { PlanModeState } from "../plan-mode/state";
+import type { ModeSnapshot, ModeSwitchOutcome, SessionMode } from "../modes/mode-state";
 import type { AgentLifecycleManager } from "../registry/agent-lifecycle";
 import type { AgentRegistry } from "../registry/agent-registry";
 import type { ArtifactManager } from "../session/artifacts";
@@ -450,6 +451,18 @@ export interface ToolSession {
 	settings: Settings;
 	/** Plan mode state (if active) */
 	getPlanModeState?: () => PlanModeState | undefined;
+	/**
+	 * The live mode snapshot — the mode the harness is in, derived from its
+	 * state. Tools that reason about the mode read it here rather than keeping
+	 * their own copy, which goes stale as soon as the mode changes.
+	 */
+	getModeSnapshot?: () => ModeSnapshot;
+	/**
+	 * Ask the user to confirm a mode switch and perform it. The outcome carries
+	 * the mode the harness ended up in, so a tool can report the truth to the
+	 * model — the status line is TUI-only.
+	 */
+	requestModeSwitch?: (target: SessionMode, reason?: string) => Promise<ModeSwitchOutcome>;
 	/** Path of the session's active plan reference (e.g. `local://<title>.md`); defaults to `local://PLAN.md`. */
 	getPlanReferencePath?: () => string;
 	/** Ask mode state (if active). Read by in-tool ask-mode guards (mirrors plan-mode-guard). */
