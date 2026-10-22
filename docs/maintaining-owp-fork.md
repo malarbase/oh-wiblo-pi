@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `forklift render` — do not edit it by hand; run the command instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 88 fork commits on top of `upstream/main..main`.
+Total: 90 fork commits on top of `upstream/main..main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -139,7 +139,9 @@ Total: 88 fork commits on top of `upstream/main..main`.
 | `44cc6fbd40` | chore(owp): re-baseline the task executor footprint entry | `.forklift/footprint-baseline.json`, `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 | `790884b56d` | chore(owp): rebaseline the fork commit count to 86 | `.forklift/registry.yaml`, `.omp/skills/forklift-maintain/SKILL.md`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 | `920cc02171` | chore(owp): rebaseline the fork commit count to 87 | `.forklift/registry.yaml`, `.omp/commands/forklift-audit.md`, `.omp/commands/forklift-bootstrap.md`, `.omp/commands/forklift-feature.md`, `.omp/commands/forklift-rebuild.md`, … (4 more) | chore |
-| `pending` | chore(owp): rebaseline the fork commit count to 88 | — | chore |
+| `355f3d6317` | chore(owp): rebaseline the fork commit count to 88 | `.forklift/registry.yaml`, `.omp/commands/forklift-audit.md`, `.omp/commands/forklift-bootstrap.md`, `.omp/commands/forklift-feature.md`, `.omp/commands/forklift-rebuild.md`, … (6 more) | chore |
+| `f5f7e00086` | feat(search): keep the fork's web engines reachable through the catalog | `packages/coding-agent/src/web/search/types.ts`, `packages/coding-agent/test/web/search/fork-engines.test.ts` | code |
+| `pending` | chore(owp): rebaseline the fork commit count to 90 | — | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. A row whose commit is still `pending` is the newest commit in the range — its hash and its file list are unknown until that commit lands, `forklift render` resolves it on the next render. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->

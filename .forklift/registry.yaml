@@ -18,8 +18,8 @@
 # Fork commit count at the last verified rebuild/rebase. `--verify` fails if
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
-generatedAt: "2026-10-21T17:42:46Z"
-expected_fork_commit_count: 88
+generatedAt: "2026-10-22T06:01:20Z"
+expected_fork_commit_count: 90
 
 harness:
   version: 1
@@ -200,6 +200,13 @@ features:
       - "packages/coding-agent/src/web/search/types.ts"
     protecting_tests:
       - "test/tools/web-search-serpapi.test.ts"
+
+  - name: "Fork web engines reachable through the catalog role chain"
+    description: "The fork's serpapi and google-ai engines are only selectable through the catalog - the web role chain resolves catalog models, so an engine without a catalog web/<id> row is loadable but unreachable. The rows live in the fork's copy of the catalog web provider rules."
+    owned_paths:
+      - "packages/catalog/src/compat/rules/providers/web.kdl"
+    protecting_tests:
+      - "packages/coding-agent/test/web/search/fork-engines.test.ts"
 
   - name: "Plan mode /plan load"
     owned_paths:
@@ -746,7 +753,6 @@ features:
   - name: "OWP catalog package"
     owned_paths:
       - "packages/catalog/src/compat/rules.json"
-      - "packages/catalog/src/compat/rules/providers/web.kdl"
       - "packages/catalog/src/models.json"
       - "packages/catalog/src/compat/rules/classes/anthropic.kdl"
       - "packages/catalog/test/build.test.ts"
@@ -952,6 +958,7 @@ features:
       - "packages/coding-agent/test/tools/web-search-google-ai.test.ts"
       - "packages/coding-agent/test/tools/web-search-serpapi.test.ts"
       - "packages/coding-agent/test/vibe/vibe-runtime.test.ts"
+      - "packages/coding-agent/test/web/search/fork-engines.test.ts"
       - "packages/coding-agent/test/write-xdev-dispatch.test.ts"
     protecting_tests:
       - "packages/coding-agent/test/settings-provenance.test.ts"
