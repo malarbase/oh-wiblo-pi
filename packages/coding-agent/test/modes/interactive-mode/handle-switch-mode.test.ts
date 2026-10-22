@@ -13,6 +13,7 @@ import { Agent } from "@oh-my-pi/pi-agent-core";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { resetSettingsForTest, Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { InteractiveMode } from "@oh-my-pi/pi-coding-agent/modes/interactive-mode";
+import { cfgPlanEnabled } from "@oh-my-pi/pi-coding-agent/plan-mode/settings";
 import { deriveModeSnapshot } from "@oh-my-pi/pi-coding-agent/modes/mode-state";
 import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
@@ -155,6 +156,22 @@ describe("mode switching", () => {
 			const outcome = await mode.requestModeSwitch("plan");
 			expect(confirm).toHaveBeenCalledTimes(1);
 			expect(outcome.status).not.toBe("already");
+		});
+
+		it("refuses plan mode when the settings disable it", async () => {
+			// The same gate `/plan` applies: a model-initiated switch must not
+			// enter a mode the user switched off.
+			cfgPlanEnabled.set(session.settings, false);
+			try {
+				const confirm = vi.spyOn(mode, "showHookConfirm").mockResolvedValue(true);
+				const outcome = await mode.requestModeSwitch("plan");
+				expect(confirm).not.toHaveBeenCalled();
+				expect(outcome.status).toBe("failed");
+				expect(outcome.message).toContain("plan.enabled");
+				expect(mode.modeSnapshot.mode).toBe("none");
+			} finally {
+				cfgPlanEnabled.set(session.settings, true);
+			}
 		});
 	});
 });

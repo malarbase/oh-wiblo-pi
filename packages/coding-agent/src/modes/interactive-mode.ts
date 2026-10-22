@@ -6506,6 +6506,14 @@ export class InteractiveMode implements InteractiveModeContext {
 		const request = reason?.trim()
 			? `The agent requests switching to ${label} mode: ${reason.trim()}`
 			: `The agent requests switching to ${label} mode.`;
+		// Plan mode is a user-facing feature: when it is switched off in the
+		// settings, a model-initiated switch into it is refused — the same gate
+		// `/plan` applies — instead of entering a mode the user disabled.
+		if (target === "plan" && !cfgPlanEnabled.get(this.session.settings)) {
+			this.showWarning("Plan mode is disabled in the settings (plan.enabled).");
+			const message = `Harness mode: ${MODE_LABELS[snapshot.mode]}. Plan mode is disabled in the settings (plan.enabled) — the harness stays in ${MODE_LABELS[snapshot.mode]} mode.`;
+			return { status: "failed", mode: snapshot.mode, message };
+		}
 		const confirmed = await this.showHookConfirm(`Switch to ${label} mode?`, request);
 		if (!confirmed) {
 			const message = `Harness mode: ${MODE_LABELS[snapshot.mode]}. The user declined the switch to ${label} mode — the harness is still in ${MODE_LABELS[snapshot.mode]} mode.`;
@@ -6542,6 +6550,10 @@ export class InteractiveMode implements InteractiveModeContext {
 		const next = MODE_FROM_NAME[details.targetMode];
 		if (next === undefined) {
 			this.showStatus(`Unknown mode: ${details.targetMode}`);
+			return;
+		}
+		if (next === "plan" && !cfgPlanEnabled.get(this.session.settings)) {
+			this.showWarning("Plan mode is disabled in the settings (plan.enabled).");
 			return;
 		}
 		const snapshot = this.modeSnapshot;
