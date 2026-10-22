@@ -31,12 +31,12 @@ feature branch           upstream/main
 
 ## Last Sync Point
 
-**Upstream base:** `2056e7d105` (`upstream/main`, 2026-10-21)
-**Date:** 2026-10-21 (topical history rebuild onto upstream/main)
+**Upstream base:** `0b5c27ab24` (`upstream/main`, 2026-10-22)
+**Date:** 2026-10-22 (rebase onto upstream/main)
 **omp commits since:** 0 - the fork sits on upstream's tip
 To generate patches for your next sync:
 ```bash
-git format-patch 2056e7d1051e3b47e56b5d90659d3a28a78ef18d..upstream/main
+git format-patch 0b5c27ab24719c86a5986b95ee55f4e75bc1aaa0..upstream/main
 ```
 
 Update this section after each successful rebase.
@@ -48,100 +48,101 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `forklift render` — do not edit it by hand; run the command instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 90 fork commits on top of `upstream/main..main`.
+Total: 91 fork commits on top of `upstream/main..main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
-| `6a2a682d3a` | owp: Settings layering (project/global scope + revert) | `packages/coding-agent/src/config/settings-ui.ts`, `packages/coding-agent/src/config/settings.ts`, `packages/tui/src/overlays/settings-defs.ts`, `packages/tui/src/overlays/settings-selector.ts` | code |
-| `8e5ca0a341` | owp: Identity | `README.md` | docs only |
-| `d73aa1d0b9` | owp: Ask mode | `packages/coding-agent/src/modes/ask-mode/ask-mode-guard.ts`, `packages/coding-agent/src/modes/ask-mode/bash-readonly.ts`, `packages/coding-agent/src/modes/ask-mode/readonly-tools.ts`, `packages/coding-agent/src/modes/ask-mode/state.ts`, `packages/coding-agent/src/modes/ask-mode/tool-guard.ts`, … (3 more) | code |
-| `5ed7e55f71` | owp: switch_mode tool | `packages/coding-agent/src/prompts/tools/switch-mode.md`, `packages/coding-agent/src/tools/index.ts`, `packages/coding-agent/src/tools/switch-mode.ts` | code |
-| `30b3f0a7cf` | owp: Debug mode | `packages/coding-agent/src/modes/debug-mode/log-server.ts`, `packages/coding-agent/src/modes/debug-mode/state.ts`, `packages/coding-agent/src/prompts/system/debug-mode-context.md` | code |
-| `20028a89c7` | owp: Local discovery + two-level scan | `packages/coding-agent/src/discovery/helpers.ts`, `packages/coding-agent/src/discovery/index.ts`, `packages/coding-agent/src/discovery/pi.ts` | code |
-| `51fd73a846` | owp: Skill grouping | `packages/coding-agent/src/capability/skill.ts`, `packages/coding-agent/src/modes/components/extensions/state-manager.ts`, `packages/tui/src/overlays/extensions/extension-dashboard.ts`, `packages/tui/src/overlays/extensions/extension-list.ts` | code |
-| `067d0962a1` | owp: baseUrl resolution | `packages/coding-agent/src/config/model-registry.ts` | code |
-| `d872387660` | owp: Google search provider | `packages/coding-agent/src/config/settings-schema.ts`, `packages/coding-agent/src/web/search/providers/google-ai.ts`, `packages/coding-agent/src/web/search/providers/google.ts` | code |
-| `5fca1acee4` | owp: SerpAPI search provider | `packages/ai/src/stream.ts`, `packages/coding-agent/src/web/search/provider.ts`, `packages/coding-agent/src/web/search/providers/serpapi.ts`, `packages/coding-agent/src/web/search/types.ts` | code |
-| `5b3d151530` | owp: Plan mode /plan load | `packages/coding-agent/src/plan-mode/state.ts` | code |
-| `8761461221` | owp: Plan storage project path fix | `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/plan-mode/approved-plan.ts`, `packages/coding-agent/src/plan-mode/resolve-handler.ts`, `packages/coding-agent/src/plan-mode/storage.ts` | code |
-| `341089db63` | owp: Provider onboarding wizard | `packages/coding-agent/src/modes/components/provider-onboarding-wizard.ts` | code |
-| `e95aadde72` | owp: Install-binary custom command | `packages/coding-agent/src/extensibility/custom-commands/bundled/install-binary/index.ts` | code |
-| `8c74aad96a` | owp: @mariozechner/* loader aliases | `packages/coding-agent/src/extensibility/custom-commands/loader.ts`, `packages/coding-agent/src/extensibility/extensions/loader.ts` | code |
-| `d944fd69be` | owp: Test filter scope fix | `packages/coding-agent/test/utils/filter-user-extensions.ts` | code |
-| `36736a7a3f` | owp: Unified agent mode cycle (alt+k) | `packages/coding-agent/src/modes/controllers/input-controller.ts`, `packages/tui/src/app-keybindings.ts`, `packages/tui/src/status-line/component.ts`, `packages/tui/src/status-line/segments.ts`, `packages/tui/src/status-line/types.ts` | code |
-| `8c42e7f30b` | owp: Session directory event + jiti loader + authHeader fix | `packages/coding-agent/src/sdk.ts`, `packages/coding-agent/src/session/auth-broker-config.ts`, `packages/coding-agent/src/session/prewalk.ts` | code |
-| `59df3f950f` | owp: Cache write token tracking + bin/owp switcher | `bin/owp`, `docs/cache-token-tracking.md` | code |
-| `7778941f51` | owp: Build dist/owp as primary output | `packages/coding-agent/scripts/build-binary.ts` | code |
-| `35bd3fada4` | owp: Compiled-binary boot fixes (bytecode ESM + addon archive extraction) | `packages/coding-agent/scripts/compile-binary.ts`, `scripts/ci-release-build-binaries.test.ts` | code |
-| `7df52fd919` | owp: Fix plan-mode approval UI + omp bin entry + ETXTBSY fix | `packages/coding-agent/package.json`, `packages/coding-agent/test/tools/bash-interceptor.test.ts` | code |
-| `16e64897c2` | owp: Google search provider + hashline recovery + mode fixes | `.omp/extensions/pi-peon/config.ts`, `.omp/extensions/pi-peon/index.ts`, `.omp/extensions/pi-peon/install.ts`, `.omp/extensions/pi-peon/pack.ts`, `.omp/extensions/pi-peon/package.json`, … (11 more) | code |
-| `8aa6906ba9` | owp: sync-upstream skill and script | `.forklift/registry.yaml`, `.omp/commands/sync-upstream.md`, `.omp/rules/owp-feature-registry.md` | docs only |
-| `b5ca6404ee` | owp: feature-checklist extension | `.omp/extensions/feature-checklist.ts` | code |
-| `dca576842c` | owp: mise.toml + native rebuild docs | `mise.toml` | code |
-| `2d764858eb` | owp: Bazel build config (hermetic PATH, crate annotations) | `.bazelrc`, `MODULE.bazel` | code |
-| `4183595f2b` | owp: Add .gitnexus, .claude/, CLAUDE.md to .gitignore | `.gitignore` | code |
-| `b87666391d` | owp: MiMo-Code edit mode | `packages/coding-agent/src/edit/index.ts`, `packages/coding-agent/src/edit/modes/mimo.ts`, `packages/coding-agent/src/utils/edit-mode.ts`, `packages/tui/src/tools/edit.ts` | code |
-| `61958354b3` | owp: Archive skill-group-toggle openspec spec | `openspec/specs/skill-group-toggle/spec.md` | docs only |
-| `390cc600bc` | owp: Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/src/summary.rs` | code |
-| `13dd8fea07` | owp: OWP workspace and plans | `.omp/extensions/ask-mode-guard.ts`, `.omp/extensions/opencode-zen-free-tier.ts`, `.omp/extensions/plan-author/index.ts`, `.omp/extensions/plan-author/lookup.ts`, `.omp/extensions/plan-author/package.json`, … (20 more) | code |
-| `64a2302c06` | owp: OWP skills | `.omp/skills/google-ai-research/SKILL.md`, `.omp/skills/onboard-provider/SKILL.md`, `.omp/skills/onboard-provider/probe-provider.ts`, `.omp/skills/skill-installer/SKILL.md`, `.omp/skills/tmux-debug/SKILL.md` | code |
-| `0e7984671c` | owp: OWP spec docs | `openspec/config.yaml`, `openspec/specs/ask-mode/spec.md`, `openspec/specs/debug-mode/spec.md`, `openspec/specs/dual-mode-extension-loader/spec.md`, `openspec/specs/install-binary-command/spec.md`, … (4 more) | docs only |
-| `e80c6dc754` | owp: OWP AI package | `packages/ai/src/cli.ts`, `packages/ai/src/index.ts`, `packages/ai/src/utils/h2-fetch.ts`, `packages/ai/src/utils/schema/normalize-cca.ts`, `packages/ai/src/utils/schema/sanitize-google.ts`, … (4 more) | code |
-| `a0c83f17a8` | owp: OWP agent package | `packages/agent/src/append-only-context.ts`, `packages/agent/test/otel.test.ts` | code |
-| `11092c684d` | owp: OWP coding-agent package | `packages/coding-agent/scripts/legacy-pi-virtual-module.ts`, `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`, `packages/coding-agent/src/commands/install.ts`, `packages/coding-agent/src/config/file-lock.ts`, `packages/coding-agent/src/config/model-discovery.ts`, … (56 more) | code |
-| `d8b1c3d0b7` | owp: OWP natives package | `packages/natives/native/embedded-addon.js`, `packages/natives/native/index.d.ts`, `packages/natives/test/windows-staging.test.ts` | code |
-| `ed1f5daf56` | owp: OWP TUI package | `packages/tui/src/autocomplete.ts`, `packages/tui/src/components/settings-list.ts`, `packages/tui/src/overlays/extensions/inspector-panel.ts`, `packages/tui/src/overlays/extensions/types.ts`, `packages/tui/src/symbols.ts`, … (8 more) | code |
-| `4e5a08d8e7` | owp: OWP catalog package | `packages/catalog/src/compat/rules/classes/anthropic.kdl`, `packages/catalog/test/build.test.ts`, `packages/catalog/test/generated-policies.test.ts`, `packages/catalog/test/synthetic-provider.test.ts`, `packages/catalog/test/yolo-auto-provider.test.ts` | code |
-| `c7392d7cb9` | owp: OWP scripts | `scripts/eval-bench-runs.ts`, `scripts/session-stats/README.md` | code |
-| `9b03be4b03` | owp: OWP documentation | `docs/ask_session.md`, `docs/bugs/ask-mode-switch-tool-missing.md`, `docs/bugs/bytecode-childprocess-binding.md`, `docs/bugs/debug-mode-lifecycle.md`, `docs/bugs/edit-tool-session-gaps.md`, … (7 more) | docs only |
-| `82d36ea544` | owp: OWP root config and assets | `Dockerfile` | code |
-| `bfb54fc68d` | owp: Command dispatch composition | `packages/coding-agent/src/slash-commands/builtin-modes.ts` | code |
-| `4267c42354` | owp: Forklift harness | `.forklift/README.md`, `.forklift/footprint-baseline.json`, `.forklift/harness.lock`, `.omp/skills/forklift-doctor/SKILL.md`, `.omp/skills/forklift-init/SKILL.md`, … (3 more) | code |
-| `eedf4ca80d` | owp: OWP fork test suite | `packages/coding-agent/test/agent-session-message-pipeline.test.ts`, `packages/coding-agent/test/agent-session-plan-mode-convergence.test.ts`, `packages/coding-agent/test/config/schema-introspector.test.ts`, `packages/coding-agent/test/discovery/agent-fields.test.ts`, `packages/coding-agent/test/discovery/agents-monorepo-skills.test.ts`, … (39 more) | code |
-| `f6c9455d00` | owp: OWP robomp web bundle | `python/robomp/src/static/assets/index-BCntletT.js`, `python/robomp/src/static/assets/style-B9LxyhOi.css`, `python/robomp/src/static/index.html` | code |
-| `b91ce0a776` | owp: remove python/robomp/ — The fork carries only a trimmed subset of upstream robomp (59 tracked files); the remaining upstream paths are absent on purpose and would otherwise be restored by the next sync. The subset that IS kept is fork-modified and is registered under features (OWP Python RPC), not here. | `python/robomp/.env.example`, `python/robomp/.gitignore`, `python/robomp/AGENTS.md`, `python/robomp/README.md`, `python/robomp/assets/icon.jpg`, … (73 more) | code |
-| `de380eb677` | owp: remove packages/coding-agent/test/auth-broker-migrate.test.ts — fork stubs resolveAuthBrokerConfig to null (no auth-broker) — broker-migration tests cannot pass by design | `packages/coding-agent/test/auth-broker-migrate.test.ts` | code |
-| `03e6789721` | owp: remove packages/coding-agent/test/auth-broker-snapshot-cache.test.ts — fork stubs resolveAuthBrokerConfig to null — broker snapshot-cache tests cannot pass by design | `packages/coding-agent/test/auth-broker-snapshot-cache.test.ts` | code |
-| `bb26d9c02b` | owp: remove packages/coding-agent/test/auth-gateway-account-pool.test.ts — fork does not ship the auth gateway broker | `packages/coding-agent/test/auth-gateway-account-pool.test.ts` | code |
-| `36a6f777ad` | owp: remove packages/coding-agent/test/issue-8096-broker-unreachable-startup.test.ts — broker-unreachable startup paths are unreachable with the fork's null broker config; describeAuthBrokerStartupError is retained defensively | `packages/coding-agent/test/issue-8096-broker-unreachable-startup.test.ts` | code |
-| `74201473b7` | owp: remove packages/coding-agent/test/ — chore(owp): remove upstream-only components | `packages/coding-agent/test/auth-broker-import.test.ts`, `packages/coding-agent/test/compaction-prefer-current-model.test.ts`, `packages/coding-agent/test/discovery/builtin-rules-md.test.ts`, `packages/coding-agent/test/eval/console-table.test.ts`, `packages/coding-agent/test/extensibility/custom-commands/review.test.ts`, … (35 more) | code |
-| `163275d155` | owp: remove packages/utils/test/ — chore(owp): remove upstream-only components | `packages/utils/test/env.test.ts`, `packages/utils/test/format.test.ts`, `packages/utils/test/install-id.test.ts`, `packages/utils/test/sanitize-text.test.ts` | code |
-| `097ce97572` | owp: remove Dockerfile.robomp* — chore(owp): remove upstream-only components | `Dockerfile.robomp`, `Dockerfile.robomp.dockerignore` | code |
-| `139201677e` | owp: remove Dockerfile.dockerignore — chore(owp): remove upstream-only components | `Dockerfile.dockerignore` | code |
-| `ac75fbe9db` | owp: remove packages/agent/test/compaction-error-status.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/compaction-error-status.test.ts` | code |
-| `511cc7fcee` | owp: remove packages/agent/test/compaction-telemetry.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/compaction-telemetry.test.ts` | code |
-| `03f00a40af` | owp: remove packages/agent/test/compaction-thinking-level.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/compaction-thinking-level.test.ts` | code |
-| `9e07d9947c` | owp: remove packages/agent/test/yield.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/yield.test.ts` | code |
-| `81d643e57f` | owp: remove packages/coding-agent/examples/sdk/12-redis-sessions.ts — chore(owp): remove upstream-only components | `packages/coding-agent/examples/sdk/12-redis-sessions.ts` | code |
-| `1bf5c99b3c` | owp: remove packages/coding-agent/examples/sdk/13-sql-sessions.ts — chore(owp): remove upstream-only components | `packages/coding-agent/examples/sdk/13-sql-sessions.ts` | code |
-| `bd8bbcdb58` | owp: remove packages/catalog/test/google-vertex-discovery.test.ts — chore(owp): remove upstream-only components | `packages/catalog/test/google-vertex-discovery.test.ts` | code |
-| `a52ffe3d93` | owp: remove packages/catalog/test/wafer.test.ts — chore(owp): remove upstream-only components | `packages/catalog/test/wafer.test.ts` | code |
-| `0baf3153d5` | owp: remove packages/tui/test/emoji-autocomplete.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/emoji-autocomplete.test.ts` | code |
-| `6c0867533a` | owp: remove packages/tui/test/hyperlink.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/hyperlink.test.ts` | code |
-| `6895666a01` | owp: remove packages/tui/test/raw-sse-pretty.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/raw-sse-pretty.test.ts` | code |
-| `43bcbc7d00` | owp: remove packages/tui/test/settings-list-theme.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/settings-list-theme.test.ts` | code |
-| `cba087f28b` | owp: remove packages/tui/test/shimmer.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/shimmer.test.ts` | code |
-| `048b5e8c71` | owp: remove packages/tui/test/status-line-cache-hit.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/status-line-cache-hit.test.ts` | code |
-| `90c3081325` | owp: remove packages/tui/test/task-nested-live-render.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/task-nested-live-render.test.ts` | code |
-| `cc3858872c` | fix(coding-agent): repair the runtime seams after the upstream rebuild | `.forklift/registry.yaml`, `mise.toml`, `packages/ai/src/cli.ts`, `packages/ai/src/env-api-key.ts`, `packages/coding-agent/src/cli/web-search-cli.ts`, … (43 more) | code |
-| `02cc6a07a4` | chore(owp): rebaseline the fork commit count to 73 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `9d087dae5e` | chore(owp): register the rebuilt fork's own files and rebase the count | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `41e7e92efb` | chore(owp): re-baseline the fork footprint after the rebuild | `.forklift/footprint-baseline.json` | chore |
-| `af08a38ae8` | chore(owp): rebaseline the fork commit count to 76 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `4408f058e2` | chore(owp): drop the stale SEARCH_PROVIDER_OPTIONS owned symbol | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `18bd27a5ae` | chore(owp): refresh the owned-symbol registry after the rebuild | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `34d3feb4c9` | chore(owp): prune the stats owned symbols and record the new sync point | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `7aba8e7219` | feat(search): make the fork's serpapi and google-ai engines reachable again | `packages/catalog/src/compat/rules.json`, `packages/catalog/src/compat/rules/providers/web.kdl`, `packages/catalog/src/models.json`, `packages/coding-agent/src/web/search/provider.ts` | code |
-| `b67bc0cf90` | test(vibe): port the two hanging vibe-runtime tests to the current loader | `packages/coding-agent/test/vibe/vibe-runtime.test.ts` | code |
-| `ab487e5a0c` | chore(owp): sharpen the robomp removals rule and document the toolchain pins | `.forklift/registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
-| `129bca1f05` | chore(owp): rebaseline the fork commit count to 83 | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `ffcc983941` | chore(owp): register the catalog files the fork now owns | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `44cc6fbd40` | chore(owp): re-baseline the task executor footprint entry | `.forklift/footprint-baseline.json`, `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `790884b56d` | chore(owp): rebaseline the fork commit count to 86 | `.forklift/registry.yaml`, `.omp/skills/forklift-maintain/SKILL.md`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
-| `920cc02171` | chore(owp): rebaseline the fork commit count to 87 | `.forklift/registry.yaml`, `.omp/commands/forklift-audit.md`, `.omp/commands/forklift-bootstrap.md`, `.omp/commands/forklift-feature.md`, `.omp/commands/forklift-rebuild.md`, … (4 more) | chore |
-| `355f3d6317` | chore(owp): rebaseline the fork commit count to 88 | `.forklift/registry.yaml`, `.omp/commands/forklift-audit.md`, `.omp/commands/forklift-bootstrap.md`, `.omp/commands/forklift-feature.md`, `.omp/commands/forklift-rebuild.md`, … (6 more) | chore |
-| `f5f7e00086` | feat(search): keep the fork's web engines reachable through the catalog | `packages/coding-agent/src/web/search/types.ts`, `packages/coding-agent/test/web/search/fork-engines.test.ts` | code |
-| `pending` | chore(owp): rebaseline the fork commit count to 90 | — | chore |
+| `21466d7089` | owp: Settings layering (project/global scope + revert) | `packages/coding-agent/src/config/settings-ui.ts`, `packages/coding-agent/src/config/settings.ts`, `packages/tui/src/overlays/settings-defs.ts`, `packages/tui/src/overlays/settings-selector.ts` | code |
+| `8e61e911da` | owp: Identity | `README.md` | docs only |
+| `085fa67300` | owp: Ask mode | `packages/coding-agent/src/modes/ask-mode/ask-mode-guard.ts`, `packages/coding-agent/src/modes/ask-mode/bash-readonly.ts`, `packages/coding-agent/src/modes/ask-mode/readonly-tools.ts`, `packages/coding-agent/src/modes/ask-mode/state.ts`, `packages/coding-agent/src/modes/ask-mode/tool-guard.ts`, … (3 more) | code |
+| `d100733157` | owp: switch_mode tool | `packages/coding-agent/src/prompts/tools/switch-mode.md`, `packages/coding-agent/src/tools/index.ts`, `packages/coding-agent/src/tools/switch-mode.ts` | code |
+| `a462324f7e` | owp: Debug mode | `packages/coding-agent/src/modes/debug-mode/log-server.ts`, `packages/coding-agent/src/modes/debug-mode/state.ts`, `packages/coding-agent/src/prompts/system/debug-mode-context.md` | code |
+| `bf982297a2` | owp: Local discovery + two-level scan | `packages/coding-agent/src/discovery/helpers.ts`, `packages/coding-agent/src/discovery/index.ts`, `packages/coding-agent/src/discovery/pi.ts` | code |
+| `3325d843d0` | owp: Skill grouping | `packages/coding-agent/src/capability/skill.ts`, `packages/coding-agent/src/modes/components/extensions/state-manager.ts`, `packages/tui/src/overlays/extensions/extension-dashboard.ts`, `packages/tui/src/overlays/extensions/extension-list.ts` | code |
+| `e020e87390` | owp: baseUrl resolution | `packages/coding-agent/src/config/model-registry.ts` | code |
+| `413fad52aa` | owp: Google search provider | `packages/coding-agent/src/config/settings-schema.ts`, `packages/coding-agent/src/web/search/providers/google-ai.ts`, `packages/coding-agent/src/web/search/providers/google.ts` | code |
+| `8349863dc3` | owp: SerpAPI search provider | `packages/ai/src/stream.ts`, `packages/coding-agent/src/web/search/provider.ts`, `packages/coding-agent/src/web/search/providers/serpapi.ts`, `packages/coding-agent/src/web/search/types.ts` | code |
+| `2206989199` | owp: Plan mode /plan load | `packages/coding-agent/src/plan-mode/state.ts` | code |
+| `5dd6a4b86f` | owp: Plan storage project path fix | `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/plan-mode/approved-plan.ts`, `packages/coding-agent/src/plan-mode/resolve-handler.ts`, `packages/coding-agent/src/plan-mode/storage.ts` | code |
+| `bcae84b20a` | owp: Provider onboarding wizard | `packages/coding-agent/src/modes/components/provider-onboarding-wizard.ts` | code |
+| `d5b7de5f01` | owp: Install-binary custom command | `packages/coding-agent/src/extensibility/custom-commands/bundled/install-binary/index.ts` | code |
+| `ba539d25ec` | owp: @mariozechner/* loader aliases | `packages/coding-agent/src/extensibility/custom-commands/loader.ts`, `packages/coding-agent/src/extensibility/extensions/loader.ts` | code |
+| `a238f2b7a0` | owp: Test filter scope fix | `packages/coding-agent/test/utils/filter-user-extensions.ts` | code |
+| `b12a54d4fc` | owp: Unified agent mode cycle (alt+k) | `packages/coding-agent/src/modes/controllers/input-controller.ts`, `packages/tui/src/app-keybindings.ts`, `packages/tui/src/status-line/component.ts`, `packages/tui/src/status-line/segments.ts`, `packages/tui/src/status-line/types.ts` | code |
+| `3e8a1bb070` | owp: Session directory event + jiti loader + authHeader fix | `packages/coding-agent/src/sdk.ts`, `packages/coding-agent/src/session/auth-broker-config.ts`, `packages/coding-agent/src/session/prewalk.ts` | code |
+| `9e75569912` | owp: Cache write token tracking + bin/owp switcher | `bin/owp`, `docs/cache-token-tracking.md` | code |
+| `a307690a41` | owp: Build dist/owp as primary output | `packages/coding-agent/scripts/build-binary.ts` | code |
+| `4b0eef3035` | owp: Compiled-binary boot fixes (bytecode ESM + addon archive extraction) | `packages/coding-agent/scripts/compile-binary.ts`, `scripts/ci-release-build-binaries.test.ts` | code |
+| `c35a937541` | owp: Fix plan-mode approval UI + omp bin entry + ETXTBSY fix | `packages/coding-agent/package.json`, `packages/coding-agent/test/tools/bash-interceptor.test.ts` | code |
+| `32c673aec6` | owp: Google search provider + hashline recovery + mode fixes | `.omp/extensions/pi-peon/config.ts`, `.omp/extensions/pi-peon/index.ts`, `.omp/extensions/pi-peon/install.ts`, `.omp/extensions/pi-peon/pack.ts`, `.omp/extensions/pi-peon/package.json`, … (11 more) | code |
+| `65efe302e2` | owp: sync-upstream skill and script | `.forklift/registry.yaml`, `.omp/commands/sync-upstream.md`, `.omp/rules/owp-feature-registry.md` | docs only |
+| `e0cdacd1ff` | owp: feature-checklist extension | `.omp/extensions/feature-checklist.ts` | code |
+| `ddc24a462d` | owp: mise.toml + native rebuild docs | `mise.toml` | code |
+| `512438dd40` | owp: Bazel build config (hermetic PATH, crate annotations) | `.bazelrc`, `MODULE.bazel` | code |
+| `d3c3b2e15c` | owp: Add .gitnexus, .claude/, CLAUDE.md to .gitignore | `.gitignore` | code |
+| `d2238e5b60` | owp: MiMo-Code edit mode | `packages/coding-agent/src/edit/index.ts`, `packages/coding-agent/src/edit/modes/mimo.ts`, `packages/coding-agent/src/utils/edit-mode.ts`, `packages/tui/src/tools/edit.ts` | code |
+| `8e86eb206c` | owp: Archive skill-group-toggle openspec spec | `openspec/specs/skill-group-toggle/spec.md` | docs only |
+| `52b20dde44` | owp: Work around zlob/zig build failure on macOS 26 | `crates/pi-natives/src/summary.rs` | code |
+| `b3dd40921e` | owp: OWP workspace and plans | `.omp/extensions/ask-mode-guard.ts`, `.omp/extensions/opencode-zen-free-tier.ts`, `.omp/extensions/plan-author/index.ts`, `.omp/extensions/plan-author/lookup.ts`, `.omp/extensions/plan-author/package.json`, … (20 more) | code |
+| `2c15218416` | owp: OWP skills | `.omp/skills/google-ai-research/SKILL.md`, `.omp/skills/onboard-provider/SKILL.md`, `.omp/skills/onboard-provider/probe-provider.ts`, `.omp/skills/skill-installer/SKILL.md`, `.omp/skills/tmux-debug/SKILL.md` | code |
+| `8dd9f340d0` | owp: OWP spec docs | `openspec/config.yaml`, `openspec/specs/ask-mode/spec.md`, `openspec/specs/debug-mode/spec.md`, `openspec/specs/dual-mode-extension-loader/spec.md`, `openspec/specs/install-binary-command/spec.md`, … (4 more) | docs only |
+| `8a91dc17e1` | owp: OWP AI package | `packages/ai/src/cli.ts`, `packages/ai/src/index.ts`, `packages/ai/src/utils/h2-fetch.ts`, `packages/ai/src/utils/schema/normalize-cca.ts`, `packages/ai/src/utils/schema/sanitize-google.ts`, … (4 more) | code |
+| `4006fd167d` | owp: OWP agent package | `packages/agent/src/append-only-context.ts`, `packages/agent/test/otel.test.ts` | code |
+| `423dc37ac8` | owp: OWP coding-agent package | `packages/coding-agent/scripts/legacy-pi-virtual-module.ts`, `packages/coding-agent/src/cli/gallery-fixtures/segments.ts`, `packages/coding-agent/src/commands/install.ts`, `packages/coding-agent/src/config/file-lock.ts`, `packages/coding-agent/src/config/model-discovery.ts`, … (56 more) | code |
+| `8cfbb7a61c` | owp: OWP natives package | `packages/natives/native/embedded-addon.js`, `packages/natives/native/index.d.ts`, `packages/natives/test/windows-staging.test.ts` | code |
+| `dfc305026f` | owp: OWP TUI package | `packages/tui/src/autocomplete.ts`, `packages/tui/src/components/settings-list.ts`, `packages/tui/src/overlays/extensions/inspector-panel.ts`, `packages/tui/src/overlays/extensions/types.ts`, `packages/tui/src/symbols.ts`, … (8 more) | code |
+| `346b94c54b` | owp: OWP catalog package | `packages/catalog/src/compat/rules/classes/anthropic.kdl`, `packages/catalog/test/build.test.ts`, `packages/catalog/test/generated-policies.test.ts`, `packages/catalog/test/synthetic-provider.test.ts`, `packages/catalog/test/yolo-auto-provider.test.ts` | code |
+| `65915e03d5` | owp: OWP scripts | `scripts/eval-bench-runs.ts`, `scripts/session-stats/README.md` | code |
+| `9fe25c7cd0` | owp: OWP documentation | `docs/ask_session.md`, `docs/bugs/ask-mode-switch-tool-missing.md`, `docs/bugs/bytecode-childprocess-binding.md`, `docs/bugs/debug-mode-lifecycle.md`, `docs/bugs/edit-tool-session-gaps.md`, … (7 more) | docs only |
+| `a9ad52e812` | owp: OWP root config and assets | `Dockerfile` | code |
+| `9af7a42d22` | owp: Command dispatch composition | `packages/coding-agent/src/slash-commands/builtin-modes.ts` | code |
+| `26cbcc16d5` | owp: Forklift harness | `.forklift/README.md`, `.forklift/footprint-baseline.json`, `.forklift/harness.lock`, `.omp/skills/forklift-doctor/SKILL.md`, `.omp/skills/forklift-init/SKILL.md`, … (3 more) | code |
+| `543289bf94` | owp: OWP fork test suite | `packages/coding-agent/test/agent-session-message-pipeline.test.ts`, `packages/coding-agent/test/agent-session-plan-mode-convergence.test.ts`, `packages/coding-agent/test/config/schema-introspector.test.ts`, `packages/coding-agent/test/discovery/agent-fields.test.ts`, `packages/coding-agent/test/discovery/agents-monorepo-skills.test.ts`, … (39 more) | code |
+| `750c958825` | owp: OWP robomp web bundle | `python/robomp/src/static/assets/index-BCntletT.js`, `python/robomp/src/static/assets/style-B9LxyhOi.css`, `python/robomp/src/static/index.html` | code |
+| `a5f2525260` | owp: remove python/robomp/ — The fork carries only a trimmed subset of upstream robomp (59 tracked files); the remaining upstream paths are absent on purpose and would otherwise be restored by the next sync. The subset that IS kept is fork-modified and is registered under features (OWP Python RPC), not here. | `python/robomp/.env.example`, `python/robomp/.gitignore`, `python/robomp/AGENTS.md`, `python/robomp/README.md`, `python/robomp/assets/icon.jpg`, … (73 more) | code |
+| `e8eb05929c` | owp: remove packages/coding-agent/test/auth-broker-migrate.test.ts — fork stubs resolveAuthBrokerConfig to null (no auth-broker) — broker-migration tests cannot pass by design | `packages/coding-agent/test/auth-broker-migrate.test.ts` | code |
+| `4e83ce1b9f` | owp: remove packages/coding-agent/test/auth-broker-snapshot-cache.test.ts — fork stubs resolveAuthBrokerConfig to null — broker snapshot-cache tests cannot pass by design | `packages/coding-agent/test/auth-broker-snapshot-cache.test.ts` | code |
+| `b1f821a813` | owp: remove packages/coding-agent/test/auth-gateway-account-pool.test.ts — fork does not ship the auth gateway broker | `packages/coding-agent/test/auth-gateway-account-pool.test.ts` | code |
+| `10d7191280` | owp: remove packages/coding-agent/test/issue-8096-broker-unreachable-startup.test.ts — broker-unreachable startup paths are unreachable with the fork's null broker config; describeAuthBrokerStartupError is retained defensively | `packages/coding-agent/test/issue-8096-broker-unreachable-startup.test.ts` | code |
+| `ec38f61298` | owp: remove packages/coding-agent/test/ — chore(owp): remove upstream-only components | `packages/coding-agent/test/auth-broker-import.test.ts`, `packages/coding-agent/test/compaction-prefer-current-model.test.ts`, `packages/coding-agent/test/discovery/builtin-rules-md.test.ts`, `packages/coding-agent/test/eval/console-table.test.ts`, `packages/coding-agent/test/extensibility/custom-commands/review.test.ts`, … (35 more) | code |
+| `384d881624` | owp: remove packages/utils/test/ — chore(owp): remove upstream-only components | `packages/utils/test/env.test.ts`, `packages/utils/test/format.test.ts`, `packages/utils/test/install-id.test.ts`, `packages/utils/test/sanitize-text.test.ts` | code |
+| `8de401419a` | owp: remove Dockerfile.robomp* — chore(owp): remove upstream-only components | `Dockerfile.robomp`, `Dockerfile.robomp.dockerignore` | code |
+| `cf4b70ea17` | owp: remove Dockerfile.dockerignore — chore(owp): remove upstream-only components | `Dockerfile.dockerignore` | code |
+| `254f0f2f02` | owp: remove packages/agent/test/compaction-error-status.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/compaction-error-status.test.ts` | code |
+| `3b57e07324` | owp: remove packages/agent/test/compaction-telemetry.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/compaction-telemetry.test.ts` | code |
+| `39878878a1` | owp: remove packages/agent/test/compaction-thinking-level.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/compaction-thinking-level.test.ts` | code |
+| `d6216c896b` | owp: remove packages/agent/test/yield.test.ts — chore(owp): remove upstream-only components | `packages/agent/test/yield.test.ts` | code |
+| `b8224bdf03` | owp: remove packages/coding-agent/examples/sdk/12-redis-sessions.ts — chore(owp): remove upstream-only components | `packages/coding-agent/examples/sdk/12-redis-sessions.ts` | code |
+| `343126e9c7` | owp: remove packages/coding-agent/examples/sdk/13-sql-sessions.ts — chore(owp): remove upstream-only components | `packages/coding-agent/examples/sdk/13-sql-sessions.ts` | code |
+| `ddb222ee9d` | owp: remove packages/catalog/test/google-vertex-discovery.test.ts — chore(owp): remove upstream-only components | `packages/catalog/test/google-vertex-discovery.test.ts` | code |
+| `4690d536ba` | owp: remove packages/catalog/test/wafer.test.ts — chore(owp): remove upstream-only components | `packages/catalog/test/wafer.test.ts` | code |
+| `d3ed5fca30` | owp: remove packages/tui/test/emoji-autocomplete.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/emoji-autocomplete.test.ts` | code |
+| `96d3d41af6` | owp: remove packages/tui/test/hyperlink.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/hyperlink.test.ts` | code |
+| `1d1a4773ba` | owp: remove packages/tui/test/raw-sse-pretty.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/raw-sse-pretty.test.ts` | code |
+| `3653376fc7` | owp: remove packages/tui/test/settings-list-theme.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/settings-list-theme.test.ts` | code |
+| `af30a81f70` | owp: remove packages/tui/test/shimmer.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/shimmer.test.ts` | code |
+| `e78248fa90` | owp: remove packages/tui/test/status-line-cache-hit.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/status-line-cache-hit.test.ts` | code |
+| `a45e456671` | owp: remove packages/tui/test/task-nested-live-render.test.ts — chore(owp): remove upstream-only components | `packages/tui/test/task-nested-live-render.test.ts` | code |
+| `ad999fb196` | fix(coding-agent): repair the runtime seams after the upstream rebuild | `.forklift/registry.yaml`, `mise.toml`, `packages/ai/src/cli.ts`, `packages/ai/src/env-api-key.ts`, `packages/coding-agent/src/cli/web-search-cli.ts`, … (43 more) | code |
+| `e3340db91b` | chore(owp): rebaseline the fork commit count to 73 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `1206f24f55` | chore(owp): register the rebuilt fork's own files and rebase the count | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `b22e0aece1` | chore(owp): re-baseline the fork footprint after the rebuild | `.forklift/footprint-baseline.json` | chore |
+| `806db7186c` | chore(owp): rebaseline the fork commit count to 76 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `d6de956fed` | chore(owp): drop the stale SEARCH_PROVIDER_OPTIONS owned symbol | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `0f3377635b` | chore(owp): refresh the owned-symbol registry after the rebuild | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `2bd2ba9d7a` | chore(owp): prune the stats owned symbols and record the new sync point | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `c542f279e4` | feat(search): make the fork's serpapi and google-ai engines reachable again | `packages/catalog/src/compat/rules.json`, `packages/catalog/src/compat/rules/providers/web.kdl`, `packages/catalog/src/models.json`, `packages/coding-agent/src/web/search/provider.ts` | code |
+| `a8711354fa` | test(vibe): port the two hanging vibe-runtime tests to the current loader | `packages/coding-agent/test/vibe/vibe-runtime.test.ts` | code |
+| `4cfbb8b85f` | chore(owp): sharpen the robomp removals rule and document the toolchain pins | `.forklift/registry.yaml`, `docs/maintaining-owp-fork.md` | chore |
+| `6e5d5d6210` | chore(owp): rebaseline the fork commit count to 83 | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `c8594482d4` | chore(owp): register the catalog files the fork now owns | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `f474dbf75e` | chore(owp): re-baseline the task executor footprint entry | `.forklift/footprint-baseline.json`, `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `5b2c13d39a` | chore(owp): rebaseline the fork commit count to 86 | `.forklift/registry.yaml`, `.omp/skills/forklift-maintain/SKILL.md`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `53bc15b969` | chore(owp): rebaseline the fork commit count to 87 | `.forklift/registry.yaml`, `.omp/commands/forklift-audit.md`, `.omp/commands/forklift-bootstrap.md`, `.omp/commands/forklift-feature.md`, `.omp/commands/forklift-rebuild.md`, … (4 more) | chore |
+| `6b6fd354c5` | chore(owp): rebaseline the fork commit count to 88 | `.forklift/registry.yaml`, `.omp/commands/forklift-audit.md`, `.omp/commands/forklift-bootstrap.md`, `.omp/commands/forklift-feature.md`, `.omp/commands/forklift-rebuild.md`, … (6 more) | chore |
+| `8110a0be8f` | feat(search): keep the fork's web engines reachable through the catalog | `packages/coding-agent/src/web/search/types.ts`, `packages/coding-agent/test/web/search/fork-engines.test.ts` | code |
+| `6a5e50090f` | chore(owp): rebaseline the fork commit count to 90 | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `pending` | chore(owp): rebaseline the fork commit count to 91 | — | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. A row whose commit is still `pending` is the newest commit in the range — its hash and its file list are unknown until that commit lands, `forklift render` resolves it on the next render. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->
