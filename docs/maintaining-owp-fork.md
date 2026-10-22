@@ -48,7 +48,7 @@ Update this section after each successful rebase.
 > fork/main is a linear stack of fork commits on top of `upstream/main`. The table below is **generated** from git history by `forklift render` — do not edit it by hand; run the command instead.
 
 <!-- GENERATED:fork-commits:start -->
-Total: 94 fork commits on top of `upstream/main..main`.
+Total: 96 fork commits on top of `upstream/main..main`.
 
 | Commit | Feature | Owned Files | Status |
 |--------|---------|------------|--------|
@@ -145,7 +145,9 @@ Total: 94 fork commits on top of `upstream/main..main`.
 | `895381a24c` | chore(owp): rebaseline the fork commit count to 91 | `.forklift/registry.yaml`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
 | `4fd6259081` | owp: derive the session mode, and let switch_mode report the outcome | `docs/mode-registry-future-architecture.md`, `packages/coding-agent/src/modes/controllers/event-controller.ts`, `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/src/modes/mode-state.ts`, `packages/coding-agent/src/prompts/tools/switch-mode.md`, … (10 more) | code |
 | `9a23818570` | chore(owp): register the derived-mode module and the fork's new test | `.forklift/registry.yaml` | chore |
-| `pending` | chore(owp): render the fork table and move the expected count to 94 | — | chore |
+| `0e328e489b` | chore(owp): render the fork table and move the expected count to 94 | `.forklift/registry.yaml`, `.omp/skills/sync-upstream/SKILL.md`, `AGENT.md`, `docs/maintaining-owp-fork.md` | chore |
+| `0e31324f1f` | owp: honour plan.enabled when a model asks for plan mode | `packages/coding-agent/src/modes/interactive-mode.ts`, `packages/coding-agent/test/modes/interactive-mode/handle-switch-mode.test.ts` | code |
+| `pending` | chore(owp): render the fork table and move the expected count to 96 | — | chore |
 
 > **Note:** Generated from `git log upstream/main..main`. A row whose commit is still `pending` is the newest commit in the range — its hash and its file list are unknown until that commit lands, `forklift render` resolves it on the next render. Commit hashes change on every rebase — refresh this table by running `forklift render`, never by hand.
 <!-- GENERATED:fork-commits:end -->
