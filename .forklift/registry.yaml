@@ -19,7 +19,7 @@
 # `git rev-list --count upstream/main..main` drifts from this without a
 # deliberate registry update (rebuild, merge, or intentional commit drop).
 generatedAt: "2026-10-22T06:01:20Z"
-expected_fork_commit_count: 91
+expected_fork_commit_count: 92
 
 harness:
   version: 1
@@ -127,10 +127,14 @@ features:
   - name: "switch_mode tool"
     description: "Agent-initiated mode switch; always active at top level, never xd://-mounted"
     owned_paths:
+      - "packages/coding-agent/src/modes/mode-state.ts"
       - "packages/coding-agent/src/prompts/tools/switch-mode.md"
       - "packages/coding-agent/src/tools/index.ts"
       - "packages/coding-agent/src/tools/switch-mode.ts"
     protecting_tests:
+      - "test/modes/interactive-mode/handle-switch-mode.test.ts"
+      - "test/sdk-current-mode.test.ts"
+      - "test/sdk-switch-mode-wiring.test.ts"
       - "test/tools/switch-mode.test.ts"
       - "test/tools/index.test.ts"
 
@@ -936,7 +940,7 @@ features:
       - "packages/coding-agent/test/modes/debug-mode/debug-log-server.test.ts"
       - "packages/coding-agent/test/modes/debug-mode/debug-mode-context-injection.test.ts"
       - "packages/coding-agent/test/modes/extensions/extension-state-manager.test.ts"
-      - "packages/coding-agent/test/modes/interactive-mode/handle-switch-mode-noop.test.ts"
+      - "packages/coding-agent/test/modes/interactive-mode/handle-switch-mode.test.ts"
       - "packages/coding-agent/test/modes/mode-segment-status.test.ts"
       - "packages/coding-agent/test/plan-mode/approved-plan.test.ts"
       - "packages/coding-agent/test/plan-mode/plan-mode-resolve.test.ts"
