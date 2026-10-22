@@ -27,7 +27,14 @@ export const DEFAULT_WEB_SEARCH_TIMEOUT_SECONDS = 60;
 export const MAX_WEB_SEARCH_TIMEOUT_SECONDS = 300;
 
 /** Fork-added pure search engines beyond upstream's catalog `web/*` set. */
-export type OwpSearchEngineId = "serpapi" | "google-ai";
+export const OWP_SEARCH_ENGINE_IDS = ["serpapi", "google-ai"] as const;
+
+/**
+ * Fork engine ids. Every one of them needs a catalog `web/<id>` row: the web
+ * role chain only ever selects catalog models, so an engine without a row is
+ * loadable but unreachable.
+ */
+export type OwpSearchEngineId = (typeof OWP_SEARCH_ENGINE_IDS)[number];
 
 /** Every provider id the fork's web search reports: upstream's set plus the fork's engines. */
 export type SearchProviderId = UpstreamSearchProviderId | OwpSearchEngineId;
@@ -61,8 +68,7 @@ export type SearchEngineId = Exclude<UpstreamSearchProviderId, WebSearchGroundin
 export const SEARCH_PROVIDER_ORDER: readonly SearchProviderId[] = [
 	...new Set([
 		...(Object.keys(UPSTREAM_SEARCH_PROVIDER_LABELS) as UpstreamSearchProviderId[]),
-		"serpapi",
-		"google-ai",
+		...OWP_SEARCH_ENGINE_IDS,
 	] as SearchProviderId[]),
 ];
 
